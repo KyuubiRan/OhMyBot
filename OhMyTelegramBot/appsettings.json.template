@@ -1,6 +1,7 @@
 {
-  "Telegram": {
-    "BotToken": "",
-    "OwnerId": 0
+  "Bot": {
+    "Token": "",
+    "OwnerId": 0,
+    "CommandPrefixes": ["/", "!"]
   }
 }

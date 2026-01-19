@@ -34,11 +34,11 @@ public static partial class MyBot
         Logger.LogInformation("OhMyTelegramBot is starting...");
 
         var configs = Instance.Configuration;
-        var token = configs["Telegram:BotToken"] ?? Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN");
+        var token = configs["Bot:Token"] ?? Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN");
         
         if (string.IsNullOrWhiteSpace(token))
         {
-            Logger.LogError("Telegram bot token is not configured. Please set the 'Telegram:BotToken' configuration.");
+            Logger.LogError("Telegram bot token is not configured. Please set the 'Bot:Token' in appsettings.json");
             Environment.Exit(1);
         }
 
