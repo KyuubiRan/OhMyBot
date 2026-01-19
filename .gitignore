@@ -1,0 +1,11 @@
+/.idea
+/.vs
+/.vscode
+
+/OhMyBot/bin
+/OhMyBot/obj
+/OhMyTelegramBot/bin
+/OhMyTelegramBot/obj
+
+/OhMyTelegramBot/appsettings.json
+OhMyBot.sln.DotSettings.user

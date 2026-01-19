@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OhMyBot", "OhMyBot\OhMyBot.csproj", "{DD160FAD-D8B0-44F9-BE95-BAE267ED21F9}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "OhMyTelegramBot", "OhMyTelegramBot\OhMyTelegramBot.csproj", "{1AC4C20D-8ED0-4C50-9E1B-58796C7CC1EC}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{DD160FAD-D8B0-44F9-BE95-BAE267ED21F9}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{DD160FAD-D8B0-44F9-BE95-BAE267ED21F9}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{DD160FAD-D8B0-44F9-BE95-BAE267ED21F9}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{DD160FAD-D8B0-44F9-BE95-BAE267ED21F9}.Release|Any CPU.Build.0 = Release|Any CPU
+		{1AC4C20D-8ED0-4C50-9E1B-58796C7CC1EC}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{1AC4C20D-8ED0-4C50-9E1B-58796C7CC1EC}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{1AC4C20D-8ED0-4C50-9E1B-58796C7CC1EC}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{1AC4C20D-8ED0-4C50-9E1B-58796C7CC1EC}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
