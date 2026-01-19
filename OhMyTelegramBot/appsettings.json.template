@@ -2,6 +2,11 @@
   "Bot": {
     "Token": "",
     "OwnerId": 0,
-    "CommandPrefixes": ["/", "!"]
+    "CommandPrefixes": ["/", "!"],
+    "EnableProxy": true,
+    "HttpProxy": {
+      "Host": "http://127.0.0.1",
+      "Port": 7890
+    }
   }
 }
