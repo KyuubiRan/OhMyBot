@@ -6,59 +6,67 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OhMyBot;
 using OhMyBot.Attributes;
+using OhMyTelegramBot.MessageHandlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace OhMyTelegramBot;
 
-public static partial class MyBot
+public static class MyBot
 {
-    public static readonly MyBotApplication Instance = new MyBotApplication.Builder()
-                                                       .ConfigDefaultConsoleLogging()
-                                                       .ConfigDefaultConfiguration()
-                                                       .ConfigureServices(x =>
-                                                       {
-                                                           Assembly.GetAssembly(typeof(MyBotApplication))?.Let(x.MapComponents);
-                                                           x.MapComponents(Assembly.GetExecutingAssembly());
-                                                       })
-                                                       .Build();
+    private static readonly MyBotApplication Instance =
+        new MyBotApplication.Builder()
+            .ConfigDefaultConsoleLogging()
+            .ConfigDefaultConfiguration()
+            .ConfigureServices((x, c) =>
+            {
+                Assembly.GetAssembly(typeof(MyBotApplication))?.Let(x.MapComponents);
+                x.MapComponents(Assembly.GetExecutingAssembly());
+                x.AddSingleton<ITelegramBotClient, TelegramBotClient>(_ =>
+                {
+                    var token = c["Bot:Token"] ?? Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN");
+                    if (token.IsWhiteSpaceOrNull)
+                    {
+                        Console.Error.WriteLine(
+                            "Telegram bot token is not configured. Please set it in appsettings.json or environment variable 'TELEGRAME_BOT_TOKEN'");
+                        Environment.Exit(1);
+                    }
 
-    private static readonly ILogger Logger = Instance.ServiceProvider
-                                                     .GetRequiredService<ILoggerFactory>()
-                                                     .CreateLogger("Main");
+                    var botClient = new TelegramBotClient(token);
+                    botClient.OnUpdate += OnUpdate;
 
-    private static TelegramBotClient _botClient = null!;
+                    return botClient;
+                });
+            })
+            .Build();
+
+    private static readonly ILogger Logger = Instance
+                                             .ServiceProvider
+                                             .GetRequiredService<ILoggerFactory>()
+                                             .CreateLogger("Main");
 
     public static async Task Main(string[] args)
     {
-        Logger.LogInformation("OhMyTelegramBot is starting...");
-
-        var configs = Instance.Configuration;
-        var token = configs["Bot:Token"] ?? Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN");
+        _ = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
+        Logger.LogInformation("Bot started.");
         
-        if (string.IsNullOrWhiteSpace(token))
-        {
-            Logger.LogError("Telegram bot token is not configured. Please set the 'Bot:Token' in appsettings.json");
-            Environment.Exit(1);
-        }
-
-        var botClient = _botClient = new TelegramBotClient(token);
-        botClient.OnUpdate += OnUpdate;
-
-        Logger.LogInformation("OhMyTelegramBot has started.");
-
         await Task.Delay(-1);
     }
 
     private static async Task OnUpdate(Update update)
     {
+        await using var scope = Instance.ServiceProvider.CreateAsyncScope();
         if (update.Message is { } m)
         {
-            LogReceivedMessage(Logger, m.Chat.Id, m.From?.Id ?? 0, m.Text ?? "[non-text message]");
-            await _botClient.SendMessage(update.Message.Chat.Id, m.Text ?? "[non-text message]");
+            switch (m.Type)
+            {
+                case MessageType.Text:
+                {
+                    scope.ServiceProvider.GetRequiredService<PlantTextHandler>().OnReceiveTextMessage(m);
+                    break;
+                }
+            }
         }
     }
-
-    [LoggerMessage(LogLevel.Information, "Received message from CID={chatId} (SID={senderId}): {text}")]
-    static partial void LogReceivedMessage(ILogger logger, long chatId, long senderId, string text);
 }

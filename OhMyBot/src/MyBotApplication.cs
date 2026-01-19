@@ -9,11 +9,11 @@ namespace OhMyBot;
 public sealed class MyBotApplication : IDisposable
 {
     private readonly ServiceProvider _sp;
-    
-    public IServiceProvider ServiceProvider => _sp;
-    public readonly IConfigurationRoot Configuration;
 
-    private MyBotApplication(ServiceProvider serviceProvider, IConfigurationRoot configuration)
+    public IServiceProvider ServiceProvider => _sp;
+    public readonly ConfigurationManager Configuration;
+
+    private MyBotApplication(ServiceProvider serviceProvider, ConfigurationManager configuration)
     {
         _sp = serviceProvider;
         Configuration = configuration;
@@ -22,11 +22,17 @@ public sealed class MyBotApplication : IDisposable
     public class Builder
     {
         public readonly IServiceCollection Services = new ServiceCollection();
-        public ConfigurationBuilder ConfigurationBuilder = new();
+        public readonly ConfigurationManager Configuration = new();
 
         public Builder ConfigureServices(Action<IServiceCollection> configure)
         {
             configure(Services);
+            return this;
+        }
+
+        public Builder ConfigureServices(Action<IServiceCollection, ConfigurationManager> configure)
+        {
+            configure(Services, Configuration);
             return this;
         }
 
@@ -45,9 +51,8 @@ public sealed class MyBotApplication : IDisposable
 
         public Builder ConfigDefaultConfiguration()
         {
-            ConfigurationBuilder
-                .AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
-                .AddEnvironmentVariables();
+            Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+                         .AddEnvironmentVariables();
             return this;
         }
 
@@ -55,7 +60,7 @@ public sealed class MyBotApplication : IDisposable
         {
             var app = new MyBotApplication(
                 serviceProvider: Services.BuildServiceProvider(),
-                configuration: ConfigurationBuilder.Build()
+                configuration: Configuration
             );
 
             return app;
