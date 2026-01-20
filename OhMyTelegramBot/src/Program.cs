@@ -128,7 +128,7 @@ public static class MyBot
             }
             catch (Exception e)
             {
-                Logger.LogWarning("Unhandled exception in processing message: {Exception}", e);
+                Logger.LogWarning(e, "Unhandled exception in processing message");
             }
         }
     }
