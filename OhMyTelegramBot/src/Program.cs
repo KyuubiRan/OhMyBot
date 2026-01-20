@@ -6,8 +6,10 @@ using FoxTail.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OhMyBot;
 using OhMyBot.Attributes;
+using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.MessageHandlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -18,58 +20,65 @@ namespace OhMyTelegramBot;
 public static class MyBot
 {
 #pragma warning disable CA1873
-    private static readonly MyBotApplication Instance = new MyBotApplication.Builder()
-        .ConfigDefaultConsoleLogging()
-        .ConfigDefaultConfiguration()
-        .ConfigureServices((x, c) =>
-        {
-            Assembly.GetAssembly(typeof(MyBotApplication))?.Let(x.MapComponents);
-            x.MapComponents(Assembly.GetExecutingAssembly());
-            x.AddSingleton<IConfigurationManager, ConfigurationManager>();
-            x.AddSingleton<ITelegramBotClient, TelegramBotClient>(_ =>
+    private static readonly MyBotApplication Instance =
+        new MyBotApplication.Builder()
+            .ConfigDefaultConsoleLogging()
+            .ConfigDefaultConfiguration()
+            .ConfigureServices((services, configManager) =>
             {
-                var token = c["Bot:Token"] ?? Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN");
-                if (token.IsWhiteSpaceOrNull)
+                services.Configure<BotConfig>(configManager.GetSection("Bot"));
+                
+                Assembly.GetAssembly(typeof(MyBotApplication))?.Let(services.MapComponents);
+                services.MapComponents(Assembly.GetExecutingAssembly());
+                
+                services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
-                    throw new ArgumentException(
-                        "Telegram bot token is not configured. Please set it in appsettings.json or environment variable 'TELEGRAME_BOT_TOKEN'");
-                }
-
-                var enableProxy = c["Bot:EnableProxy"]?.ToLower() == "true";
-                HttpClient? client = null;
-                if (enableProxy)
-                {
-                    var proxyUrl = c["Bot:HttpProxy:Host"] ?? Environment.GetEnvironmentVariable("TELEGRAME_BOT_PROXY_URL");
-                    if (proxyUrl.IsWhiteSpaceOrNull)
+                    var cfg = p.GetRequiredService<IOptionsMonitor<BotConfig>>().CurrentValue;
+                    var token = cfg.Token.IfWhiteSpaceOrNull(
+                        Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN"));
+                    if (token.IsWhiteSpaceOrNull)
                     {
                         throw new ArgumentException(
-                            "HTTP proxy is enabled, but proxy URL is not configured. Please set it in appsettings.json or environment variable 'TELEGRAME_BOT_PROXY_URL'");
+                            "Telegram bot token is not configured. Please set it in appsettings.json or environment variable 'TELEGRAME_BOT_TOKEN'");
                     }
 
-                    if (!Uri.TryCreate(proxyUrl, UriKind.Absolute, out var _))
+                    HttpClient? client = null;
+                    if (cfg.EnableProxy)
                     {
-                        throw new ArgumentException(
-                            "HTTP proxy URL is invalid. Please check the configuration in appsettings.json or environment variable 'TELEGRAME_BOT_PROXY_URL'");
+                        var proxyUrl = cfg.HttpProxy.Host.IfWhiteSpaceOrNull(
+                            Environment.GetEnvironmentVariable("TELEGRAME_BOT_PROXY_URL"));
+                        if (proxyUrl.IsWhiteSpaceOrNull)
+                        {
+                            throw new ArgumentException(
+                                "HTTP proxy is enabled, but proxy URL is not configured. Please set it in appsettings.json or environment variable 'TELEGRAME_BOT_PROXY_URL'");
+                        }
+
+                        if (!Uri.TryCreate(proxyUrl, UriKind.Absolute, out _))
+                        {
+                            throw new ArgumentException(
+                                "HTTP proxy URL is invalid. Please check the configuration in appsettings.json or environment variable 'TELEGRAME_BOT_PROXY_URL'");
+                        }
+
+                        var port = cfg.HttpProxy.Port;
+
+                        client = new HttpClient(new HttpClientHandler
+                                                    { Proxy = new WebProxy(proxyUrl, port), UseProxy = true });
+                        Logger!.LogInformation("Setup HTTP {ProxyUrl}:{Port} proxy for Telegram Bot Client.",
+                                               proxyUrl, port);
                     }
 
-                    var port = c["Bot:HttpProxy:Port"]?.Let(port => int.TryParse(port, out var p) ? p : 7890) ?? 7890;
+                    var botClient = new TelegramBotClient(token, client);
+                    botClient.OnUpdate += OnUpdate;
 
-                    client = new HttpClient(new HttpClientHandler { Proxy = new WebProxy(proxyUrl, port), UseProxy = true });
-                    Logger?.LogInformation("Setup HTTP {ProxyUrl}:{Port} proxy for Telegram Bot Client.", proxyUrl, port);
-                }
-
-                var botClient = new TelegramBotClient(token, client);
-                botClient.OnUpdate += OnUpdate;
-
-                return botClient;
-            });
-        })
-        .Build();
+                    return botClient;
+                });
+            })
+            .Build();
 
     private static readonly ILogger Logger = Instance
-        .ServiceProvider
-        .GetRequiredService<ILoggerFactory>()
-        .CreateLogger("Main");
+                                             .ServiceProvider
+                                             .GetRequiredService<ILoggerFactory>()
+                                             .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 
@@ -82,11 +91,11 @@ public static class MyBot
 
     public static async Task Main(string[] args)
     {
-        var botClient = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
+        _ = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
         Logger.LogInformation("Bot started.");
 
-        await botClient.TestApi();
-        Logger.LogInformation("Telegram Bot API is working fine.");
+        // await botClient.TestApi();
+        // Logger.LogInformation("Telegram Bot API is working fine.");
 
         Console.CancelKeyPress += OnCancelKeyPress;
 

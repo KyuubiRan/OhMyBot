@@ -51,7 +51,7 @@ public sealed class MyBotApplication : IDisposable
 
         public Builder ConfigDefaultConfiguration()
         {
-            Configuration.AddJsonFile("appsettings.json", optional: true, reloadOnChange: true)
+            Configuration.AddJsonFile("appsettings.json", optional: true)
                          .AddEnvironmentVariables();
             return this;
         }

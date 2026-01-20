@@ -33,6 +33,6 @@ public partial class CommandHandler(
         }
     }
 
-    [LoggerMessage(LogLevel.Information, "Handling command '{command}' with args [{args}] from CID={chatId} (SID={senderId})")]
+    [LoggerMessage(LogLevel.Information, "Handling command '{command}' with args {args} from CID={chatId} (SID={senderId})")]
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
 }

@@ -8,17 +8,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\OhMyBot\OhMyBot.csproj" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <Content Update="appsettings.json.template">
-        <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-      </Content>
-    </ItemGroup>
-
-    <ItemGroup>
-        <None Include="bin\Debug\net10.0\appsettings.json"/>
+        <ProjectReference Include="..\OhMyBot\OhMyBot.csproj"/>
     </ItemGroup>
 
 </Project>

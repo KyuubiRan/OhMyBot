@@ -1,6 +1,8 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OhMyBot.Attributes;
+using OhMyTelegramBot.Configs;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -9,8 +11,7 @@ namespace OhMyTelegramBot.MessageHandlers;
 [Component]
 public sealed partial class PlantTextHandler(
     ILogger<PlantTextHandler> logger,
-    ITelegramBotClient botClient,
-    IConfigurationManager config,
+    IOptionsMonitor<BotConfig> config,
     CommandHandler commandHandler
 )
 {
@@ -22,7 +23,7 @@ public sealed partial class PlantTextHandler(
 
         #region Command Handling
 
-        var commandPrefix = config.GetValue<string[]>("Bot:CommandPrefixes") ?? ["/"];
+        var commandPrefix = config.CurrentValue.CommandPrefixes;
         var commandPrefixMatch = commandPrefix.FirstOrDefault(prefix => text.StartsWith(prefix));
         if (commandPrefixMatch is not null)
         {
