@@ -1,7 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace OhMyBot.Attributes;
+namespace OhMyLib.Attributes;
 
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class ComponentAttribute : Attribute

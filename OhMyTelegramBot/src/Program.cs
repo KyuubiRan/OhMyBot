@@ -3,12 +3,11 @@
 using System.Net;
 using System.Reflection;
 using FoxTail.Extensions;
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OhMyBot;
-using OhMyBot.Attributes;
+using OhMyLib;
+using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.MessageHandlers;
 using Telegram.Bot;
@@ -27,10 +26,10 @@ public static class MyBot
             .ConfigureServices((services, configManager) =>
             {
                 services.Configure<BotConfig>(configManager.GetSection("Bot"));
-                
+
                 Assembly.GetAssembly(typeof(MyBotApplication))?.Let(services.MapComponents);
                 services.MapComponents(Assembly.GetExecutingAssembly());
-                
+
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
                     var cfg = p.GetRequiredService<IOptionsMonitor<BotConfig>>().CurrentValue;

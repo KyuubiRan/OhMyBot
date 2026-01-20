@@ -1,5 +1,6 @@
 ﻿using Microsoft.Extensions.Logging;
-using OhMyBot.Attributes;
+using OhMyLib.Attributes;
+using OhMyLib.Enums.Kuro;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 

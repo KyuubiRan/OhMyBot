@@ -2,8 +2,15 @@
 /.vs
 /.vscode
 
-/OhMyBot/bin
-/OhMyBot/obj
+/OhMyLib/bin
+/OhMyLib/obj
+
+/OhMyLib.SourceGen/OhMyLib.SourceGen/bin
+/OhMyLib.SourceGen/OhMyLib.SourceGen/obj
+
+/OhMyLib.SourceGen/OhMyLib.SourceGen.Tests/bin
+/OhMyLib.SourceGen/OhMyLib.SourceGen.Tests/obj
+
 /OhMyTelegramBot/bin
 /OhMyTelegramBot/obj
 
