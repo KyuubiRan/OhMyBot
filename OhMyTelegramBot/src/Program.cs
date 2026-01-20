@@ -25,14 +25,14 @@ public static class MyBot
             .ConfigDefaultConsoleLogging()
             .ConfigDefaultDatabase()
             .ConfigDefaultConfiguration()
-            .ConfigRedisCache()
+            // .ConfigRedisCache()
             .ConfigureServices((services, configManager) =>
             {
                 services.Configure<BotConfig>(configManager.GetSection("Bot"));
 
                 Assembly.GetAssembly(typeof(MyBotApplication))?.Let(services.MapComponents);
                 services.MapComponents(Assembly.GetExecutingAssembly());
-                
+
                 services.AddHostedService<AutoConfigOwnerService>();
 
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
@@ -77,14 +77,13 @@ public static class MyBot
 
                     return botClient;
                 });
-
             })
             .Build();
 
     private static readonly ILogger Logger = Instance
-                                             .ServiceProvider
-                                             .GetRequiredService<ILoggerFactory>()
-                                             .CreateLogger("Main");
+        .ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 

@@ -1,7 +1,10 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
+using OhMyLib.Enums;
+using OhMyLib.Services;
 using OhMyTelegramBot.Commands;
+using OhMyTelegramBot.Components;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -11,7 +14,8 @@ namespace OhMyTelegramBot.MessageHandlers;
 public partial class CommandHandler(
     ILogger<CommandHandler> logger,
     ITelegramBotClient botClient,
-    IServiceProvider serviceProvider
+    IServiceProvider serviceProvider,
+    BotUserService userService
 )
 {
     public async Task HandleCommand(Message message, string command, params string[] args)
@@ -25,6 +29,20 @@ public partial class CommandHandler(
         var cmd = serviceProvider.GetKeyedService<ICommand>("cmd__" + commandLower);
         if (cmd != null)
         {
+            var user = userService.GetCachedUser(senderId.ToString(), SoftwareType.Telegram);
+            if (user.Privilege < cmd.RequirePrivilege)
+            {
+                LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);
+                return;
+            }
+
+            var context = serviceProvider.GetRequiredService<CommandContext>();
+            context.ChatId = chatId;
+            context.SenderId = senderId;
+            context.Command = commandLower;
+            context.Args = args;
+            context.User = user;
+
             try
             {
                 await cmd.OnReceiveCommand(botClient, message, chatId, senderId, args);
@@ -41,4 +59,8 @@ public partial class CommandHandler(
 
     [LoggerMessage(LogLevel.Information, "Handling command '{command}' with args {args} from CID={chatId} (SID={senderId})")]
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
+
+    [LoggerMessage(LogLevel.Information,
+        "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
+    private partial void LogNotEnoughPriv(long senderId, string command, UserPrivilege required, UserPrivilege actual);
 }
