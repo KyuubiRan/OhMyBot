@@ -17,6 +17,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.EntityFrameworkCore.Proxies" Version="10.0.2"/>
+        <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.2" />
         <PackageReference Include="Microsoft.Extensions.Configuration" Version="10.0.2"/>
         <PackageReference Include="Microsoft.Extensions.Configuration.EnvironmentVariables" Version="10.0.2"/>
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.2"/>
@@ -30,5 +31,9 @@
         <ProjectReference Include="..\OhMyLib.SourceGen\OhMyLib.SourceGen\OhMyLib.SourceGen.csproj" 
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="src\Configs\" />
     </ItemGroup>
 </Project>

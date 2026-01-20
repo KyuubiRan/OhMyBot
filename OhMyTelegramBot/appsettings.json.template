@@ -10,6 +10,7 @@
     }
   },
   "ConnectionStrings": {
-    "Database": "Host=localhost;Port=5432;Username=postgres;Password=password;Database=oh_my_bot"
+    "Database": "Host=localhost;Port=5432;Username=postgres;Password=password;Database=oh_my_bot",
+    "Redis": "localhost:6379"
   }
 }

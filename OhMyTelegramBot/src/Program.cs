@@ -25,6 +25,7 @@ public static class MyBot
             .ConfigDefaultConsoleLogging()
             .ConfigDefaultDatabase()
             .ConfigDefaultConfiguration()
+            .ConfigRedisCache()
             .ConfigureServices((services, configManager) =>
             {
                 services.Configure<BotConfig>(configManager.GetSection("Bot"));

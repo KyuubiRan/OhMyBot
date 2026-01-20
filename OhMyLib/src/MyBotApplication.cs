@@ -27,6 +27,8 @@ public sealed class MyBotApplication : IDisposable
         public readonly IServiceCollection Services = new ServiceCollection();
         public readonly ConfigurationManager Configuration = new();
 
+        private bool _isRedisConfigured;
+
         public Builder ConfigureServices(Action<IServiceCollection> configure)
         {
             configure(Services);
@@ -49,6 +51,20 @@ public sealed class MyBotApplication : IDisposable
                     x.UseUtcTimestamp = false;
                 });
             });
+            return this;
+        }
+
+        public Builder ConfigRedisCache(string? prefix = null)
+        {
+            _isRedisConfigured = true;
+            var redisString = Configuration.GetConnectionString("Redis").IfWhiteSpaceOrNull("localhost:6379");
+       
+            Services.AddStackExchangeRedisCache(x =>
+            {
+                x.Configuration = redisString;
+                x.InstanceName = prefix ?? "OhMyBot:";
+            });
+
             return this;
         }
 
@@ -75,6 +91,11 @@ public sealed class MyBotApplication : IDisposable
 
         public MyBotApplication Build()
         {
+            if (!_isRedisConfigured)
+            {
+                Services.AddDistributedMemoryCache();
+            }
+            
             var app = new MyBotApplication(
                 serviceProvider: Services.BuildServiceProvider(),
                 configuration: Configuration
