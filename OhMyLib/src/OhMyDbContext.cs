@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
-using OhMyLib.Models.Kuro;
 
-namespace OhMyLib.Repo;
+namespace OhMyLib;
 
 public class OhMyDbContext : DbContext
 {
@@ -14,13 +13,10 @@ public class OhMyDbContext : DbContext
         optionsBuilder.UseNpgsql(databaseUrl ?? DefaultPgsqlConnection)
                       .UseLazyLoadingProxies();
     }
-    
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(OhMyDbContext).Assembly);
     }
-    
-    public DbSet<KuroUser> KuroUsers => Set<KuroUser>();
-    public DbSet<KuroGameConfig> KuroGameConfigs => Set<KuroGameConfig>();
 }

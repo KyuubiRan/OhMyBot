@@ -3,9 +3,9 @@
 using FoxTail.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OhMyLib.HostedServices;
-using OhMyLib.Repo;
 
 namespace OhMyLib;
 
@@ -59,10 +59,10 @@ public sealed class MyBotApplication : IDisposable
             {
                 Environment.SetEnvironmentVariable("DATABASE_URL", dbString);
             }
-            
+
             Services.AddDbContext<OhMyDbContext>()
                     .AddHostedService<DatabaseAutoMigrationService>();
-            
+
             return this;
         }
 
@@ -81,6 +81,23 @@ public sealed class MyBotApplication : IDisposable
             );
 
             return app;
+        }
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        var hostedServices = _sp.GetServices<IHostedService>();
+        foreach (var hostedService in hostedServices)
+        {
+            await hostedService.StartAsync(cancellationToken);
+        }
+
+        try
+        {
+            await Task.Delay(-1, cancellationToken);
+        }
+        catch (TaskCanceledException)
+        {
         }
     }
 

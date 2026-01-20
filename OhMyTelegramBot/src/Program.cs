@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
+using OhMyTelegramBot.HostedService;
 using OhMyTelegramBot.MessageHandlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -30,6 +31,8 @@ public static class MyBot
 
                 Assembly.GetAssembly(typeof(MyBotApplication))?.Let(services.MapComponents);
                 services.MapComponents(Assembly.GetExecutingAssembly());
+                
+                services.AddHostedService<AutoConfigOwnerService>();
 
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
@@ -61,10 +64,11 @@ public static class MyBot
 
                         var port = cfg.HttpProxy.Port;
 
-                        client = new HttpClient(new HttpClientHandler
-                                                    { Proxy = new WebProxy(proxyUrl, port), UseProxy = true });
-                        Logger!.LogInformation("Setup HTTP {ProxyUrl}:{Port} proxy for Telegram Bot Client.",
-                                               proxyUrl, port);
+                        client = new HttpClient(new HttpClientHandler { Proxy = new WebProxy(proxyUrl, port), UseProxy = true });
+
+#nullable disable
+                        Logger.LogInformation("Setup HTTP {ProxyUrl}:{Port} proxy for Telegram Bot Client.", proxyUrl, port);
+#nullable restore
                     }
 
                     var botClient = new TelegramBotClient(token, client);
@@ -72,6 +76,7 @@ public static class MyBot
 
                     return botClient;
                 });
+
             })
             .Build();
 
@@ -89,7 +94,7 @@ public static class MyBot
         e.Cancel = true;
     }
 
-    public static async Task Main(string[] args)
+    public static async Task Main()
     {
         _ = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
         Logger.LogInformation("Bot started.");
@@ -99,13 +104,7 @@ public static class MyBot
 
         Console.CancelKeyPress += OnCancelKeyPress;
 
-        try
-        {
-            await Task.Delay(-1, Cts.Token);
-        }
-        catch (TaskCanceledException)
-        {
-        }
+        await Instance.StartAsync(Cts.Token);
     }
 
 #pragma warning restore CA1873
