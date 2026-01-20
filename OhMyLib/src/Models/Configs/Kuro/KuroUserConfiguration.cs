@@ -8,7 +8,9 @@ public class KuroUserConfig : IEntityTypeConfiguration<KuroUser>
 {
     public void Configure(EntityTypeBuilder<KuroUser> builder)
     {
-        builder.HasIndex(x => x.OwnerId)
-               .IsUnique();
+        builder.HasOne(x => x.OwnerBotUser)
+               .WithOne(x => x.KuroUser)
+               .HasForeignKey<KuroUser>(x => x.OwnerUserId)
+               .OnDelete(DeleteBehavior.Cascade);
     }
 }

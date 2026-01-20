@@ -1,8 +1,11 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
+using FoxTail.Extensions;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using OhMyLib.HostedServices;
+using OhMyLib.Repo;
 
 namespace OhMyLib;
 
@@ -46,6 +49,20 @@ public sealed class MyBotApplication : IDisposable
                     x.UseUtcTimestamp = false;
                 });
             });
+            return this;
+        }
+
+        public Builder ConfigDefaultDatabase()
+        {
+            var dbString = Configuration.GetConnectionString("Database");
+            if (!dbString.IsWhiteSpaceOrNull)
+            {
+                Environment.SetEnvironmentVariable("DATABASE_URL", dbString);
+            }
+            
+            Services.AddDbContext<OhMyDbContext>()
+                    .AddHostedService<DatabaseAutoMigrationService>();
+            
             return this;
         }
 

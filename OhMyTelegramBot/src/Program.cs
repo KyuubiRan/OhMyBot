@@ -22,6 +22,7 @@ public static class MyBot
     private static readonly MyBotApplication Instance =
         new MyBotApplication.Builder()
             .ConfigDefaultConsoleLogging()
+            .ConfigDefaultDatabase()
             .ConfigDefaultConfiguration()
             .ConfigureServices((services, configManager) =>
             {

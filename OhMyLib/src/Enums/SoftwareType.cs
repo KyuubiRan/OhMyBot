@@ -1,6 +1,6 @@
 namespace OhMyLib.Enums;
 
-public enum OwnerIdType : byte
+public enum SoftwareType : byte
 {
     Telegram = 0,
     Qq = 1,

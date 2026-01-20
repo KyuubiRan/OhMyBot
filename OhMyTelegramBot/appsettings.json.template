@@ -8,5 +8,8 @@
       "Host": "http://127.0.0.1",
       "Port": 7890
     }
-  }
+  },
+  "ConnectionStrings": {
+    "Database": "Host=localhost;Port=5432;Username=postgres;Password=password;Database=oh_my_bot"
+  },
 }

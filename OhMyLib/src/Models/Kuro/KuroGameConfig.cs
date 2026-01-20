@@ -10,9 +10,11 @@ public class KuroGameConfig
 
     [Column(Order = 1)] public long KuroUserId { get; set; }
 
-    [Column(Order = 2)] public required KuroUser KuroUser { get; set; }
-    
+    [Column(Order = 2)] public virtual KuroUser KuroUser { get; set; } = null!;
+
     [Column(Order = 3)] public KuroGameType GameType { get; set; }
-    
-    [Column(Order = 4)] public bool IsEnabled { get; set; }
+
+    [Column(Order = 4)] public long GameCharacterUid { get; set; }
+
+    [Column(Order = 5)] public KuroGameTaskType TaskType { get; set; } = KuroGameTaskType.None;
 }
