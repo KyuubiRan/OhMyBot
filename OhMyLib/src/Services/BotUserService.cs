@@ -56,6 +56,9 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
         repo.Add(user);
         repo.SaveChanges();
+
+        cache.SetObject($"{type}:{id}", new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege));
+
         return user;
     }
 }
