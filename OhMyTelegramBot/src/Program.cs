@@ -22,10 +22,10 @@ public static class MyBot
 #pragma warning disable CA1873
     private static readonly MyBotApplication Instance =
         new MyBotApplication.Builder()
-            .ConfigDefaultConsoleLogging()
-            .ConfigDefaultDatabase()
-            .ConfigDefaultConfiguration()
-            // .ConfigRedisCache()
+            .ConfigureDefaultConsoleLogging()
+            .ConfigureDefaultDatabase()
+            .ConfigureDefaultConfiguration()
+            .ConfigureRedisCacheIfPresent()
             .ConfigureServices((services, configManager) =>
             {
                 services.Configure<BotConfig>(configManager.GetSection("Bot"));

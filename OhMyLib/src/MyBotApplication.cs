@@ -41,7 +41,7 @@ public sealed class MyBotApplication : IDisposable
             return this;
         }
 
-        public Builder ConfigDefaultConsoleLogging()
+        public Builder ConfigureDefaultConsoleLogging()
         {
             Services.AddLogging(builder =>
             {
@@ -54,11 +54,13 @@ public sealed class MyBotApplication : IDisposable
             return this;
         }
 
-        public Builder ConfigRedisCache(string? prefix = null)
+        public Builder ConfigureRedisCacheIfPresent(string? prefix = null)
         {
+            var redisString = Configuration.GetConnectionString("Redis");
+            if (redisString.IsWhiteSpaceOrNull)
+                return this;
+
             _isRedisConfigured = true;
-            var redisString = Configuration.GetConnectionString("Redis").IfWhiteSpaceOrNull("localhost:6379");
-       
             Services.AddStackExchangeRedisCache(x =>
             {
                 x.Configuration = redisString;
@@ -68,7 +70,7 @@ public sealed class MyBotApplication : IDisposable
             return this;
         }
 
-        public Builder ConfigDefaultDatabase()
+        public Builder ConfigureDefaultDatabase()
         {
             var dbString = Configuration.GetConnectionString("Database");
             if (!dbString.IsWhiteSpaceOrNull)
@@ -77,25 +79,23 @@ public sealed class MyBotApplication : IDisposable
             }
 
             Services.AddDbContext<OhMyDbContext>()
-                    .AddHostedService<DatabaseAutoMigrationService>();
+                .AddHostedService<DatabaseAutoMigrationService>();
 
             return this;
         }
 
-        public Builder ConfigDefaultConfiguration()
+        public Builder ConfigureDefaultConfiguration()
         {
             Configuration.AddJsonFile("appsettings.json", optional: true)
-                         .AddEnvironmentVariables();
+                .AddEnvironmentVariables();
             return this;
         }
 
         public MyBotApplication Build()
         {
             if (!_isRedisConfigured)
-            {
                 Services.AddDistributedMemoryCache();
-            }
-            
+
             var app = new MyBotApplication(
                 serviceProvider: Services.BuildServiceProvider(),
                 configuration: Configuration

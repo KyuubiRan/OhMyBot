@@ -12,16 +12,17 @@ namespace OhMyLib.Services;
 [Component]
 public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 {
+    private static string KeyForUser(string id, SoftwareType type) => $"bot_user:{type}:{id}";
+
     public BotUser? GetUser(string id, SoftwareType type)
     {
         return repo.EntitySet
-                   .FirstOrDefault(x => x.OwnerId == id && x.OwnerType == type);
+            .FirstOrDefault(x => x.OwnerId == id && x.OwnerType == type);
     }
 
     public CachedBotUser GetCachedUser(string id, SoftwareType type)
     {
-        var cacheKey = $"{type}:{id}";
-        return cache.GetOrSetObject(cacheKey, () =>
+        return cache.GetOrSetObject(KeyForUser(id, type), () =>
         {
             var user = repo.EntitySet.AsNoTracking().FirstOrDefault(x => x.OwnerId == id && x.OwnerType == type);
             if (user == null)
@@ -57,7 +58,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         repo.Add(user);
         repo.SaveChanges();
 
-        cache.SetObject($"{type}:{id}", new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege));
+        cache.SetObject(KeyForUser(id, type), new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege));
 
         return user;
     }
