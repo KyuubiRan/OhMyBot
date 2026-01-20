@@ -19,7 +19,7 @@ public static class BoolUtils
             case "no":
             case "n":
             case "false":
-                value = false;¬
+                value = false;
                 return true;
 
             default:
