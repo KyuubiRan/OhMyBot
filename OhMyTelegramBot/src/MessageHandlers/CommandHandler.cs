@@ -21,11 +21,23 @@ public partial class CommandHandler(
 
         LogHandleCommand(chatId, senderId, command, args);
 
-        // Example command handling logic
         var commandLower = command.ToLowerInvariant();
         var cmd = serviceProvider.GetKeyedService<ICommand>("cmd__" + commandLower);
-        if (cmd != null) await cmd.OnReceiveCommand(botClient, message, chatId, senderId, args);
+        if (cmd != null)
+        {
+            try
+            {
+                await cmd.OnReceiveCommand(botClient, message, chatId, senderId, args);
+            }
+            catch (Exception e)
+            {
+                LogUnhandledCommandException(e, chatId, senderId, command, args);
+            }
+        }
     }
+
+    [LoggerMessage(LogLevel.Warning, "Unhandled command exception occurred! CID={chatId} (SID={senderId}), Command='{command}', Args={args}")]
+    private partial void LogUnhandledCommandException(Exception e, long chatId, long senderId, string command, string[] args);
 
     [LoggerMessage(LogLevel.Information, "Handling command '{command}' with args {args} from CID={chatId} (SID={senderId})")]
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);

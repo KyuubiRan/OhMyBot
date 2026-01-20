@@ -9,7 +9,7 @@ using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
-using OhMyTelegramBot.HostedService;
+using OhMyTelegramBot.HostedServices;
 using OhMyTelegramBot.MessageHandlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;

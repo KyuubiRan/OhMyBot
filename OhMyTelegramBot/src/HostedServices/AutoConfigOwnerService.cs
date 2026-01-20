@@ -5,7 +5,7 @@ using OhMyLib.Enums;
 using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
 
-namespace OhMyTelegramBot.HostedService;
+namespace OhMyTelegramBot.HostedServices;
 
 public class AutoConfigOwnerService(BotUserService botUserService, IOptionsMonitor<BotConfig> config, ILogger<AutoConfigOwnerService> logger) : IHostedService
 {

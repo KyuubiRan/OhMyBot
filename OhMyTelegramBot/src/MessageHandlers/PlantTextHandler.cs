@@ -28,14 +28,7 @@ public sealed partial class PlantTextHandler(
             var commandAndArgs = text[commandPrefixMatch.Length..].Split(' ', StringSplitOptions.RemoveEmptyEntries);
             var command = commandAndArgs.FirstOrDefault() ?? string.Empty;
             var args = commandAndArgs.Skip(1).ToArray();
-            try
-            {
-                await commandHandler.HandleCommand(message, command, args);
-            }
-            catch (Exception e)
-            {
-                LogUnhandledCommandException(e, chatId, senderId, command, args);
-            }
+            await commandHandler.HandleCommand(message, command, args);
 
             return;
         }
@@ -47,7 +40,4 @@ public sealed partial class PlantTextHandler(
 
     [LoggerMessage(LogLevel.Information, "Received message from CID={chatId} (SID={senderId}): {text}")]
     private partial void LogReceivedMessage(long chatId, long senderId, string text);
-
-    [LoggerMessage(LogLevel.Warning, "Unhandled command exception occurred! CID={chatId} (SID={senderId}), Command='{command}', Args={args}")]
-    private partial void LogUnhandledCommandException(Exception e, long chatId, long senderId, string command, string[] args);
 }
