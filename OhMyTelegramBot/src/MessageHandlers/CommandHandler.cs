@@ -29,7 +29,7 @@ public partial class CommandHandler(
         var cmd = serviceProvider.GetKeyedService<ICommand>("cmd__" + commandLower);
         if (cmd != null)
         {
-            var user = userService.GetCachedUser(senderId.ToString(), SoftwareType.Telegram);
+            var user = await userService.GetCachedUserAsync(senderId.ToString(), SoftwareType.Telegram);
             if (user.Privilege < cmd.RequirePrivilege)
             {
                 LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);

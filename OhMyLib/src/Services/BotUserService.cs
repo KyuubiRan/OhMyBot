@@ -14,17 +14,18 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 {
     private static string KeyForUser(string id, SoftwareType type) => $"bot_user:{type}:{id}";
 
-    public BotUser? GetUser(string id, SoftwareType type)
+    public async ValueTask<BotUser?> GetUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
-        return repo.EntitySet
-            .FirstOrDefault(x => x.OwnerId == id && x.OwnerType == type);
+        return await repo.EntitySet
+                         .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
     }
 
-    public CachedBotUser GetCachedUser(string id, SoftwareType type)
+    public async ValueTask<CachedBotUser> GetCachedUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
-        return cache.GetOrSetObject(KeyForUser(id, type), () =>
+        return await cache.GetOrSetObjectAsync(KeyForUser(id, type), async () =>
         {
-            var user = repo.EntitySet.AsNoTracking().FirstOrDefault(x => x.OwnerId == id && x.OwnerType == type);
+            var user = await repo.EntitySet.AsNoTracking()
+                                 .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
             if (user == null)
                 return new CachedBotUser(-1, id, type, UserPrivilege.None);
 
@@ -34,17 +35,19 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
                 user.OwnerType,
                 user.Privilege
             );
-        });
+        }, token: cancellationToken);
     }
 
-    public bool Exists(string id, SoftwareType type)
+    public async ValueTask<bool> ExistsAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
-        return GetCachedUser(id, type).Id > 0;
+        var cachedUser = await GetCachedUserAsync(id, type, cancellationToken);
+        return cachedUser is { Id: > 0 };
     }
 
-    public BotUser? CreateUserIfNotExists(string id, SoftwareType type, UserPrivilege privilege = UserPrivilege.User)
+    public async ValueTask<BotUser?> CreateUserIfNotExistsAsync(string id, SoftwareType type, UserPrivilege privilege = UserPrivilege.User,
+                                                                CancellationToken cancellationToken = default)
     {
-        if (Exists(id, type))
+        if (await ExistsAsync(id, type, cancellationToken))
             return null;
 
         var user = new BotUser
@@ -55,10 +58,11 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
             CreateAt = DateTimeOffset.UtcNow
         };
 
-        repo.Add(user);
-        repo.SaveChanges();
+        await repo.AddAsync(user, cancellationToken);
+        await repo.SaveChangesAsync(cancellationToken);
 
-        cache.SetObject(KeyForUser(id, type), new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege));
+        await cache.SetObjectAsync(KeyForUser(id, type), new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege),
+                                   cancellationToken: cancellationToken);
 
         return user;
     }

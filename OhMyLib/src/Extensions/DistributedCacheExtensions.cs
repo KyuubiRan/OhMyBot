@@ -39,9 +39,9 @@ public static class DistributedCacheExtensions
             return obj;
         }
 
-        public async Task<T?> GetObjectAsync<T>(string key, CancellationToken token = default)
+        public async Task<T?> GetObjectAsync<T>(string key, CancellationToken cancellationToken = default)
         {
-            var data = await cache.GetAsync(key, token);
+            var data = await cache.GetAsync(key, cancellationToken);
             if (data == null)
                 return default;
 
@@ -49,25 +49,25 @@ public static class DistributedCacheExtensions
             return JsonSerializer.Deserialize<T>(json);
         }
 
-        public async Task SetObjectAsync<T>(string key, T value, DistributedCacheEntryOptions? options = null, CancellationToken token = default)
+        public async Task SetObjectAsync<T>(string key, T value, DistributedCacheEntryOptions? options = null, CancellationToken cancellationToken = default)
         {
             var json = JsonSerializer.Serialize(value);
             var data = Encoding.UTF8.GetBytes(json);
             await cache.SetAsync(key, data, options ?? new DistributedCacheEntryOptions()
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
-            }, token);
+            }, cancellationToken);
         }
 
         public async Task<T> GetOrSetObjectAsync<T>(string key, Func<Task<T>> factory, DistributedCacheEntryOptions? options = null,
                                                     CancellationToken token = default)
         {
-            var obj = await cache.GetObjectAsync<T>(key, token: token);
+            var obj = await cache.GetObjectAsync<T>(key, cancellationToken: token);
             if (obj != null)
                 return obj;
 
             obj = await factory();
-            await cache.SetObjectAsync(key, obj, options, token: token);
+            await cache.SetObjectAsync(key, obj, options, cancellationToken: token);
             return obj;
         }
     }
