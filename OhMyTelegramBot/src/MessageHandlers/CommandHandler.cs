@@ -3,7 +3,6 @@ using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
-using OhMyTelegramBot.Commands;
 using OhMyTelegramBot.Components;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
@@ -62,6 +61,6 @@ public sealed partial class CommandHandler(
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
 
     [LoggerMessage(LogLevel.Information,
-        "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
+                   "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
     private partial void LogNotEnoughPriv(long senderId, string command, UserPrivilege required, UserPrivilege actual);
 }
