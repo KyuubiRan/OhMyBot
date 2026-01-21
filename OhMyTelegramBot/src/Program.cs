@@ -115,11 +115,9 @@ public static class MyBot
         {
             try
             {
-                scope.ServiceProvider.GetKeyedService<IMessageHandler>("handler__" + m.Type)?.Let(async handler =>
-                {
-                    if (handler.SupportChatTypes.CanHandle(m))
-                        await handler.OnReceiveMessage(m);
-                });
+                var messageHandler = scope.ServiceProvider.GetKeyedService<IMessageHandler>("handler__" + m.Type);
+                if (messageHandler != null)
+                    await messageHandler.OnReceiveMessage(m);
             }
             catch (Exception e)
             {
