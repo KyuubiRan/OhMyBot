@@ -1,4 +1,5 @@
 using OhMyLib.Attributes;
+using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 

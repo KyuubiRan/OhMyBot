@@ -20,8 +20,6 @@ public class AutoConfigOwnerService(BotUserService botUserService, IOptionsMonit
         {
             logger.LogInformation("Create bot owner: Id={OwnerId}", cfg.OwnerId);
         }
-
-        return ;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)

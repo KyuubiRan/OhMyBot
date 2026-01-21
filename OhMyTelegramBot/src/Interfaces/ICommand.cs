@@ -2,7 +2,7 @@ using OhMyLib.Enums;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Commands;
+namespace OhMyTelegramBot.Interfaces;
 
 public interface ICommand
 {

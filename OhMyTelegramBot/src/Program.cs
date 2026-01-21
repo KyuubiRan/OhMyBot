@@ -10,16 +10,14 @@ using OhMyLib;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.HostedServices;
-using OhMyTelegramBot.MessageHandlers;
+using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace OhMyTelegramBot;
 
 public static class MyBot
 {
-#pragma warning disable CA1873
     private static readonly MyBotApplication Instance =
         new MyBotApplication.Builder()
             .ConfigureDefaultConsoleLogging()
@@ -81,9 +79,9 @@ public static class MyBot
             .Build();
 
     private static readonly ILogger Logger = Instance
-        .ServiceProvider
-        .GetRequiredService<ILoggerFactory>()
-        .CreateLogger("Main");
+                                             .ServiceProvider
+                                             .GetRequiredService<ILoggerFactory>()
+                                             .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 
@@ -107,23 +105,16 @@ public static class MyBot
         await Instance.StartAsync(Cts.Token);
     }
 
-#pragma warning restore CA1873
 
     private static async Task OnUpdate(Update update)
     {
         await using var scope = Instance.ServiceProvider.CreateAsyncScope();
+
         if (update.Message is { } m)
         {
             try
             {
-                switch (m.Type)
-                {
-                    case MessageType.Text:
-                    {
-                        await scope.ServiceProvider.GetRequiredService<PlantTextHandler>().OnReceiveTextMessage(m);
-                        break;
-                    }
-                }
+                scope.ServiceProvider.GetKeyedService<IMessageHandler>("handler__" + m.Type)?.Let(async handler => { await handler.OnReceiveMessage(m); });
             }
             catch (Exception e)
             {

@@ -1,6 +1,7 @@
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyTelegramBot.Components;
+using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;

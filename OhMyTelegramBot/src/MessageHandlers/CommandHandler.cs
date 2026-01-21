@@ -5,13 +5,14 @@ using OhMyLib.Enums;
 using OhMyLib.Services;
 using OhMyTelegramBot.Commands;
 using OhMyTelegramBot.Components;
+using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.MessageHandlers;
 
 [Component]
-public partial class CommandHandler(
+public sealed partial class CommandHandler(
     ILogger<CommandHandler> logger,
     ITelegramBotClient botClient,
     IServiceProvider serviceProvider,

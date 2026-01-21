@@ -2,18 +2,19 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
+using OhMyTelegramBot.Interfaces;
 using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.MessageHandlers;
 
-[Component]
+[Component(Key = "handler__Text")]
 public sealed partial class PlantTextHandler(
     ILogger<PlantTextHandler> logger,
     IOptionsMonitor<BotConfig> config,
     CommandHandler commandHandler
-)
+) : IMessageHandler
 {
-    public async Task OnReceiveTextMessage(Message message)
+    public async Task OnReceiveMessage(Message message)
     {
         var chatId = message.Chat.Id;
         var senderId = message.From?.Id ?? 0;
