@@ -1,6 +1,7 @@
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyTelegramBot.Components;
+using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -11,6 +12,8 @@ namespace OhMyTelegramBot.Commands;
 [Component(Key = "cmd__help")]
 public class HelpCommand(CommandContext context) : ICommand
 {
+    public SupportedChatType SupportChatTypes => SupportedChatType.Private;
+
     private const string UserHelpCommandText =
         """
         *\[帮助菜单\]*

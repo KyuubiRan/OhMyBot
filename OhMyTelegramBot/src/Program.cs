@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
+using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.HostedServices;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
@@ -114,7 +115,11 @@ public static class MyBot
         {
             try
             {
-                scope.ServiceProvider.GetKeyedService<IMessageHandler>("handler__" + m.Type)?.Let(async handler => { await handler.OnReceiveMessage(m); });
+                scope.ServiceProvider.GetKeyedService<IMessageHandler>("handler__" + m.Type)?.Let(async handler =>
+                {
+                    if (handler.SupportChatTypes.CanHandle(m))
+                        await handler.OnReceiveMessage(m);
+                });
             }
             catch (Exception e)
             {

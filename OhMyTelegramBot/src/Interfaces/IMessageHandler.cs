@@ -1,11 +1,11 @@
-using OhMyLib.Enums;
+using OhMyTelegramBot.Enums;
 using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.Interfaces;
 
 public interface IMessageHandler
 {
-    public virtual ChatType SupportChatTypes => ChatType.All;
-    
+    public SupportedChatType SupportChatTypes => SupportedChatType.All;
+
     public Task OnReceiveMessage(Message message);
 }

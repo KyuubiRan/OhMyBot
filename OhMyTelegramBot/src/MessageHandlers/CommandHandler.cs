@@ -4,6 +4,7 @@ using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
 using OhMyTelegramBot.Components;
+using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -27,30 +28,34 @@ public sealed partial class CommandHandler(
 
         var commandLower = command.ToLowerInvariant();
         var cmd = serviceProvider.GetKeyedService<ICommand>("cmd__" + commandLower);
-        if (cmd != null)
+        if (cmd == null)
+            return;
+
+        if (!cmd.SupportChatTypes.CanHandle(message))
+            return;
+
+        var user = await userService.GetCachedUserAsync(senderId.ToString(), SoftwareType.Telegram);
+        if (user.Privilege < cmd.RequirePrivilege)
         {
-            var user = await userService.GetCachedUserAsync(senderId.ToString(), SoftwareType.Telegram);
-            if (user.Privilege < cmd.RequirePrivilege)
-            {
-                LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);
-                return;
-            }
+            LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);
+            return;
+        }
 
-            var context = serviceProvider.GetRequiredService<CommandContext>();
-            context.ChatId = chatId;
-            context.SenderId = senderId;
-            context.Command = commandLower;
-            context.Args = args;
-            context.User = user;
+        var context = serviceProvider.GetRequiredService<CommandContext>();
+        context.ChatType = message.Chat.Type;
+        context.ChatId = chatId;
+        context.SenderId = senderId;
+        context.Command = commandLower;
+        context.Args = args;
+        context.User = user;
 
-            try
-            {
-                await cmd.OnReceiveCommand(botClient, message, chatId, senderId, args);
-            }
-            catch (Exception e)
-            {
-                LogUnhandledCommandException(e, chatId, senderId, command, args);
-            }
+        try
+        {
+            await cmd.OnReceiveCommand(botClient, message, chatId, senderId, args);
+        }
+        catch (Exception e)
+        {
+            LogUnhandledCommandException(e, chatId, senderId, command, args);
         }
     }
 
