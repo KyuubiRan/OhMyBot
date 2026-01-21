@@ -30,7 +30,6 @@ public class AddCommand(BotUserService service, CommandContext context) : IComma
             return;
         }
 
-
         if (target.Privilege >= UserPrivilege.Owner)
         {
             await botClient.SendMessage(chatId, "休要造反！");

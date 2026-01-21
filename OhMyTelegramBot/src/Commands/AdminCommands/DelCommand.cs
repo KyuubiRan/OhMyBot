@@ -1,4 +1,3 @@
-using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
