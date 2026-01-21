@@ -7,4 +7,7 @@ public record CachedBotUser(
     string Uid,
     SoftwareType Type,
     UserPrivilege Privilege
-);
+)
+{
+    public bool ExistsInDatabase => Id > 0;
+}

@@ -66,4 +66,33 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
         return user;
     }
+
+    public async ValueTask<BotUser> SetPrivilegeAsync(string id, SoftwareType type, UserPrivilege privilege, CancellationToken cancellationToken = default)
+    {
+        var user = await GetUserAsync(id, type, cancellationToken);
+        if (user == null)
+        {
+            user = new BotUser
+            {
+                OwnerId = id,
+                OwnerType = type,
+                Privilege = privilege,
+                CreateAt = DateTimeOffset.UtcNow
+            };
+
+            await repo.AddAsync(user, cancellationToken);
+        }
+        else
+        {
+            user.Privilege = privilege;
+            repo.Update(user);
+        }
+
+        await repo.SaveChangesAsync(cancellationToken);
+
+        await cache.SetObjectAsync(KeyForUser(id, type), new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege),
+                                   cancellationToken: cancellationToken);
+
+        return user;
+    }
 }
