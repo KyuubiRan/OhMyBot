@@ -12,22 +12,20 @@ namespace OhMyLib.Services;
 [Component]
 public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
 {
-    private static string KeyForUserId(long id) => $"tg_user:{id}";
+    private static string KeyForUserId(long id) => $"tg_user:id:{id}";
     private static string KeyForUsername(string username) => $"tg_user:username:{username}";
-    
+
     public async ValueTask<TelegramUserDto> GetCachedUserByIdAsync(long userId, CancellationToken cancellationToken = default)
     {
         return await cache.GetOrSetObjectAsync(KeyForUserId(userId), async () =>
         {
             var user = await repo.EntitySet.AsNoTracking()
-                                 .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
+                .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
             if (user == null)
                 return new TelegramUserDto(-1, userId, null, null, null, null, null);
 
             if (!user.Username.IsWhiteSpaceOrNull)
-            {
                 await cache.SetObjectAsync(KeyForUsername(user.Username), user.UserId, cancellationToken: cancellationToken);
-            }
 
             return new TelegramUserDto(
                 user.Id,
@@ -46,15 +44,14 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
         var userId = await cache.GetOrSetObjectAsync(KeyForUsername(username), async () =>
         {
             var user = await repo.EntitySet.AsNoTracking()
-                                 .FirstOrDefaultAsync(x => x.Username == username, cancellationToken: cancellationToken);
+                .FirstOrDefaultAsync(x => x.Username == username, cancellationToken: cancellationToken);
             if (user == null)
                 return -1L;
 
-            await cache.SetObjectAsync(KeyForUserId(user.UserId), user.UserId, cancellationToken: cancellationToken);
             return user.UserId;
         }, token: cancellationToken);
 
-        if (userId == -1L)
+        if (userId <= 0L)
             return new TelegramUserDto(-1, -1, null, null, null, null, null);
 
         return await GetCachedUserByIdAsync(userId, cancellationToken);
@@ -68,7 +65,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
     public async ValueTask<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet
-                         .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
+            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
     }
 
     public async ValueTask LogUserAsync(

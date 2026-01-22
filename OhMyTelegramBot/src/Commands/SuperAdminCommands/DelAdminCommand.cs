@@ -4,25 +4,24 @@ using OhMyLib.Services;
 using OhMyTelegramBot.Components;
 using OhMyTelegramBot.Extensions;
 using OhMyTelegramBot.Interfaces;
-using OhMyTelegramBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Commands.AdminCommands;
+namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
-[Component(Key = "cmd__add")]
-public class AddUserCommand(BotUserService botUserService, CommandContext context, TMessageHelperService helperService) : ICommand
+[Component(Key = "cmd__demote")]
+public class DelAdminCommand(BotUserService service, CommandContext context) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Admin;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
-        var mentioned = message.GetReplyUser() ?? message.GetTextMentionedUser() ?? await helperService.GetMentionedUserAsync(message);
+        var mentioned = message.GetReplyUser() ?? message.GetTextMentionedUser();
         var id = mentioned?.Id.ToString() ?? args.ElementAtOrDefault(0);
         if (!long.TryParse(id, out _))
             return;
 
-        var target = await botUserService.GetCachedUserAsync(id, SoftwareType.Telegram);
+        var target = await service.GetCachedUserAsync(id, SoftwareType.Telegram);
 
         if (target.Uid == senderId.ToString())
         {
@@ -42,13 +41,13 @@ public class AddUserCommand(BotUserService botUserService, CommandContext contex
             return;
         }
 
-        if (target.Privilege >= UserPrivilege.User)
+        if (target.Privilege < UserPrivilege.Admin)
         {
-            await botClient.SendMessage(chatId, "该用户已有权限");
+            await botClient.SendMessage(chatId, "用户无权限");
             return;
         }
 
-        await botUserService.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.User);
-        await botClient.SendMessage(chatId, "已提升该用户权限至 User");
+        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.User);
+        await botClient.SendMessage(chatId, $"将该用户权限降级至 {nameof(UserPrivilege.User)}");
     }
 }

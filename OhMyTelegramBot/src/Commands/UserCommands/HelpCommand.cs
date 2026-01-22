@@ -31,8 +31,8 @@ public class HelpCommand(CommandContext context) : ICommand
     private const string SuperAdminHelpCommandText =
         """
         *\[超级管理员\]*
-        /addadmin \<uid/mention/reply\> \- 调整用户为管理员
-        /deladmin \<uid/mention/reply\> \- 取消用户的管理员权限
+        /promote \<uid/mention/reply\> \- 调整用户为管理员
+        /demote \<uid/mention/reply\> \- 取消用户的管理员权限
         """;
 
     private const string OwnerHelpCommandText =

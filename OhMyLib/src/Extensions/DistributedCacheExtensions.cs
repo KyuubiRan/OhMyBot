@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.Json;
+using FoxTail.Extensions;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace OhMyLib.Extensions;
@@ -60,7 +61,7 @@ public static class DistributedCacheExtensions
         }
 
         public async Task<T> GetOrSetObjectAsync<T>(string key, Func<Task<T>> factory, DistributedCacheEntryOptions? options = null,
-                                                    CancellationToken token = default)
+            CancellationToken token = default)
         {
             var obj = await cache.GetObjectAsync<T>(key, cancellationToken: token);
             if (obj != null)

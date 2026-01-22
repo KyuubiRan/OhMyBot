@@ -9,7 +9,7 @@ using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
-[Component(Key = "cmd__addadmin")]
+[Component(Key = "cmd__promote")]
 public class AddAdminCommand(BotUserService service, CommandContext context) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.SuperAdmin;
@@ -41,13 +41,13 @@ public class AddAdminCommand(BotUserService service, CommandContext context) : I
             return;
         }
 
-        if (target.Privilege >= UserPrivilege.User)
+        if (target.Privilege >= UserPrivilege.Admin)
         {
             await botClient.SendMessage(chatId, "该用户已有权限");
             return;
         }
 
-        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.User);
-        await botClient.SendMessage(chatId, "已提升该用户权限至 User");
+        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.Admin);
+        await botClient.SendMessage(chatId, $"已提升该用户权限至 {nameof(UserPrivilege.Admin)}");
     }
 }
