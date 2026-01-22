@@ -4,7 +4,7 @@ using OhMyLib.Models.Kuro;
 
 namespace OhMyLib.Models.Configs.Kuro;
 
-public class KuroUserConfig : IEntityTypeConfiguration<KuroUser>
+public class KuroUserConfiguration : IEntityTypeConfiguration<KuroUser>
 {
     public void Configure(EntityTypeBuilder<KuroUser> builder)
     {

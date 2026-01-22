@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using OhMyLib.Attributes;
-using OhMyLib.CachedModels;
+using OhMyLib.Dto;
 using OhMyLib.Enums;
 using OhMyLib.Extensions;
 using OhMyLib.Models.Common;
@@ -20,16 +20,16 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
                          .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
     }
 
-    public async ValueTask<CachedBotUser> GetCachedUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
+    public async ValueTask<BotUserDto> GetCachedUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
         return await cache.GetOrSetObjectAsync(KeyForUser(id, type), async () =>
         {
             var user = await repo.EntitySet.AsNoTracking()
                                  .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
             if (user == null)
-                return new CachedBotUser(-1, id, type, UserPrivilege.None);
+                return new BotUserDto(-1, id, type, UserPrivilege.None);
 
-            return new CachedBotUser(
+            return new BotUserDto(
                 user.Id,
                 user.OwnerId,
                 user.OwnerType,
@@ -60,9 +60,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
         await repo.AddAsync(user, cancellationToken);
         await repo.SaveChangesAsync(cancellationToken);
-
-        await cache.SetObjectAsync(KeyForUser(id, type), new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege),
-                                   cancellationToken: cancellationToken);
+        await cache.SetObjectAsync(KeyForUser(id, type), user.ToDto(), cancellationToken: cancellationToken);
 
         return user;
     }
@@ -90,8 +88,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
         await repo.SaveChangesAsync(cancellationToken);
 
-        await cache.SetObjectAsync(KeyForUser(id, type), new CachedBotUser(user.Id, user.OwnerId, user.OwnerType, user.Privilege),
-                                   cancellationToken: cancellationToken);
+        await cache.SetObjectAsync(KeyForUser(id, type), user.ToDto(), cancellationToken: cancellationToken);
 
         return user;
     }

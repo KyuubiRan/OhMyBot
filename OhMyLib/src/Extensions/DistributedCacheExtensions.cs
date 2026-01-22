@@ -53,7 +53,7 @@ public static class DistributedCacheExtensions
         {
             var json = JsonSerializer.Serialize(value);
             var data = Encoding.UTF8.GetBytes(json);
-            await cache.SetAsync(key, data, options ?? new DistributedCacheEntryOptions()
+            await cache.SetAsync(key, data, options ?? new DistributedCacheEntryOptions
             {
                 AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
             }, cancellationToken);

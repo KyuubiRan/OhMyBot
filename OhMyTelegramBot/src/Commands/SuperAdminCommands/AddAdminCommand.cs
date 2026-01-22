@@ -1,4 +1,3 @@
-using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
@@ -8,12 +7,12 @@ using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Commands.AdminCommands;
+namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
-[Component(Key = "cmd__add")]
-public class AddCommand(BotUserService service, CommandContext context) : ICommand
+[Component(Key = "cmd__addadmin")]
+public class AddAdminCommand(BotUserService service, CommandContext context) : ICommand
 {
-    public UserPrivilege RequirePrivilege => UserPrivilege.Admin;
+    public UserPrivilege RequirePrivilege => UserPrivilege.SuperAdmin;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {

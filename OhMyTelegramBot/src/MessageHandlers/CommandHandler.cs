@@ -47,7 +47,7 @@ public sealed partial class CommandHandler(
         context.SenderId = senderId;
         context.Command = commandLower;
         context.Args = args;
-        context.User = user;
+        context.UserDto = user;
 
         try
         {

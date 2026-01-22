@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
+using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.HostedServices;
@@ -115,7 +116,13 @@ public static class MyBot
         {
             try
             {
-                var messageHandler = scope.ServiceProvider.GetKeyedService<IMessageHandler>("handler__" + m.Type);
+                var sp = scope.ServiceProvider;
+
+                var tgUserService = sp.GetRequiredService<TelegramUserService>();
+                if (m.From is { } sender)
+                    await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
+
+                var messageHandler = sp.GetKeyedService<IMessageHandler>("handler__" + m.Type);
                 if (messageHandler != null)
                     await messageHandler.OnReceiveMessage(m);
             }

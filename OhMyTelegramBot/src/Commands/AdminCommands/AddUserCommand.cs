@@ -9,19 +9,19 @@ using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.Commands.AdminCommands;
 
-[Component(Key = "cmd__del")]
-public class DelCommand(BotUserService service, CommandContext context) : ICommand
+[Component(Key = "cmd__add")]
+public class AddUserCommand(BotUserService botUserservice, CommandContext context) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Admin;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
-        var mentioned = message.GetTextMentionedUser() ?? message.GetReplyUser();
+        var mentioned = message.GetReplyUser() ?? message.GetTextMentionedUser();
         var id = mentioned?.Id.ToString() ?? args.ElementAtOrDefault(0);
         if (!long.TryParse(id, out _))
             return;
 
-        var target = await service.GetCachedUserAsync(id, SoftwareType.Telegram);
+        var target = await botUserservice.GetCachedUserAsync(id, SoftwareType.Telegram);
 
         if (target.Uid == senderId.ToString())
         {
@@ -41,13 +41,13 @@ public class DelCommand(BotUserService service, CommandContext context) : IComma
             return;
         }
 
-        if (target.Privilege < UserPrivilege.User)
+        if (target.Privilege >= UserPrivilege.User)
         {
-            await botClient.SendMessage(chatId, "用户无权限");
+            await botClient.SendMessage(chatId, "该用户已有权限");
             return;
         }
 
-        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.None);
-        await botClient.SendMessage(chatId, "已删除该用户权限");
+        await botUserservice.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.User);
+        await botClient.SendMessage(chatId, "已提升该用户权限至 User");
     }
 }

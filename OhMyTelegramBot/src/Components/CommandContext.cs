@@ -1,5 +1,5 @@
 using OhMyLib.Attributes;
-using OhMyLib.CachedModels;
+using OhMyLib.Dto;
 using OhMyLib.Enums;
 using Telegram.Bot.Types.Enums;
 
@@ -13,6 +13,6 @@ public class CommandContext
     public long SenderId { get; set; }
     public string Command { get; set; } = null!;
     public string[] Args { get; set; } = null!;
-    public CachedBotUser User { get; set; } = null!;
-    public UserPrivilege Privilege => User.Privilege;
+    public BotUserDto UserDto { get; set; } = null!;
+    public UserPrivilege Privilege => UserDto.Privilege;
 }
