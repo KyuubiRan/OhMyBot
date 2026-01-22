@@ -17,7 +17,7 @@ public class AddUserCommand(BotUserService botUserService, CommandContext contex
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
-        var mentioned = message.GetReplyUser() ?? message.GetTextMentionedUser() ?? await helperService.GetMentionedUserAsync(message);
+        var mentioned = await helperService.GetReplyToOrFirstMentionedUser(message);
         var id = mentioned?.Id.ToString() ?? args.ElementAtOrDefault(0);
         if (!long.TryParse(id, out _))
             return;

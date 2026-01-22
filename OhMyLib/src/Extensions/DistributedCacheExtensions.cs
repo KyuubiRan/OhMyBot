@@ -31,7 +31,7 @@ public static class DistributedCacheExtensions
 
         public T GetOrSetObject<T>(string key, Func<T> factory, DistributedCacheEntryOptions? options = null)
         {
-            var obj = cache.GetObject<T>(key);
+            var obj = cache.GetObject<T?>(key);
             if (obj != null)
                 return obj;
 
@@ -63,13 +63,16 @@ public static class DistributedCacheExtensions
         public async Task<T> GetOrSetObjectAsync<T>(string key, Func<Task<T>> factory, DistributedCacheEntryOptions? options = null,
             CancellationToken token = default)
         {
-            var obj = await cache.GetObjectAsync<T>(key, cancellationToken: token);
+            var obj = await cache.GetAsync(key, token);
             if (obj != null)
-                return obj;
+            {
+                var json = Encoding.UTF8.GetString(obj);
+                return JsonSerializer.Deserialize<T>(json)!;
+            }
 
-            obj = await factory();
-            await cache.SetObjectAsync(key, obj, options, cancellationToken: token);
-            return obj;
+            var o = await factory();
+            await cache.SetObjectAsync(key, o, options, cancellationToken: token);
+            return o;
         }
     }
 }

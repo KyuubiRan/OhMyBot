@@ -4,19 +4,20 @@ using OhMyLib.Services;
 using OhMyTelegramBot.Components;
 using OhMyTelegramBot.Extensions;
 using OhMyTelegramBot.Interfaces;
+using OhMyTelegramBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
 [Component(Key = "cmd__promote")]
-public class AddAdminCommand(BotUserService service, CommandContext context) : ICommand
+public class AddAdminCommand(BotUserService service, CommandContext context, TMessageHelperService helperService) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.SuperAdmin;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
-        var mentioned = message.GetReplyUser() ?? message.GetTextMentionedUser();
+        var mentioned = await helperService.GetReplyToOrFirstMentionedUser(message);
         var id = mentioned?.Id.ToString() ?? args.ElementAtOrDefault(0);
         if (!long.TryParse(id, out _))
             return;

@@ -1,5 +1,6 @@
 using OhMyLib.Attributes;
 using OhMyLib.Services;
+using OhMyTelegramBot.Extensions;
 using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.Services;
@@ -32,5 +33,21 @@ public class TMessageHelperService(TelegramUserService userService)
                 LastName = u.LastName
             }
             : null;
+    }
+
+    /// <summary>
+    /// Get first reply to or mentioned user in the message
+    /// </summary>
+    /// <param name="message"></param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    public async ValueTask<User?> GetReplyToOrFirstMentionedUser(Message message, CancellationToken cancellationToken = default)
+    {
+        if (message.ReplyToMessage?.From != null)
+            return message.ReplyToMessage.From;
+        if (message.GetTextMentionedUser() is { } tu)
+            return tu;
+
+        return await GetMentionedUserAsync(message, 0, cancellationToken);
     }
 }
