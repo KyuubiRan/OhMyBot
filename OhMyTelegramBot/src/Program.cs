@@ -73,6 +73,7 @@ public static class MyBot
                     }
 
                     var botClient = new TelegramBotClient(token, client);
+                    botClient.DropPendingUpdates().Wait();
                     botClient.OnUpdate += OnUpdate;
 
                     return botClient;
@@ -81,9 +82,9 @@ public static class MyBot
             .Build();
 
     private static readonly ILogger Logger = Instance
-                                             .ServiceProvider
-                                             .GetRequiredService<ILoggerFactory>()
-                                             .CreateLogger("Main");
+        .ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 
