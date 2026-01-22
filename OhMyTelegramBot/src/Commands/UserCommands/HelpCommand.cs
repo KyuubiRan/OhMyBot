@@ -19,6 +19,8 @@ public class HelpCommand(CommandContext context) : ICommand
         *\[帮助菜单\]*
         `<尖括号>` 内为 *必填* 参数，`[方括号]` 内为 _选填_ 参数。
         /help \- 显示此帮助菜单
+        /info \[uid/mention/reply\] \- 查找记录的用户信息
+        /ping \- 测试机器人响应时间
         """;
 
     private const string AdminHelpCommandText =

@@ -1,0 +1,19 @@
+using System.Diagnostics;
+using OhMyLib.Attributes;
+using OhMyTelegramBot.Interfaces;
+using Telegram.Bot;
+using Telegram.Bot.Types;
+
+namespace OhMyTelegramBot.Commands.UserCommands;
+
+[Component(Key = "cmd__ping")]
+public class PingCommand : ICommand
+{
+    public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        var m = await botClient.SendMessage(chatId, "Pong!");
+        stopwatch.Stop();
+        await botClient.EditMessageText(chatId, m.MessageId, $"Pong! | {stopwatch.ElapsedMilliseconds} ms");
+    }
+}

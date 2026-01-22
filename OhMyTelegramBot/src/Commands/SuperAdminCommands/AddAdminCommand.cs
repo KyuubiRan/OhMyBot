@@ -41,13 +41,14 @@ public class AddAdminCommand(BotUserService service, CommandContext context, TMe
             return;
         }
 
-        if (target.Privilege >= UserPrivilege.Admin)
+        if ((byte)target.Privilege * 10 >= (byte)context.Privilege)
         {
-            await botClient.SendMessage(chatId, "该用户已有权限");
+            await botClient.SendMessage(chatId, $"该用户已有 {target.Privilege.ToString()} 权限");
             return;
         }
 
-        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.Admin);
-        await botClient.SendMessage(chatId, $"已提升该用户权限至 {nameof(UserPrivilege.Admin)}");
+        var promotedPriv = (UserPrivilege)Math.Max(1, (byte)target.Privilege * 10);
+        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, promotedPriv);
+        await botClient.SendMessage(chatId, $"已提升该用户权限至 {promotedPriv.ToString()}");
     }
 }

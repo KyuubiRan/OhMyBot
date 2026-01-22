@@ -41,13 +41,14 @@ public class DelAdminCommand(BotUserService service, CommandContext context, TMe
             return;
         }
 
-        if (target.Privilege < UserPrivilege.Admin)
+        if (target.Privilege == UserPrivilege.None)
         {
-            await botClient.SendMessage(chatId, "用户无权限");
+            await botClient.SendMessage(chatId, "该用户已无任何权限");
             return;
         }
 
-        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.User);
-        await botClient.SendMessage(chatId, $"将该用户权限降级至 {nameof(UserPrivilege.User)}");
+        var tagetPriv = (UserPrivilege)((byte)target.Privilege / 10);
+        await service.SetPrivilegeAsync(id, SoftwareType.Telegram, tagetPriv);
+        await botClient.SendMessage(chatId, $"将该用户权限降级至 {tagetPriv.ToString()}");
     }
 }

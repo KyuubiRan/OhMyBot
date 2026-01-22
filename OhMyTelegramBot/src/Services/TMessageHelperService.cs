@@ -1,4 +1,5 @@
 using OhMyLib.Attributes;
+using OhMyLib.Dto;
 using OhMyLib.Services;
 using OhMyTelegramBot.Extensions;
 using Telegram.Bot.Types;
@@ -10,7 +11,7 @@ namespace OhMyTelegramBot.Services;
 // ReSharper disable once InconsistentNaming
 public class TMessageHelperService(TelegramUserService userService)
 {
-    public async Task<User?> GetMentionedUserAsync(Message message, int index = 0, CancellationToken cancellationToken = default)
+    public async Task<TelegramUserDto?> GetMentionedUserAsync(Message message, int index = 0, CancellationToken cancellationToken = default)
     {
         var mentionEntity = message.Entities?
             .Where(e => e.Type == MessageEntityType.Mention)
@@ -25,15 +26,7 @@ public class TMessageHelperService(TelegramUserService userService)
 
         var u = await userService.GetCachedUserByUsernameAsync(username, cancellationToken);
 
-        return u.ExistsInDatabase
-            ? new User
-            {
-                Id = u.UserId,
-                Username = u.Username,
-                FirstName = u.FirstName ?? "",
-                LastName = u.LastName
-            }
-            : null;
+        return u.ExistsInDatabase ? u : null;
     }
 
     /// <summary>
@@ -49,6 +42,6 @@ public class TMessageHelperService(TelegramUserService userService)
         if (message.GetTextMentionedUser() is { } tu)
             return tu;
 
-        return await GetMentionedUserAsync(message, 0, cancellationToken);
+        return (await GetMentionedUserAsync(message, 0, cancellationToken))?.ToUser();
     }
 }
