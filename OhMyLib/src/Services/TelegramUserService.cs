@@ -92,38 +92,52 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
                     user.UpdatedAt = DateTimeOffset.UtcNow;
 
                     await cache.RemoveAsync(KeyForUsername(username), cancellationToken);
-                    await cache.RemoveAsync(KeyForUserId(userId), cancellationToken);
+                    await cache.RemoveAsync(KeyForUserId(user.UserId), cancellationToken);
                 }
             }
         }
 
         TelegramUser entity;
-        if (current.ExistsInDatabase)
+        var isNew = !current.ExistsInDatabase;
+
+        if (!isNew)
         {
-            entity = await GetUserAsync(userId, cancellationToken) ?? throw new InvalidOperationException("User should exist in database.");
-            entity.Username = username;
-            entity.FirstName = firstName;
-            entity.LastName = lastName;
-            entity.UpdatedAt = DateTimeOffset.UtcNow;
+            entity = await GetUserAsync(userId, cancellationToken)
+                     ?? throw new InvalidOperationException("User should exist in database.");
         }
         else
         {
-            entity = new TelegramUser
-            {
-                UserId = userId,
-                Username = username,
-                FirstName = firstName,
-                LastName = lastName,
-                CreatedAt = DateTimeOffset.UtcNow,
-                UpdatedAt = DateTimeOffset.UtcNow
-            };
+            entity = new TelegramUser { UserId = userId };
             await repo.AddAsync(entity, cancellationToken);
+            entity.CreatedAt = DateTimeOffset.UtcNow;
+        }
+
+        entity.Username = username;
+        entity.FirstName = firstName;
+        entity.LastName = lastName;
+        entity.UpdatedAt = DateTimeOffset.UtcNow;
+
+        try
+        {
+            await repo.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            var existing = await GetUserAsync(userId, cancellationToken);
+            if (existing == null)
+                throw;
+
+            existing.Username = username;
+            existing.FirstName = firstName;
+            existing.LastName = lastName;
+            existing.UpdatedAt = DateTimeOffset.UtcNow;
+
+            await repo.SaveChangesAsync(cancellationToken);
+            entity = existing;
         }
 
         await cache.SetObjectAsync(KeyForUserId(userId), entity.ToDto(), cancellationToken: cancellationToken);
         if (!username.IsWhiteSpaceOrNull)
             await cache.SetObjectAsync(KeyForUsername(username), entity.UserId, cancellationToken: cancellationToken);
-
-        await repo.SaveChangesAsync(cancellationToken);
     }
 }
