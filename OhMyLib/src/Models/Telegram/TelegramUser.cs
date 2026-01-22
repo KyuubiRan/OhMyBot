@@ -19,6 +19,6 @@ public class TelegramUser
     [StringLength(255)] public string? LastName { get; set; } = null;
 
     public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
-    
+
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 }

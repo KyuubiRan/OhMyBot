@@ -1,6 +1,5 @@
 using System.Text;
 using System.Text.Json;
-using FoxTail.Extensions;
 using Microsoft.Extensions.Caching.Distributed;
 
 namespace OhMyLib.Extensions;

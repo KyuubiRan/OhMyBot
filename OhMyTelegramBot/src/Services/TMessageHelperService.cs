@@ -2,6 +2,7 @@ using OhMyLib.Attributes;
 using OhMyLib.Services;
 using OhMyTelegramBot.Extensions;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 
 namespace OhMyTelegramBot.Services;
 
@@ -12,7 +13,7 @@ public class TMessageHelperService(TelegramUserService userService)
     public async Task<User?> GetMentionedUserAsync(Message message, int index = 0, CancellationToken cancellationToken = default)
     {
         var mentionEntity = message.Entities?
-            .Where(e => e.Type == Telegram.Bot.Types.Enums.MessageEntityType.Mention)
+            .Where(e => e.Type == MessageEntityType.Mention)
             .ElementAtOrDefault(index);
 
         if (mentionEntity is null)
