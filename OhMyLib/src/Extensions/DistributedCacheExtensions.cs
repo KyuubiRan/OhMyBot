@@ -6,6 +6,8 @@ namespace OhMyLib.Extensions;
 
 public static class DistributedCacheExtensions
 {
+    private const int DefaultCacheDurationHours = 12;
+    
     extension(IDistributedCache cache)
     {
         public T? GetObject<T>(string key)
@@ -24,7 +26,7 @@ public static class DistributedCacheExtensions
             var data = Encoding.UTF8.GetBytes(json);
             cache.Set(key, data, options ?? new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(DefaultCacheDurationHours)
             });
         }
 
@@ -58,7 +60,7 @@ public static class DistributedCacheExtensions
             var data = Encoding.UTF8.GetBytes(json);
             await cache.SetAsync(key, data, options ?? new DistributedCacheEntryOptions
             {
-                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(2)
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(DefaultCacheDurationHours)
             }, cancellationToken);
         }
 
