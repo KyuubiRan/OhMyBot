@@ -7,6 +7,8 @@ namespace OhMyLib.Requests;
 public sealed class KuroHttpClient : IDisposable
 {
     private const string BaseUrl = "https://api.kurobbs.com";
+    private const string KuroGameBoxVersion = "2.10.0";
+    private const string FakeIpAddress = "100.100.64.60";
 
     private static readonly FrozenDictionary<string, string> CommonHeaders = new Dictionary<string, string>
     {
@@ -38,14 +40,14 @@ public sealed class KuroHttpClient : IDisposable
         { "Sec-Fetch-Site", "same-site" },
         { "Sec-Fetch-Mode", "cors" },
         { "Origin", "https://web-static.kurobbs.com" },
-        { "Content-Type", "Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/2.10.0" },
+        { "Content-Type", $"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}" },
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<string, string> UserInfoHeaders = new Dictionary<string, string>
     {
         { "osversion", "Android" },
         { "countrycode", "CN" },
-        { "ip", "100.100.64.60" },
+        { "ip", FakeIpAddress },
         { "model", "2211133C" },
         { "source", "android" },
         { "lang", "zh-Hans" },
@@ -76,7 +78,7 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeaders(CommonHeaders)
                                 .WithHeaders(BbsHeaders)
                                 .WithHeader("Cookie", "user_token=" + _token)
-                                .WithHeader("Ip", "100.100.64.60")
+                                .WithHeader("Ip", FakeIpAddress)
                                 .WithHeader("token", _token)
                                 .WithHeader("dev_code", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
@@ -90,7 +92,7 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeaders(CommonHeaders)
                                 .WithHeaders(GameHeaders)
                                 .WithHeader("devCode",
-                                            "100.100.64.60, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/2.10.0")
+                                            $"{FakeIpAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}")
                                 .WithHeader("token", _token)
                                 .PostJsonAsync(body)
                                 .ReceiveJson<JsonNode>();
