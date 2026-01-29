@@ -1,6 +1,5 @@
 using System.Collections.Frozen;
 using System.Text.Json;
-using System.Text.Json.Nodes;
 using Flurl.Http;
 using Flurl.Http.Configuration;
 using FoxTail.Extensions;
@@ -51,7 +50,6 @@ public sealed class KuroHttpClient : IDisposable
     {
         { "osversion", "Android" },
         { "countrycode", "CN" },
-        { "ip", FakeIpAddress },
         { "model", "2211133C" },
         { "source", "android" },
         { "lang", "zh-Hans" },
@@ -67,16 +65,18 @@ public sealed class KuroHttpClient : IDisposable
     private readonly string _token;
     private readonly string _devCode;
     private readonly string _distinctId;
+    private readonly string _ipAddress;
 
-    public KuroHttpClient(string token, string? devCode = null, string? distinctId = null)
+    public KuroHttpClient(string token, string? devCode = null, string? distinctId = null, string? ipAddress = null)
     {
         _token = token;
+        _ipAddress = ipAddress ?? FakeIpAddress;
         _devCode = devCode ?? "";
         _distinctId = distinctId ?? "";
         _httpClient.BaseUrl = BaseUrl;
-        _httpClient.WithSettings(x => x.JsonSerializer = new DefaultJsonSerializer( new JsonSerializerOptions()
+        _httpClient.WithSettings(x => x.JsonSerializer = new DefaultJsonSerializer(new JsonSerializerOptions()
         {
-             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         }));
     }
 
@@ -86,7 +86,7 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeaders(CommonHeaders)
                                 .WithHeaders(BbsHeaders)
                                 .WithHeader("Cookie", "user_token=" + _token)
-                                .WithHeader("Ip", FakeIpAddress)
+                                .WithHeader("Ip", _ipAddress)
                                 .WithHeader("token", _token)
                                 .WithHeader("dev_code", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
@@ -102,7 +102,7 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeaders(CommonHeaders)
                                 .WithHeaders(GameHeaders)
                                 .WithHeader("devCode",
-                                            $"{FakeIpAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}")
+                                            $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}")
                                 .WithHeader("token", _token)
                                 .Let(x => body != null
                                               ? x.PostUrlEncodedAsync(body)
@@ -115,6 +115,7 @@ public sealed class KuroHttpClient : IDisposable
         return await _httpClient.Request(path)
                                 .WithHeaders(CommonHeaders)
                                 .WithHeaders(UserInfoHeaders)
+                                .WithHeader("ip", _ipAddress)
                                 .WithHeader("devcode", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
                                 .WithHeader("token", _token)
