@@ -40,6 +40,8 @@ public class HelpCommand(CommandContext context) : ICommand
     private const string OwnerHelpCommandText =
         """
         *\[所有者\]*
+        /reboot \- 重启Bot
+        /shutdown \- 关闭Bot
         /setpriv \<uid/mention/reply\> \- 调整用户权限等级
         /broadcast \<message\> \- 向所有用户广播消息
         """;

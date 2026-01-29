@@ -12,5 +12,8 @@ public class KuroUserConfiguration : IEntityTypeConfiguration<KuroUser>
             .WithOne(x => x.KuroUser)
             .HasForeignKey<KuroUser>(x => x.OwnerUserId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasIndex(x => x.BbsUserId)
+               .IsUnique();
     }
 }

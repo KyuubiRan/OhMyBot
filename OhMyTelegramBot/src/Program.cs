@@ -81,9 +81,9 @@ public static class MyBot
             .Build();
 
     private static readonly ILogger Logger = Instance
-        .ServiceProvider
-        .GetRequiredService<ILoggerFactory>()
-        .CreateLogger("Main");
+                                             .ServiceProvider
+                                             .GetRequiredService<ILoggerFactory>()
+                                             .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 
@@ -94,10 +94,18 @@ public static class MyBot
         e.Cancel = true;
     }
 
-    public static async Task Main()
+    public static async Task Main(string[] args)
     {
-        _ = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
+        var bot = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
         Logger.LogInformation("Bot started.");
+        
+        var rebootArg = args.FirstOrDefault(a => a.StartsWith("reboot_chatid="));
+        if (rebootArg != null)
+        {
+            var chatId = rebootArg["reboot_chatid=".Length..];
+            Logger.LogInformation("Sending reboot confirmation message to chat {ChatId}", chatId);
+            await bot.SendMessage(chatId, "重启完成");
+        }
 
         // await botClient.TestApi();
         // Logger.LogInformation("Telegram Bot API is working fine.");

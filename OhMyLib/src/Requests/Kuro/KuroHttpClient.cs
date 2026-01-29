@@ -1,8 +1,10 @@
 using System.Collections.Frozen;
 using System.Text.Json.Nodes;
 using Flurl.Http;
+using FoxTail.Extensions;
+using OhMyLib.Requests.Kuro.Data;
 
-namespace OhMyLib.Requests;
+namespace OhMyLib.Requests.Kuro;
 
 public sealed class KuroHttpClient : IDisposable
 {
@@ -72,7 +74,7 @@ public sealed class KuroHttpClient : IDisposable
         _httpClient.BaseUrl = BaseUrl;
     }
 
-    private async Task<JsonNode> PostBbsRequestAsync(string path, object body)
+    private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
                                 .WithHeaders(CommonHeaders)
@@ -82,11 +84,13 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeader("token", _token)
                                 .WithHeader("dev_code", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
-                                .PostJsonAsync(body)
-                                .ReceiveJson<JsonNode>();
+                                .Let(x => body != null
+                                              ? x.PostUrlEncodedAsync(body)
+                                              : x.PostAsync(new FormUrlEncodedContent([])))
+                                .ReceiveJson<T>();
     }
 
-    private async Task<JsonNode> PostGameRequestAsync(string path, object body)
+    private async Task<T> PostGameRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
                                 .WithHeaders(CommonHeaders)
@@ -94,11 +98,13 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeader("devCode",
                                             $"{FakeIpAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}")
                                 .WithHeader("token", _token)
-                                .PostJsonAsync(body)
-                                .ReceiveJson<JsonNode>();
+                                .Let(x => body != null
+                                              ? x.PostUrlEncodedAsync(body)
+                                              : x.PostAsync(new FormUrlEncodedContent([])))
+                                .ReceiveJson<T>();
     }
 
-    private async Task<JsonNode> PostUserInfoRequestAsync(string path, object body)
+    private async Task<T> PostUserInfoRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
                                 .WithHeaders(CommonHeaders)
@@ -106,8 +112,73 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeader("devcode", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
                                 .WithHeader("token", _token)
-                                .PostJsonAsync(body)
-                                .ReceiveJson<JsonNode>();
+                                .Let(x => body != null
+                                              ? x.PostUrlEncodedAsync(body)
+                                              : x.PostAsync(new FormUrlEncodedContent([])))
+                                .ReceiveJson<T>();
+    }
+
+    public async Task<KuroHttpResponse<List<KuroBbsPostListData>>> BbsGetPostsAsync(
+        int gameId = 3,
+        int forumId = 9,
+        int searchType = 3,
+        int pageIndex = 1,
+        int pageSize = 20
+    )
+    {
+        var body = new
+        {
+            gameId,
+            forumId,
+            searchType,
+            pageIndex,
+            pageSize
+        };
+        return await PostBbsRequestAsync<KuroHttpResponse<List<KuroBbsPostListData>>>("/forum/list", body);
+    }
+
+    public async Task<KuroHttpResponse<bool>> BbsLikePostAsync(
+        int gameId,
+        int forumId,
+        int postType,
+        string postId,
+        long toUserId,
+        int operateType = 1,
+        int likeType = 1
+    )
+    {
+        var body = new
+        {
+            gameId,
+            forumId,
+            postType,
+            likeType,
+            postId,
+            operateType,
+            toUserId
+        };
+        return await PostBbsRequestAsync<KuroHttpResponse<bool>>("/forum/like", body);
+    }
+
+    public async Task<KuroHttpResponse<KuroBbsPostDetail>> BbsGetPostDetailAsync(
+        string postId,
+        int isOnlyPublisher = 0,
+        int showOrderType = 2
+    )
+    {
+        var body = new
+        {
+            postId,
+            isOnlyPublisher,
+            showOrderType,
+        };
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsPostDetail>>("/forum/getPostDetail", body);
+    }
+
+    public async Task<KuroHttpResponse<KuroBbsMineData>> BbsGetMineAsync(long viewUserId)
+    {
+        var body = new { viewUserId };
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsMineData>>("/user/mineV2", body);
     }
 
     public void Dispose()

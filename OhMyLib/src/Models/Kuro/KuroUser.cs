@@ -23,7 +23,11 @@ public class KuroUser
 
     public virtual List<KuroGameConfig> GameConfigs { get; set; } = [];
 
-    [StringLength(1024)] public string Token { get; set; } = string.Empty;
+    public long? BbsUserId { get; set; }
+    [StringLength(512)] public string? Token { get; set; }
+    [StringLength(255)] public string? DevCode { get; set; }
+    [StringLength(255)] public string? DistinctId { get; set; }
+    [StringLength(255)] public string? IpAddress { get; set; }
 
     public DateTimeOffset CreateAt { get; set; } = DateTimeOffset.UtcNow;
 }
