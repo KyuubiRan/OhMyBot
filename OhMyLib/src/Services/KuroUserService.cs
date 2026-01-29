@@ -1,9 +1,53 @@
+using Microsoft.EntityFrameworkCore;
 using OhMyLib.Attributes;
+using OhMyLib.Enums;
+using OhMyLib.Models.Kuro;
 using OhMyLib.Repositories;
 
 namespace OhMyLib.Services;
 
 [Component]
-public class KuroUserService(KuroUserRepo repo)
+public class KuroUserService(KuroUserRepo repo, BotUserService service)
 {
+    public async ValueTask<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default)
+    {
+        return await repo.EntitySet.FirstOrDefaultAsync(x => x.BbsUserId == bbsId, cancellationToken: cancellationToken);
+    }
+
+    public async ValueTask CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
+                                                   string? ipAddress)
+    {
+        var user = await service.GetUserAsync(fromId.ToString(), type);
+        if (user == null)
+            throw new InvalidOperationException("Owner bot user not found.");
+
+        var exists = user.KuroUser;
+
+        if (exists != null)
+        {
+            exists.BbsUserId = kUid;
+            exists.Token = kToken;
+            exists.DevCode = kDevCode;
+            exists.DistinctId = kDistinctId;
+            exists.IpAddress = ipAddress;
+            repo.Update(exists);
+        }
+        else
+        {
+            var newUser = new KuroUser
+            {
+                OwnerBotUser = user,
+                OwnerUserId = user.Id,
+                BbsUserId = kUid,
+                Token = kToken,
+                DevCode = kDevCode,
+                DistinctId = kDistinctId,
+                IpAddress = ipAddress
+            };
+            
+            await repo.AddAsync(newUser);
+        }
+
+        await repo.SaveChangesAsync();
+    }
 }

@@ -98,7 +98,7 @@ public static class MyBot
     {
         var bot = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
         Logger.LogInformation("Bot started.");
-        
+
         var rebootArg = args.FirstOrDefault(a => a.StartsWith("reboot_chatid="));
         if (rebootArg != null)
         {
@@ -137,6 +137,25 @@ public static class MyBot
             catch (Exception e)
             {
                 Logger.LogWarning(e, "Unhandled exception in processing message");
+            }
+        }
+        else if (update.CallbackQuery is { } callback)
+        {
+            try
+            {
+                var sp = scope.ServiceProvider;
+
+                var tgUserService = sp.GetRequiredService<TelegramUserService>();
+                if (callback.From is { } sender)
+                    await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
+
+                var callbackHandler = sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery");
+                if (callbackHandler != null)
+                    await callbackHandler.OnReceiveCallback(callback);
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning(e, "Unhandled exception in processing callback query");
             }
         }
     }

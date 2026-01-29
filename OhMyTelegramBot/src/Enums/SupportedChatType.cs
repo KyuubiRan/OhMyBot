@@ -9,8 +9,9 @@ public enum SupportedChatType
     None = 0,
     Private = 1 << 0,
     Group = 1 << 1,
+    Channel = 1 << 2,
 
-    All = Group | Private
+    All = Group | Private | Channel
 }
 
 public static class SupportedChatTypeExtensions

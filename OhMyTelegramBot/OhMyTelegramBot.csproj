@@ -19,8 +19,4 @@
       <None Include="bin\Debug\net10.0\appsettings.json" />
     </ItemGroup>
 
-    <ItemGroup>
-      <Folder Include="src\Model\" />
-    </ItemGroup>
-
 </Project>

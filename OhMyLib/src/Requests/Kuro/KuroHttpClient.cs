@@ -1,6 +1,8 @@
 using System.Collections.Frozen;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Flurl.Http;
+using Flurl.Http.Configuration;
 using FoxTail.Extensions;
 using OhMyLib.Requests.Kuro.Data;
 
@@ -72,6 +74,10 @@ public sealed class KuroHttpClient : IDisposable
         _devCode = devCode ?? "";
         _distinctId = distinctId ?? "";
         _httpClient.BaseUrl = BaseUrl;
+        _httpClient.WithSettings(x => x.JsonSerializer = new DefaultJsonSerializer( new JsonSerializerOptions()
+        {
+             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        }));
     }
 
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
