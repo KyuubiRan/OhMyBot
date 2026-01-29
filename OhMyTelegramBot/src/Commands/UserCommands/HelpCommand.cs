@@ -21,6 +21,7 @@ public class HelpCommand(CommandContext context) : ICommand
         /help \- 显示此帮助菜单
         /info \[uid/mention/reply\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
+        /kuro_bind \- 绑定库街区账号
         """;
 
     private const string AdminHelpCommandText =
