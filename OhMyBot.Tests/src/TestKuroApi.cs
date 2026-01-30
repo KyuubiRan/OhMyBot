@@ -2,6 +2,7 @@
 
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
+using OhMyLib.Enums.Kuro;
 using OhMyLib.Requests.Kuro;
 
 namespace OhMyBot.Tests;
@@ -126,5 +127,39 @@ public class TestKuroApi
         }
 
         Console.WriteLine("全部获取完成");
+    }
+
+    [TestMethod]
+    public async Task TestInitGameSignin()
+    {
+        var kuro = _configuration.GetSection("Kuro");
+
+        var result = await _client.GameSignInInitAsync((int)KuroGameType.Wuwa, KuroGameType.Wuwa.ServerId, long.Parse(kuro["WuwaUid"]!),
+            long.Parse(kuro["Uid"]!));
+
+        if (!result.Success)
+        {
+            Console.WriteLine(JsonSerializer.SerializeToNode(result)!.ToString());
+            throw new Exception("初始化游戏签到失败：" + result.Msg);
+        }
+
+        Console.WriteLine(JsonSerializer.SerializeToNode(result.Data!)!.ToString());
+    }
+
+    [TestMethod]
+    public async Task TestGameSigninAsync()
+    {
+        var kuro = _configuration.GetSection("Kuro");
+
+        var result = await _client.GameSignInAsync((int)KuroGameType.Wuwa, KuroGameType.Wuwa.ServerId, long.Parse(kuro["WuwaUid"]!),
+            long.Parse(kuro["Uid"]!));
+
+        if (!result.Success)
+        {
+            Console.WriteLine(JsonSerializer.SerializeToNode(result)!.ToString());
+            throw new Exception("游戏签到失败：" + result.Msg);
+        }
+
+        Console.WriteLine(JsonSerializer.SerializeToNode(result.Data!)!.ToString());
     }
 }

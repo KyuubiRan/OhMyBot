@@ -12,7 +12,6 @@ public sealed class KuroHttpClient : IDisposable
 {
     private const string BaseUrl = "https://api.kurobbs.com";
     private const string Version = "2.10.3";
-    private const string FakeIpAddress = "100.100.64.60";
 
     private static readonly FrozenDictionary<string, string> BbsHeaders = new Dictionary<string, string>
     {
@@ -35,57 +34,15 @@ public sealed class KuroHttpClient : IDisposable
         { "version", Version },
     }.ToFrozenDictionary();
 
-    private static readonly FrozenDictionary<string, string> GameHeaders = new Dictionary<string, string>
-    {
-        { "Accept-Language", "zh-CN,zh-Hans;q=0.9" },
-        { "Accept-Encoding", "gzip, deflate, br" },
-        { "Connection", "keep-alive" },
-        { "Host", "api.kurobbs.com" },
-        { "Accept", "application/json, text/plain, */*" },
-        { "source", "ios" },
-        { "Sec-Fetch-Site", "same-site" },
-        { "Sec-Fetch-Mode", "cors" },
-        { "Origin", "https://web-static.kurobbs.com" },
-        { "Content-Type", $"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}" },
-    }.ToFrozenDictionary();
-
-    private static readonly FrozenDictionary<string, string> AppHeaders = new Dictionary<string, string>
-    {
-        { "Host", "api.kurobbs.com" },
-        { "Connection", "keep-alive" },
-        { "Pragma", "no-cache" },
-        { "Cache-Control", "no-cache" },
-        { "sec-ch-ua-platform", "\"Android\"" },
-        { "sec-ch-ua", "\"Not(A:Brand\";v=\"8\", \"Chromium\";v=\"144\", \"Android WebView\";v=\"144\"" },
-        { "sec-ch-ua-mobile", "?1" },
-        { "source", "android" },
-        {
-            "User-Agent",
-            $"Mozilla/5.0 (Linux; Android 16; PKX110 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/144.0.7559.59 Mobile Safari/537.36 Kuro/{Version} KuroGameBox/{Version}"
-        },
-        { "Accept", "application/json, text/plain, */*" },
-        { "Content-Type", "application/x-www-form-urlencoded" },
-        { "X-Requested-With", "com.kurogame.kjq" },
-        { "Origin", "https://web-static.kurobbs.com" },
-        { "Sec-Fetch-Site", "same-site" },
-        { "Sec-Fetch-Mode", "cors" },
-        { "Sec-Fetch-Dest", "empty" },
-        { "Accept-Encoding", "gzip, deflate, br, zstd" },
-        { "Accept-Language", "zh-CN,zh;q=0.9,zh-TW;q=0.8" },
-        { "priority", "u=1, i" },
-    }.ToFrozenDictionary();
-
     private readonly FlurlClient _httpClient = new();
 
     private readonly string _token;
     private readonly string _devCode;
     private readonly string _distinctId;
-    private readonly string _ipAddress;
 
     public KuroHttpClient(string token, string? devCode = null, string? distinctId = null, string? ipAddress = null)
     {
         _token = token;
-        _ipAddress = ipAddress.IfWhiteSpaceOrNull(FakeIpAddress);
         _devCode = devCode ?? "";
         _distinctId = distinctId ?? "";
         _httpClient.BaseUrl = BaseUrl;
@@ -103,32 +60,6 @@ public sealed class KuroHttpClient : IDisposable
             .WithHeader("token", _token)
             .WithHeader("devCode", _devCode)
             .WithHeader("distinct_id", _distinctId)
-            .Let(x => body != null
-                ? x.PostUrlEncodedAsync(body)
-                : x.PostAsync(new FormUrlEncodedContent([])))
-            .ReceiveJson<T>();
-    }
-
-    private async Task<T> PostGameRequestAsync<T>(string path, object? body = null)
-    {
-        return await _httpClient.Request(path)
-            .WithHeaders(GameHeaders)
-            .WithHeader("devCode",
-                $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}")
-            .WithHeader("token", _token)
-            .Let(x => body != null
-                ? x.PostUrlEncodedAsync(body)
-                : x.PostAsync(new FormUrlEncodedContent([])))
-            .ReceiveJson<T>();
-    }
-
-    private async Task<T> PostAppRequestAsync<T>(string path, object? body = null)
-    {
-        return await _httpClient.Request(path)
-            .WithHeaders(AppHeaders)
-            .WithHeader("devCode",
-                $"{_ipAddress}, Mozilla/5.0 (Linux; Android 16; PKX110 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/144.0.7559.59 Mobile Safari/537.36 Kuro/{Version} KuroGameBox/{Version}")
-            .WithHeader("token", _token)
             .Let(x => body != null
                 ? x.PostUrlEncodedAsync(body)
                 : x.PostAsync(new FormUrlEncodedContent([])))
@@ -210,11 +141,30 @@ public sealed class KuroHttpClient : IDisposable
         return await PostBbsRequestAsync<KuroHttpResponse<object>>("/user/signIn", body);
     }
 
+    public async Task<KuroHttpResponse<object>> GameSignInInitAsync(int gameId, string serverId, long roleId, long userId)
+    {
+        var body = new { gameId, serverId, roleId, userId };
+        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/signIn/initSignInV2", body);
+    }
+
+    public async Task<KuroHttpResponse<object>> GameSignInQueryRecordAsync(int gameId, string serverId, long roleId, long userId)
+    {
+        var body = new { gameId, serverId, roleId, userId };
+        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/signIn/queryRecordV2", body);
+    }
+
+    public async Task<KuroHttpResponse<object>> GameSignInReplenishAsync(int gameId, string serverId, long roleId, long userId)
+    {
+        var reqMonth = DateTime.Now.Month.ToString("00");
+        var body = new { gameId, serverId, roleId, userId, reqMonth };
+        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/signIn/repleSigInV2", body);
+    }
+
     public async Task<KuroHttpResponse<KuroGameSignInResult>> GameSignInAsync(int gameId, string serverId, long roleId, long userId)
     {
         var reqMonth = DateTime.Now.Month.ToString("00");
         var body = new { gameId, serverId, roleId, userId, reqMonth };
-        return await PostAppRequestAsync<KuroHttpResponse<KuroGameSignInResult>>("/encourage/signIn/v2", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroGameSignInResult>>("/encourage/signIn/v2", body);
     }
 
     public async Task<KuroHttpResponse<KuroBbsTaskProgressData>> BbsGetTaskProgressAsync(long userId, int gameId = 0)
