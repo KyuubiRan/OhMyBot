@@ -63,7 +63,7 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
             var signTask = currentProgress.FirstOrDefault(x => x.Remark == "用户签到");
             if (signTask?.Finished == false && ShouldDoAction(tasks, KuroBbsTaskType.Signin, args, "signin"))
             {
-                var result = await client.BbsSignInAsync((int)KuroGameType.Wuwa);
+                var result = await client.BbsSignInAsync();
                 if (result.Success)
                 {
                     logger.LogInformation("User {UserId} signed in to Kuro BBS successfully.", senderId);
@@ -79,7 +79,7 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
             }
 
             KuroHttpResponse<KuroBbsPostData>? posts = null;
-            
+
 
             var viewTask = currentProgress.FirstOrDefault(x => x.Remark == "浏览3篇帖子");
             if (viewTask?.Finished == false && ShouldDoAction(tasks, KuroBbsTaskType.ViewPosts, args, "view"))
@@ -87,13 +87,13 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
                 posts ??= await client.BbsGetPostsAsync();
 
                 var pst = posts.Data?.PostList ?? [];
-                
+
                 int succCnt = 0, failedCnt = 0;
                 for (var i = viewTask.CompleteTimes; i < viewTask.NeedActionTimes; i++)
                 {
                     if (pst.IsEmpty)
                         break;
-                    
+
                     var post = pst[i % pst.Count];
                     var viewResult = await client.BbsGetPostDetailAsync(post.PostId);
                     if (viewResult.Success)
@@ -118,22 +118,22 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
             {
                 posts ??= await client.BbsGetPostsAsync();
                 var pst = posts.Data?.PostList ?? [];
-                
+
                 int succCnt = 0, failedCnt = 0;
 
                 for (var i = likeTask.CompleteTimes; i < likeTask.NeedActionTimes; i++)
                 {
                     if (pst.IsEmpty)
                         break;
-                    
+
                     var post = pst[i % pst.Count];
                     var likeResult = await client.BbsLikePostAsync(
-                                         post.GameId,
-                                         post.GameForumId,
-                                         post.PostType,
-                                         post.PostId,
-                                         post.UserId
-                                     );
+                        post.GameId,
+                        post.GameForumId,
+                        post.PostType,
+                        post.PostId,
+                        post.UserId
+                    );
 
                     if (likeResult.Success)
                     {

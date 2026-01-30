@@ -11,14 +11,14 @@ public class TestKuroApi
 {
     private static IConfiguration _configuration = null!;
     private static KuroHttpClient _client = null!;
-    
+
     [ClassInitialize]
     public static void ClassInit(TestContext context)
     {
         _configuration = new ConfigurationBuilder()
-                         .AddJsonFile("appsettings.Test.json", optional: true)
-                         .AddEnvironmentVariables()
-                         .Build();
+            .AddJsonFile("appsettings.Test.json", optional: true)
+            .AddEnvironmentVariables()
+            .Build();
 
         var kuro = _configuration.GetSection("Kuro");
 
@@ -47,7 +47,19 @@ public class TestKuroApi
         {
             throw new Exception("获取帖子列表失败：" + posts.Msg);
         }
-        
+
+        Console.WriteLine(JsonSerializer.SerializeToNode(posts.Data!)!.ToString());
+    }
+
+    [TestMethod]
+    public async Task TestKuroBbsSigninAsync()
+    {
+        var posts = await _client.BbsSignInAsync(2);
+        if (!posts.Success)
+        {
+            throw new Exception("签到失败：" + posts.Msg);
+        }
+
         Console.WriteLine(JsonSerializer.SerializeToNode(posts.Data!)!.ToString());
     }
 }

@@ -99,41 +99,40 @@ public sealed class KuroHttpClient : IDisposable
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(BbsHeaders)
-                                .WithHeader("token", _token)
-                                .WithHeader("devCode", _devCode)
-                                .WithHeader("distinct_id", _distinctId)
-                                .Let(x => body != null
-                                              ? x.PostUrlEncodedAsync(body)
-                                              : x.PostAsync(new FormUrlEncodedContent([])))
-                                .ReceiveJson<T>();
+            .WithHeaders(BbsHeaders)
+            .WithHeader("token", _token)
+            .WithHeader("devCode", _devCode)
+            .WithHeader("distinct_id", _distinctId)
+            .Let(x => body != null
+                ? x.PostUrlEncodedAsync(body)
+                : x.PostAsync(new FormUrlEncodedContent([])))
+            .ReceiveJson<T>();
     }
 
     private async Task<T> PostGameRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(GameHeaders)
-                                .WithHeader("devCode",
-                                            $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}")
-                                .WithHeader("token", _token)
-                                .Let(x => body != null
-                                              ? x.PostUrlEncodedAsync(body)
-                                              : x.PostAsync(new FormUrlEncodedContent([])))
-                                .ReceiveJson<T>();
+            .WithHeaders(GameHeaders)
+            .WithHeader("devCode",
+                $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}")
+            .WithHeader("token", _token)
+            .Let(x => body != null
+                ? x.PostUrlEncodedAsync(body)
+                : x.PostAsync(new FormUrlEncodedContent([])))
+            .ReceiveJson<T>();
     }
 
     private async Task<T> PostAppRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(AppHeaders)
-                                .WithHeader("devCode",
-                                            $"{_ipAddress}, Mozilla/5.0 (Linux; Android 16; PKX110 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/144.0.7559.59 Mobile Safari/537.36 Kuro/{Version} KuroGameBox/{Version}")
-                                .WithHeader("distinct_id", _distinctId)
-                                .WithHeader("token", _token)
-                                .Let(x => body != null
-                                              ? x.PostUrlEncodedAsync(body)
-                                              : x.PostAsync(new FormUrlEncodedContent([])))
-                                .ReceiveJson<T>();
+            .WithHeaders(AppHeaders)
+            .WithHeader("devCode",
+                $"{_ipAddress}, Mozilla/5.0 (Linux; Android 16; PKX110 Build/AP3A.240617.008; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/144.0.7559.59 Mobile Safari/537.36 Kuro/{Version} KuroGameBox/{Version}")
+            .WithHeader("token", _token)
+            .Let(x => body != null
+                ? x.PostUrlEncodedAsync(body)
+                : x.PostAsync(new FormUrlEncodedContent([])))
+            .ReceiveJson<T>();
     }
 
     public async Task<KuroHttpResponse<KuroBbsPostData>> BbsGetPostsAsync(
@@ -205,10 +204,10 @@ public sealed class KuroHttpClient : IDisposable
         return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/getDefaultRole", body);
     }
 
-    public async Task<KuroHttpResponse<bool>> BbsSignInAsync(int gameId)
+    public async Task<KuroHttpResponse<object>> BbsSignInAsync(int gameId = 2)
     {
         var body = new { gameId };
-        return await PostAppRequestAsync<KuroHttpResponse<bool>>("/user/signIn", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/user/signIn", body);
     }
 
     public async Task<KuroHttpResponse<KuroGameSignInResult>> GameSignInAsync(int gameId, string serverId, long roleId, long userId)
