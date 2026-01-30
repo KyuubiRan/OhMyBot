@@ -54,12 +54,77 @@ public class TestKuroApi
     [TestMethod]
     public async Task TestKuroBbsSigninAsync()
     {
-        var posts = await _client.BbsSignInAsync(2);
+        var posts = await _client.BbsSignInAsync();
         if (!posts.Success)
         {
             throw new Exception("签到失败：" + posts.Msg);
         }
 
         Console.WriteLine(JsonSerializer.SerializeToNode(posts.Data!)!.ToString());
+    }
+
+    [TestMethod]
+    public async Task TestShareAsync()
+    {
+        var posts = await _client.BbsSharePostAsync();
+        if (!posts.Success)
+        {
+            throw new Exception("分享帖子失败：" + posts.Msg);
+        }
+
+        Console.WriteLine(JsonSerializer.SerializeToNode(posts.Data!)!.ToString());
+    }
+
+    [TestMethod]
+    public async Task TestLikePostsAsync()
+    {
+        var pst = await _client.BbsGetPostsAsync();
+        if (!pst.Success)
+        {
+            throw new Exception("获取帖子列表失败：" + pst.Msg);
+        }
+
+        var posts = pst.Data!.PostList;
+
+        for (var i = 0; i < 5 && i < posts.Count; i++)
+        {
+            var post = posts[i];
+            var likeResult = await _client.BbsLikePostAsync(post.GameId, post.GameForumId, post.PostType, post.PostId, post.UserId);
+            if (!likeResult.Success)
+            {
+                throw new Exception($"点赞帖子 {post.PostId} 失败：" + likeResult.Msg);
+            }
+
+            Console.WriteLine($"点赞帖子 {post.PostId} 成功");
+            await Task.Delay(2000);
+        }
+
+        Console.WriteLine("全部点赞完成");
+    }
+
+    [TestMethod]
+    public async Task TestGetPostDetailAsync()
+    {
+        var pst = await _client.BbsGetPostsAsync();
+        if (!pst.Success)
+        {
+            throw new Exception("获取帖子列表失败：" + pst.Msg);
+        }
+
+        var posts = pst.Data!.PostList;
+        for (var i = 0; i < 3; i++)
+        {
+            var post = posts[i];
+            var detailResult = await _client.BbsGetPostDetailAsync(post.PostId);
+            if (!detailResult.Success)
+            {
+                throw new Exception($"获取帖子详情 {post.PostId} 失败：" + detailResult.Msg);
+            }
+
+            Console.WriteLine($"帖子 {post.PostId}: {post.PostTitle}");
+            await Task.Delay(2000);
+        }
+
+        Console.WriteLine("全部获取完成");
     }
 }

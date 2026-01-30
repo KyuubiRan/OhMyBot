@@ -80,7 +80,6 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
 
             KuroHttpResponse<KuroBbsPostData>? posts = null;
 
-
             var viewTask = currentProgress.FirstOrDefault(x => x.Remark == "浏览3篇帖子");
             if (viewTask?.Finished == false && ShouldDoAction(tasks, KuroBbsTaskType.ViewPosts, args, "view"))
             {
