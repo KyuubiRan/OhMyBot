@@ -5,6 +5,9 @@
 /OhMyLib/bin
 /OhMyLib/obj
 
+/OhMyBot.Tests/bin
+/OhMyBot.Tests/obj
+
 /OhMyLib.SourceGen/OhMyLib.SourceGen/bin
 /OhMyLib.SourceGen/OhMyLib.SourceGen/obj
 
@@ -15,4 +18,5 @@
 /OhMyTelegramBot/obj
 
 /OhMyTelegramBot/appsettings.json
+/OhMyBot.Tests/appsettings.Test.json
 OhMyBot.sln.DotSettings.user
