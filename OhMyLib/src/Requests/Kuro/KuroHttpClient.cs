@@ -10,7 +10,7 @@ namespace OhMyLib.Requests.Kuro;
 public sealed class KuroHttpClient : IDisposable
 {
     private const string BaseUrl = "https://api.kurobbs.com";
-    private const string KuroGameBoxVersion = "2.10.0";
+    private const string Version = "2.10.3";
     private const string FakeIpAddress = "100.100.64.60";
 
     private static readonly FrozenDictionary<string, string> CommonHeaders = new Dictionary<string, string>
@@ -23,16 +23,23 @@ public sealed class KuroHttpClient : IDisposable
 
     private static readonly FrozenDictionary<string, string> BbsHeaders = new Dictionary<string, string>
     {
+        { "Accept", "application/json, text/plain, */*" },
+        { "Accept-Encoding", "gzip, deflate, br, zstd" },
+        { "Accept-Language", "zh-CN,zh;q=0.9,zh-TW;q=0.8" },
+        { "Cache-Control", "no-cache" },
+        { "Connection", "keep-alive" },
+        { "Content-Type", "application/x-www-form-urlencoded;charset=UTF-8" },
+        { "DNT", "1" },
         { "Host", "api.kurobbs.com" },
-        { "source", "ios" },
-        { "lang", "zh-Hans" },
-        { "User-Agent", "KuroGameBox/48 CFNetwork/1492.0.1 Darwin/23.3.0" },
-        { "channelId", "1" },
-        { "channel", "appstore" },
-        { "version", "2.10.0" },
-        { "model", "iPhone15,2" },
-        { "osVersion", "17.3" },
-        { "Content-Type", "application/x-www-form-urlencoded; charset=utf-8" },
+        { "Origin", "https://www.kurobbs.com" },
+        { "Pragma", "no-cache" },
+        { "Referer", "https://www.kurobbs.com" },
+        { "Sec-Fetch-Dest", "empty" },
+        { "Sec-Fetch-Mode", "cors" },
+        { "Sec-Fetch-Site", "same-site" },
+        { "User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" },
+        { "source", "h5" },
+        { "version", Version },
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<string, string> GameHeaders = new Dictionary<string, string>
@@ -43,7 +50,7 @@ public sealed class KuroHttpClient : IDisposable
         { "Sec-Fetch-Site", "same-site" },
         { "Sec-Fetch-Mode", "cors" },
         { "Origin", "https://web-static.kurobbs.com" },
-        { "Content-Type", $"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}" },
+        { "Content-Type", $"Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}" },
     }.ToFrozenDictionary();
 
     private static readonly FrozenDictionary<string, string> UserInfoHeaders = new Dictionary<string, string>
@@ -53,8 +60,7 @@ public sealed class KuroHttpClient : IDisposable
         { "model", "2211133C" },
         { "source", "android" },
         { "lang", "zh-Hans" },
-        { "version", "1.0.9" },
-        { "versioncode", "1090" },
+        { "version", Version },
         { "content-type", "application/x-www-form-urlencoded" },
         { "accept-encoding", "gzip" },
         { "user-agent", "okhttp/3.10.0" },
@@ -83,12 +89,9 @@ public sealed class KuroHttpClient : IDisposable
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(CommonHeaders)
                                 .WithHeaders(BbsHeaders)
-                                .WithHeader("Cookie", "user_token=" + _token)
-                                .WithHeader("Ip", _ipAddress)
                                 .WithHeader("token", _token)
-                                .WithHeader("dev_code", _devCode)
+                                .WithHeader("devCode", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
                                 .Let(x => body != null
                                               ? x.PostUrlEncodedAsync(body)
@@ -102,7 +105,7 @@ public sealed class KuroHttpClient : IDisposable
                                 .WithHeaders(CommonHeaders)
                                 .WithHeaders(GameHeaders)
                                 .WithHeader("devCode",
-                                            $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{KuroGameBoxVersion}")
+                                            $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}")
                                 .WithHeader("token", _token)
                                 .Let(x => body != null
                                               ? x.PostUrlEncodedAsync(body)
@@ -186,6 +189,12 @@ public sealed class KuroHttpClient : IDisposable
     {
         var body = new { viewUserId };
         return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsMineData>>("/user/mineV2", body);
+    }
+
+    public Task<KuroHttpResponse<KuroBbsDefaultRoleData>> BbsGetDefaultRoleAsync(long queryUserId)
+    {
+        var body = new { queryUserId };
+        return PostBbsRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/getDefaultRole", body);
     }
 
     public void Dispose()

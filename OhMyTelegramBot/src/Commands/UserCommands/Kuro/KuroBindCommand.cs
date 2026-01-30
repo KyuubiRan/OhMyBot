@@ -4,6 +4,7 @@ using System.Text.Json.Nodes;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Requests.Kuro;
+using OhMyLib.Requests.Kuro.Data;
 using OhMyLib.Services;
 using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.Interfaces;
@@ -91,7 +92,7 @@ public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager a
         }
 
         var existsBinding = await kuroUserService.FindByBbsIdAsync(kuid);
-        if (existsBinding != null && existsBinding.OwnerUserId != senderId)
+        if (existsBinding != null && existsBinding.OwnerBotUser.OwnerId != senderId.ToString())
         {
             await botClient.SendMessage(chatId, "该库街区UID已被绑定，如有疑问请联系Bot管理员处理");
             return;
@@ -110,7 +111,8 @@ public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager a
         var mine = me.Data?.Mine;
         var text = """
                    用户名：{0}
-                   """.Fmt(mine?.UserName);
+                   UID：{1}
+                   """.Fmt(mine?.UserName, mine?.UserId);
 
         await botClient.EditMessageText(chatId, msg.Id, "库街区信息获取成功，请检查是否为您的账号信息：\n" + text, replyMarkup: new InlineKeyboardMarkup
         {
