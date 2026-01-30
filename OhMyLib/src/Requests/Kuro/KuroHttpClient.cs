@@ -13,14 +13,6 @@ public sealed class KuroHttpClient : IDisposable
     private const string Version = "2.10.3";
     private const string FakeIpAddress = "100.100.64.60";
 
-    private static readonly FrozenDictionary<string, string> CommonHeaders = new Dictionary<string, string>
-    {
-        { "Accept", "*/*" },
-        { "Accept-Language", "zh-CN,zh-Hans;q=0.9" },
-        { "Accept-Encoding", "gzip, deflate, br" },
-        { "Connection", "keep-alive" },
-    }.ToFrozenDictionary();
-
     private static readonly FrozenDictionary<string, string> BbsHeaders = new Dictionary<string, string>
     {
         { "Accept", "application/json, text/plain, */*" },
@@ -44,6 +36,9 @@ public sealed class KuroHttpClient : IDisposable
 
     private static readonly FrozenDictionary<string, string> GameHeaders = new Dictionary<string, string>
     {
+        { "Accept-Language", "zh-CN,zh-Hans;q=0.9" },
+        { "Accept-Encoding", "gzip, deflate, br" },
+        { "Connection", "keep-alive" },
         { "Host", "api.kurobbs.com" },
         { "Accept", "application/json, text/plain, */*" },
         { "source", "ios" },
@@ -55,15 +50,23 @@ public sealed class KuroHttpClient : IDisposable
 
     private static readonly FrozenDictionary<string, string> UserInfoHeaders = new Dictionary<string, string>
     {
-        { "osversion", "Android" },
-        { "countrycode", "CN" },
-        { "model", "2211133C" },
-        { "source", "android" },
-        { "lang", "zh-Hans" },
+        { "Accept", "application/json, text/plain, */*" },
+        { "Accept-Encoding", "gzip, deflate, br, zstd" },
+        { "Accept-Language", "zh-CN,zh;q=0.9,zh-TW;q=0.8" },
+        { "Cache-Control", "no-cache" },
+        { "Connection", "keep-alive" },
+        { "Content-Type", "application/x-www-form-urlencoded;charset=UTF-8" },
+        { "DNT", "1" },
+        { "Host", "api.kurobbs.com" },
+        { "Origin", "https://www.kurobbs.com" },
+        { "Pragma", "no-cache" },
+        { "Referer", "https://www.kurobbs.com" },
+        { "Sec-Fetch-Dest", "empty" },
+        { "Sec-Fetch-Mode", "cors" },
+        { "Sec-Fetch-Site", "same-site" },
+        { "User-Agent", "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36" },
+        { "source", "h5" },
         { "version", Version },
-        { "content-type", "application/x-www-form-urlencoded" },
-        { "accept-encoding", "gzip" },
-        { "user-agent", "okhttp/3.10.0" },
     }.ToFrozenDictionary();
 
     private readonly FlurlClient _httpClient = new();
@@ -102,7 +105,6 @@ public sealed class KuroHttpClient : IDisposable
     private async Task<T> PostGameRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(CommonHeaders)
                                 .WithHeaders(GameHeaders)
                                 .WithHeader("devCode",
                                             $"{_ipAddress}, Mozilla/5.0 (iPhone; CPU iPhone OS 17_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) KuroGameBox/{Version}")
@@ -116,10 +118,8 @@ public sealed class KuroHttpClient : IDisposable
     private async Task<T> PostUserInfoRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(CommonHeaders)
                                 .WithHeaders(UserInfoHeaders)
-                                .WithHeader("ip", _ipAddress)
-                                .WithHeader("devcode", _devCode)
+                                .WithHeader("devCode", _devCode)
                                 .WithHeader("distinct_id", _distinctId)
                                 .WithHeader("token", _token)
                                 .Let(x => body != null
@@ -188,13 +188,26 @@ public sealed class KuroHttpClient : IDisposable
     public async Task<KuroHttpResponse<KuroBbsMineData>> BbsGetMineAsync(long viewUserId)
     {
         var body = new { viewUserId };
-        return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsMineData>>("/user/mineV2", body);
+        return await PostUserInfoRequestAsync<KuroHttpResponse<KuroBbsMineData>>("/user/mineV2", body);
     }
 
     public Task<KuroHttpResponse<KuroBbsDefaultRoleData>> BbsGetDefaultRoleAsync(long queryUserId)
     {
         var body = new { queryUserId };
-        return PostBbsRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/getDefaultRole", body);
+        return PostUserInfoRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/getDefaultRole", body);
+    }
+
+    public Task<KuroHttpResponse<bool>> BbsSignInAsync(int gameId)
+    {
+        var body = new { gameId };
+        return PostUserInfoRequestAsync<KuroHttpResponse<bool>>("/user/signIn", body);
+    }
+
+    public Task<KuroHttpResponse<KuroGameSignInResult>> GameSignInAsync(int gameId, string serverId, long roleId, long userId)
+    {
+        var reqMonth = DateTime.Now.Month.ToString("00");
+        var body = new { gameId, serverId, roleId, userId, reqMonth };
+        return PostGameRequestAsync<KuroHttpResponse<KuroGameSignInResult>>("/encourage/signIn/v2", body);
     }
 
     public void Dispose()
