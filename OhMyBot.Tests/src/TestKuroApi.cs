@@ -73,7 +73,7 @@ public class TestKuroApi
             throw new Exception("分享帖子失败：" + posts.Msg);
         }
 
-        Console.WriteLine(JsonSerializer.SerializeToNode(posts.Data!)!.ToString());
+        Console.WriteLine(JsonSerializer.SerializeToNode(posts)?.ToString());
     }
 
     [TestMethod]
@@ -147,7 +147,7 @@ public class TestKuroApi
     }
 
     [TestMethod]
-    public async Task TestGameSigninAsync()
+    public async Task TestGameSignInAsync()
     {
         var kuro = _configuration.GetSection("Kuro");
 
@@ -158,6 +158,40 @@ public class TestKuroApi
         {
             Console.WriteLine(JsonSerializer.SerializeToNode(result)!.ToString());
             throw new Exception("游戏签到失败：" + result.Msg);
+        }
+
+        Console.WriteLine(JsonSerializer.SerializeToNode(result.Data!)!.ToString());
+    }
+
+    [TestMethod]
+    public async Task TestGameSignInReplenishAsync()
+    {
+        var kuro = _configuration.GetSection("Kuro");
+
+        var result = await _client.GameSignInReplenishAsync((int)KuroGameType.Wuwa, KuroGameType.Wuwa.ServerId, long.Parse(kuro["WuwaUid"]!),
+            long.Parse(kuro["Uid"]!));
+
+        if (!result.Success)
+        {
+            Console.WriteLine(JsonSerializer.SerializeToNode(result)!.ToString());
+            throw new Exception("游戏补签失败：" + result.Msg);
+        }
+
+        Console.WriteLine(JsonSerializer.SerializeToNode(result.Data!)!.ToString());
+    }
+
+    [TestMethod]
+    public async Task TestGameSignInQueryRecordAsync()
+    {
+        var kuro = _configuration.GetSection("Kuro");
+
+        var result = await _client.GameSignInQueryRecordAsync((int)KuroGameType.Wuwa, KuroGameType.Wuwa.ServerId, long.Parse(kuro["WuwaUid"]!),
+            long.Parse(kuro["Uid"]!));
+
+        if (!result.Success)
+        {
+            Console.WriteLine(JsonSerializer.SerializeToNode(result)!.ToString());
+            throw new Exception("游戏签到查询失败：" + result.Msg);
         }
 
         Console.WriteLine(JsonSerializer.SerializeToNode(result.Data!)!.ToString());

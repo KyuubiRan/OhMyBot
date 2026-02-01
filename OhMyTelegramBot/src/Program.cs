@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
+using OhMyLib.HostedServices;
 using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.HostedServices;
@@ -33,6 +34,7 @@ public static class MyBot
                 services.MapComponents(Assembly.GetExecutingAssembly());
 
                 services.AddHostedService<AutoConfigOwnerService>();
+                services.AddHostedService<TelegramKuroAutoSignService>();
 
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
@@ -81,9 +83,9 @@ public static class MyBot
             .Build();
 
     private static readonly ILogger Logger = Instance
-                                             .ServiceProvider
-                                             .GetRequiredService<ILoggerFactory>()
-                                             .CreateLogger("Main");
+        .ServiceProvider
+        .GetRequiredService<ILoggerFactory>()
+        .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 

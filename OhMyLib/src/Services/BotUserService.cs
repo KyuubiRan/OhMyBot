@@ -65,6 +65,16 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         return user;
     }
 
+    public async ValueTask<List<BotUser>> GetAvailableUsersAsync(SoftwareType type, int offset = 0, int limit = 20,
+        CancellationToken cancellationToken = default)
+    {
+        return await repo.EntitySet
+            .Where(x => x.OwnerType == type && x.Privilege > UserPrivilege.None)
+            .Skip(offset)
+            .Take(limit)
+            .ToListAsync(cancellationToken: cancellationToken);
+    }
+
     public async ValueTask<BotUser> SetPrivilegeAsync(string id, SoftwareType type, UserPrivilege privilege, CancellationToken cancellationToken = default)
     {
         var user = await GetUserAsync(id, type, cancellationToken);

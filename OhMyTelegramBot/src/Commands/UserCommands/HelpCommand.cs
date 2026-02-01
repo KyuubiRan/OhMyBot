@@ -22,6 +22,10 @@ public class HelpCommand(CommandContext context) : ICommand
         /info \[uid/mention/reply\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
         /kuro_bind \- 绑定库街区账号
+        /kuro_signin \[类型1\] \[类型2\] ... \- 执行库街区每日签到任务，类型可选：signin、like、share、view，留空为执行全部
+        /kuro_auto_signin \- 设置库街区自动签到功能
+        /kuro_game_signin \[类型1\] \[类型2\] ... \- 执行库街区游戏签到任务，类型可选：wuwa、pgr，留空为执行全部
+        /kuro_game_auto_signin \- 设置库街区游戏自动签到功能
         """;
 
     private const string AdminHelpCommandText =

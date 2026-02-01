@@ -1,0 +1,238 @@
+using System.Text;
+using FoxTail.Extensions;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using OhMyLib.Enums;
+using OhMyLib.Enums.Kuro;
+using OhMyLib.Models.Common;
+using OhMyLib.Requests.Kuro;
+using OhMyLib.Requests.Kuro.Data;
+using OhMyLib.Services;
+
+namespace OhMyLib.HostedServices;
+
+public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, BotUserService userService) : IHostedService
+{
+    private static readonly TimeSpan ExecuteAt = new(0, 10, 0);
+
+    protected abstract SoftwareType Software { get; }
+
+    protected abstract Task SendMessage(long chatId, string message, CancellationToken cancellationToken);
+
+    private async Task ProcessSingle(BotUser user, CancellationToken cancellationToken)
+    {
+        var kUser = user.KuroUser;
+        if (kUser == null || kUser.Token.IsWhiteSpaceOrNull)
+            return;
+
+        using var client = new KuroHttpClient(kUser.Token, kUser.DevCode, kUser.DistinctId, kUser.IpAddress);
+
+        var taskProgress = await client.BbsGetTaskProgressAsync(kUser.BbsUserId ?? 0);
+        if (!taskProgress.Success)
+            throw new InvalidOperationException("获取任务进度失败：" + taskProgress.Msg);
+
+        var currentProgress = taskProgress.Data?.DailyTask ?? [];
+        if (currentProgress.IsEmpty)
+            return;
+
+        var tasks = kUser.BbsTask;
+        if (tasks == KuroBbsTaskType.None)
+            return;
+
+        var message = new StringBuilder("自动签到结果：\n");
+        if ((tasks & KuroBbsTaskType.Signin) != 0)
+        {
+            var signinResult = await client.BbsSignInAsync();
+            message.AppendLine($"签到结果：{(signinResult.Success ? "成功" : "失败")}");
+            if (!signinResult.Success)
+                message.AppendLine($"原因：{signinResult.Msg}");
+
+            await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+        }
+
+        KuroHttpResponse<KuroBbsPostData>? lazyPosts = null;
+
+        var viewTask = currentProgress.FirstOrDefault(x => x.Remark == "浏览3篇帖子");
+        if (viewTask?.Finished == false && (tasks & KuroBbsTaskType.ViewPosts) != 0)
+        {
+            lazyPosts ??= await client.BbsGetPostsAsync();
+            var posts = lazyPosts.Data?.PostList ?? [];
+
+            int succCnt = 0, failedCnt = 0;
+
+            for (var i = viewTask.CompleteTimes; i < viewTask.NeedActionTimes; i++)
+            {
+                if (posts.IsEmpty)
+                    break;
+
+                var post = posts[i % posts.Count];
+                var viewResult = await client.BbsGetPostDetailAsync(post.PostId);
+                if (viewResult.Success)
+                    succCnt++;
+                else
+                    failedCnt++;
+
+                await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+            }
+
+            message.AppendLine($"浏览帖子结果：成功 {succCnt} 次，失败 {failedCnt} 次");
+        }
+
+        var likeTask = currentProgress.FirstOrDefault(x => x.Remark == "点赞5次");
+        if ((tasks & KuroBbsTaskType.LikePosts) != 0)
+        {
+            lazyPosts ??= await client.BbsGetPostsAsync();
+            var posts = lazyPosts.Data?.PostList ?? [];
+
+            int succCnt = 0, failedCnt = 0;
+
+            for (var i = likeTask?.CompleteTimes ?? 0; i < likeTask?.NeedActionTimes; i++)
+            {
+                if (posts.IsEmpty)
+                    break;
+
+                var post = posts[i % posts.Count];
+                var likeResult = await client.BbsLikePostAsync(post.GameId,
+                    post.GameForumId,
+                    post.PostType,
+                    post.PostId,
+                    post.UserId);
+                if (likeResult.Success)
+                    succCnt++;
+                else
+                    failedCnt++;
+
+                await Task.Delay(Random.Shared.Next(2000, 5000), cancellationToken);
+            }
+
+            message.AppendLine($"点赞帖子结果：成功 {succCnt} 次，失败 {failedCnt} 次");
+        }
+
+        var shareTask = currentProgress.FirstOrDefault(x => x.Remark == "分享1次帖子");
+        if (shareTask?.Finished == false && (tasks & KuroBbsTaskType.SharePosts) != 0)
+        {
+            var shareResult = await client.BbsSharePostAsync();
+            message.AppendLine($"分享帖子结果：{(shareResult.Success ? "成功" : "失败")}");
+            if (!shareResult.Success)
+                message.AppendLine($"原因：{shareResult.Msg}");
+        }
+
+        foreach (var kGameConfig in kUser.GameConfigs)
+        {
+            if (kGameConfig.GameCharacterUid == 0)
+                continue;
+
+            if (kGameConfig.TaskType == KuroGameTaskType.None)
+                continue;
+
+            var init = await client.GameSignInInitAsync((int)kGameConfig.GameType, kGameConfig.GameType.ServerId, kGameConfig.GameCharacterUid,
+                kUser.OwnerUserId);
+            if (!init.Success)
+            {
+                message.AppendLine($"{kGameConfig.GameType.Name} - 初始化签到失败：{init.Msg}");
+                continue;
+            }
+
+            if (init.Data?.IsSigIn == false)
+            {
+                await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+
+                var sign = await client.GameSignInAsync((int)kGameConfig.GameType, kGameConfig.GameType.ServerId, kGameConfig.GameCharacterUid,
+                    kUser.OwnerUserId);
+
+                message.AppendLine($"{kGameConfig.GameType.Name} - 签到结果：{(sign.Success ? "成功" : "失败")}");
+                if (sign.Success)
+                {
+                    var current = init.Data?.SigInNum ?? -1;
+                    var item = init.Data?.SignInGoodsConfigs.ElementAtOrDefault(current);
+                    message.AppendLine("签到天数：" + current);
+                    if (item != null)
+                    {
+                        message.AppendLine($"获得奖励：{item.GoodsName} x{item.GoodsNum}");
+                    }
+                }
+            }
+            else
+            {
+                message.AppendLine($"{kGameConfig.GameType.Name} - 今日已签到");
+            }
+
+            await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+        }
+
+        message.AppendLine("时间：" + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+
+        await SendMessage(long.Parse(user.OwnerId), message.ToString(), cancellationToken);
+    }
+
+    private async Task DoSigninAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var offset = 0;
+            const int limit = 20;
+
+            var users = await userService.GetAvailableUsersAsync(Software, offset, limit, cancellationToken);
+
+            do
+            {
+                foreach (var user in users)
+                {
+                    try
+                    {
+                        await ProcessSingle(user, cancellationToken);
+                    }
+                    catch (Exception e)
+                    {
+                        logger.LogWarning(e, "Failed to process user {UserId} for kuro auto sign", user.Id);
+                        await SendMessage(long.Parse(user.OwnerId), $"自动签到执行失败：{e.Message}", cancellationToken);
+                    }
+                }
+
+                offset += limit;
+                users = await userService.GetAvailableUsersAsync(Software, offset, limit, cancellationToken);
+            } while (users.Count == limit);
+        }
+        catch (Exception e)
+        {
+            Console.WriteLine(e);
+        }
+    }
+
+    public async Task StartAsync(CancellationToken cancellationToken)
+    {
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var now = DateTimeOffset.Now;
+            // wait for next execution time
+            if (ExecuteAt < now.TimeOfDay)
+            {
+                var next = now.Date.AddDays(1).Add(ExecuteAt);
+                var delay = next - now;
+                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
+                await Task.Delay(delay, cancellationToken);
+            }
+            else
+            {
+                var next = now.Date.Add(ExecuteAt);
+                var delay = next - now;
+                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
+                await Task.Delay(delay, cancellationToken);
+            }
+
+            try
+            {
+                await DoSigninAsync(cancellationToken);
+            }
+            catch (Exception e)
+            {
+                logger.LogWarning(e, "Daily job failed");
+            }
+        }
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+}

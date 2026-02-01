@@ -135,29 +135,29 @@ public sealed class KuroHttpClient : IDisposable
         return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/getDefaultRole", body);
     }
 
-    public async Task<KuroHttpResponse<object>> BbsSignInAsync(int gameId = 2)
+    public async Task<KuroHttpResponse<KuroBbsSignInData>> BbsSignInAsync(int gameId = 2)
     {
         var body = new { gameId };
-        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/user/signIn", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsSignInData>>("/user/signIn", body);
     }
 
-    public async Task<KuroHttpResponse<object>> GameSignInInitAsync(int gameId, string serverId, long roleId, long userId)
+    public async Task<KuroHttpResponse<KuroSignInInitData>> GameSignInInitAsync(int gameId, string serverId, long roleId, long userId)
     {
         var body = new { gameId, serverId, roleId, userId };
-        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/signIn/initSignInV2", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroSignInInitData>>("/encourage/signIn/initSignInV2", body);
     }
 
-    public async Task<KuroHttpResponse<object>> GameSignInQueryRecordAsync(int gameId, string serverId, long roleId, long userId)
+    public async Task<KuroHttpResponse<List<KuroGameSignInQueryData>>> GameSignInQueryRecordAsync(int gameId, string serverId, long roleId, long userId)
     {
         var body = new { gameId, serverId, roleId, userId };
-        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/signIn/queryRecordV2", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<List<KuroGameSignInQueryData>>>("/encourage/signIn/queryRecordV2", body);
     }
 
-    public async Task<KuroHttpResponse<object>> GameSignInReplenishAsync(int gameId, string serverId, long roleId, long userId)
+    public async Task<KuroHttpResponse<KuroSignInInitData>> GameSignInReplenishAsync(int gameId, string serverId, long roleId, long userId)
     {
         var reqMonth = DateTime.Now.Month.ToString("00");
         var body = new { gameId, serverId, roleId, userId, reqMonth };
-        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/signIn/repleSigInV2", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroSignInInitData>>("/encourage/signIn/repleSigInV2", body);
     }
 
     public async Task<KuroHttpResponse<KuroGameSignInResult>> GameSignInAsync(int gameId, string serverId, long roleId, long userId)
@@ -173,6 +173,9 @@ public sealed class KuroHttpClient : IDisposable
         return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsTaskProgressData>>("/encourage/level/getTaskProcess", body);
     }
 
+    /**
+     * return nothing
+     */
     public async Task<KuroHttpResponse<object>> BbsSharePostAsync(int gameId = 3)
     {
         var body = new { gameId };

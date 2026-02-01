@@ -67,15 +67,15 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
                 if (result.Success)
                 {
                     logger.LogInformation("User {UserId} signed in to Kuro BBS successfully.", senderId);
-                    resultMessage.AppendLine($"签到成功！结果：{result.Data}，消息：{result.Msg}");
+                    resultMessage.AppendLine("社区签到成功");
                 }
                 else
                 {
                     logger.LogWarning("User {UserId} signed in to Kuro BBS failed, message: {Message}", senderId, result.Msg);
-                    resultMessage.AppendLine($"签到失败！消息：{result.Msg}");
+                    resultMessage.AppendLine($"社区签到失败！消息：{result.Msg}");
                 }
 
-                await Task.Delay(Random.Shared.Next(2000, 5000));
+                await Task.Delay(Random.Shared.Next(1000, 2000));
             }
 
             KuroHttpResponse<KuroBbsPostData>? posts = null;
@@ -106,7 +106,7 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
                         failedCnt++;
                     }
 
-                    await Task.Delay(Random.Shared.Next(2000, 5000));
+                    await Task.Delay(Random.Shared.Next(1000, 2000));
                 }
 
                 resultMessage.AppendLine($"浏览帖子任务完成，成功：{succCnt}，失败：{failedCnt}");
@@ -145,7 +145,7 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
                         failedCnt++;
                     }
 
-                    await Task.Delay(Random.Shared.Next(2000, 5000));
+                    await Task.Delay(Random.Shared.Next(1000, 2000));
                 }
 
                 resultMessage.AppendLine($"点赞帖子任务完成，成功：{succCnt}，失败：{failedCnt}");
@@ -165,8 +165,6 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
                     logger.LogWarning("User {UserId} shared post failed, message: {Message}", senderId, shareResult.Msg);
                     resultMessage.AppendLine("分享帖子任务完成，结果：失败，消息：" + shareResult.Msg);
                 }
-
-                await Task.Delay(Random.Shared.Next(2000, 5000));
             }
         }).ContinueWith(async t =>
         {
@@ -176,7 +174,7 @@ public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCom
             }
             else
             {
-                await botClient.EditMessageText(chatId, msg.MessageId, resultMessage.ToString().Trim());
+                await botClient.EditMessageText(chatId, msg.MessageId, resultMessage.AppendLine($"时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}").ToString().Trim());
             }
         });
     }

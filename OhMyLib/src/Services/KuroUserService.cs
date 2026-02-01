@@ -14,8 +14,13 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
         return await repo.EntitySet.FirstOrDefaultAsync(x => x.BbsUserId == bbsId, cancellationToken: cancellationToken);
     }
 
+    public async ValueTask<KuroUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default)
+    {
+        return await repo.EntitySet.FirstOrDefaultAsync(x => x.Id == id, cancellationToken: cancellationToken);
+    }
+
     public async ValueTask CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
-                                                   string? ipAddress)
+        string? ipAddress)
     {
         var user = await service.GetUserAsync(fromId.ToString(), type);
         if (user == null)
@@ -44,10 +49,16 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
                 DistinctId = kDistinctId,
                 IpAddress = ipAddress
             };
-            
+
             await repo.AddAsync(newUser);
         }
 
+        await repo.SaveChangesAsync();
+    }
+
+    public async ValueTask UpdateAsync(KuroUser user)
+    {
+        repo.Update(user);
         await repo.SaveChangesAsync();
     }
 }

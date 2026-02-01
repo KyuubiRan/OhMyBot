@@ -1,14 +1,14 @@
+using OhMyLib.Attributes.Kuro;
+
 namespace OhMyLib.Enums.Kuro;
 
 [Flags]
 public enum KuroBbsTaskType : uint
 {
-    None = 0,
+    [KuroBbsTask(Name = "无")] None = 0,
 
-    Signin = 1 << 0,
-    ViewPosts = 1 << 1,
-    LikePosts = 1 << 2,
-    SharePosts = 1 << 3,
-
-    All = Signin | ViewPosts | LikePosts | SharePosts,
+    [KuroBbsTask(Name = "社区签到")] Signin = 1 << 0,
+    [KuroBbsTask(Name = "浏览帖子")] ViewPosts = 1 << 1,
+    [KuroBbsTask(Name = "点赞帖子")] LikePosts = 1 << 2,
+    [KuroBbsTask(Name = "分享帖子")] SharePosts = 1 << 3,
 }
