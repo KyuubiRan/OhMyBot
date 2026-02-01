@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using Flurl.Http;
 using Flurl.Http.Configuration;
 using FoxTail.Extensions;
+using OhMyLib.Models.Kuro;
 using OhMyLib.Requests.Kuro.Data;
 
 namespace OhMyLib.Requests.Kuro;
@@ -51,6 +52,10 @@ public sealed class KuroHttpClient : IDisposable
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             NumberHandling = JsonNumberHandling.AllowReadingFromString
         }));
+    }
+
+    public KuroHttpClient(KuroUser kuroUser) : this(kuroUser.Token ?? "", kuroUser.DevCode, kuroUser.DistinctId, kuroUser.IpAddress)
+    {
     }
 
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
@@ -132,7 +137,7 @@ public sealed class KuroHttpClient : IDisposable
     public async Task<KuroHttpResponse<KuroBbsDefaultRoleData>> BbsGetDefaultRoleAsync(long queryUserId)
     {
         var body = new { queryUserId };
-        return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/getDefaultRole", body);
+        return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsDefaultRoleData>>("/user/role/findUserDefaultRole", body);
     }
 
     public async Task<KuroHttpResponse<KuroBbsSignInData>> BbsSignInAsync(int gameId = 2)

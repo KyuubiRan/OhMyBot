@@ -1,8 +1,10 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace OhMyLib.Utils;
 
 public static class BoolUtils
 {
-    public static bool TryParse(string str, out bool? value)
+    public static bool TryParse(string str, [NotNullWhen(true)] out bool? value)
     {
         switch (str.ToLower())
         {

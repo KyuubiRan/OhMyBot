@@ -1,10 +1,8 @@
 using System.Net;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Requests.Kuro;
-using OhMyLib.Requests.Kuro.Data;
 using OhMyLib.Services;
 using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.Interfaces;
@@ -33,7 +31,6 @@ public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager a
                                       "token": "必填，请求头中的token字段",
                                       "devCode": "选填，建议填写，不填使用空值",
                                       "distinctId": "选填，建议填写，不填使用空值",
-                                      "ipAddress": "选填，不填时使用内网IP段请求"
                                    }
                                    ```
                                    """;
@@ -49,8 +46,8 @@ public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager a
 
         var entity = message.Entities?.FirstOrDefault(x => x.Type == MessageEntityType.Pre);
         var json = entity != null
-                       ? message.Text?.Substring(entity.Offset, entity.Length)
-                       : message.Text?["/kuro_bind ".Length..]?.Trim();
+            ? message.Text?.Substring(entity.Offset, entity.Length)
+            : message.Text?[(message.Text.IndexOf(' ') + 1)..]?.Trim();
         if (json == null)
         {
             await botClient.SendMessage(chatId, "参数错误，请检查后重新输入");
@@ -121,10 +118,10 @@ public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager a
                 [
                     InlineKeyboardButton.WithCallbackData(
                         "确认绑定", await actionManager.PutActionAsync("kuro_bind", chatId, senderId,
-                                                                   new KuroBindActionData(true, kuid, token, devCode, distinctId, ipAddress))),
+                            new KuroBindActionData(true, kuid, token, devCode, distinctId, ipAddress))),
                     InlineKeyboardButton.WithCallbackData(
                         "取消绑定", await actionManager.PutActionAsync("kuro_bind", chatId, senderId,
-                                                                   new KuroBindActionData(false, kuid, token)))
+                            new KuroBindActionData(false, kuid, token)))
                 ]
             ]
         });

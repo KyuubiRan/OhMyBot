@@ -20,9 +20,9 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
     }
 
     public async ValueTask CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
-        string? ipAddress)
+        string? ipAddress, CancellationToken cancellationToken = default)
     {
-        var user = await service.GetUserAsync(fromId.ToString(), type);
+        var user = await service.GetUserAsync(fromId.ToString(), type, cancellationToken);
         if (user == null)
             throw new InvalidOperationException("Owner bot user not found.");
 
@@ -50,15 +50,20 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
                 IpAddress = ipAddress
             };
 
-            await repo.AddAsync(newUser);
+            await repo.AddAsync(newUser, cancellationToken);
         }
 
-        await repo.SaveChangesAsync();
+        await repo.SaveChangesAsync(cancellationToken);
     }
 
-    public async ValueTask UpdateAsync(KuroUser user)
+    public async ValueTask<int> UpdateAsync(KuroUser user, CancellationToken cancellationToken = default)
     {
         repo.Update(user);
-        await repo.SaveChangesAsync();
+        return await repo.SaveChangesAsync(cancellationToken);
+    }
+
+    public async ValueTask<int> SaveAsync(CancellationToken cancellationToken = default)
+    {
+        return await repo.SaveChangesAsync(cancellationToken);
     }
 }

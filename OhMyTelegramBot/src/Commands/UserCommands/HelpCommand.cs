@@ -21,11 +21,12 @@ public class HelpCommand(CommandContext context) : ICommand
         /help \- 显示此帮助菜单
         /info \[uid/mention/reply\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
-        /kuro_bind \- 绑定库街区账号
-        /kuro_signin \[类型1\] \[类型2\] ... \- 执行库街区每日签到任务，类型可选：signin、like、share、view，留空为执行全部
-        /kuro_auto_signin \- 设置库街区自动签到功能
-        /kuro_game_signin \[类型1\] \[类型2\] ... \- 执行库街区游戏签到任务，类型可选：wuwa、pgr，留空为执行全部
-        /kuro_game_auto_signin \- 设置库街区游戏自动签到功能
+        /kuro\_bind \- 绑定库街区账号
+        /kuro\_init\_game\_char \- 初始化库街区游戏角色信息 用于游戏签到
+        /kuro\_signin \[类型1\] \[类型2\] \.\.\. \- 执行库街区每日签到任务，类型可选：signin、like、share、view，留空为执行全部
+        /kuro\_auto\_signin \- 设置库街区自动签到功能
+        /kuro\_game\_signin \[类型1\] \[类型2\] \.\.\. \- 执行库街区游戏签到任务，类型可选：wuwa、pgr，留空为执行全部
+        /kuro\_game\_auto\_signin \<on/off\> \[类型\]  \- 开关库街区游戏自动签到功能，类型可选：wuwa、pgr，留空为全部
         """;
 
     private const string AdminHelpCommandText =

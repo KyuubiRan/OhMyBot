@@ -102,4 +102,15 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
         return user;
     }
+
+    public async ValueTask<int> UpdateAsync(BotUser user, CancellationToken cancellationToken = default)
+    {
+        repo.Update(user);
+        return await repo.SaveChangesAsync(cancellationToken);
+    }
+
+    public async ValueTask<int> SaveAsync(CancellationToken cancellationToken = default)
+    {
+        return await repo.SaveChangesAsync(cancellationToken);
+    }
 }

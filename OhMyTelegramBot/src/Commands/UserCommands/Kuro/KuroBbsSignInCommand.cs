@@ -14,7 +14,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_signin")]
-public class KuroSignInCommand(BotUserService userService, ILogger<KuroSignInCommand> logger) : ICommand
+public class KuroBbsSignInCommand(BotUserService userService, ILogger<KuroBbsSignInCommand> logger) : ICommand
 {
     private static bool ShouldDoAction(KuroBbsTaskType tasks, KuroBbsTaskType target, string[] args, string key) =>
         (tasks & target) != 0 || args.IsEmpty || args.Any(x => x.Equals(key, StringComparison.CurrentCultureIgnoreCase));
