@@ -32,6 +32,13 @@ public sealed partial class CommandHandler(
         if (cmd == null)
             return;
 
+        var user = await userService.GetCachedUserAsync(senderId.ToString(), SoftwareType.Telegram);
+        if (user.Privilege < cmd.RequirePrivilege)
+        {
+            LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);
+            return;
+        }
+
         if (!cmd.SupportChatTypes.CanHandle(message))
         {
             await botClient.SendMessage(
@@ -43,13 +50,6 @@ public sealed partial class CommandHandler(
                     SupportedChatType.Channel => "频道",
                     _ => ""
                 }));
-            return;
-        }
-
-        var user = await userService.GetCachedUserAsync(senderId.ToString(), SoftwareType.Telegram);
-        if (user.Privilege < cmd.RequirePrivilege)
-        {
-            LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);
             return;
         }
 
@@ -78,6 +78,6 @@ public sealed partial class CommandHandler(
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
 
     [LoggerMessage(LogLevel.Information,
-                   "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
+        "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
     private partial void LogNotEnoughPriv(long senderId, string command, UserPrivilege required, UserPrivilege actual);
 }
