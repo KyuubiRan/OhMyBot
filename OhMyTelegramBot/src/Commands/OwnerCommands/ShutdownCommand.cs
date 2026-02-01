@@ -10,10 +10,10 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.OwnerCommands;
 
 [Component(Key = "cmd__shutdown")]
-public class ShutdownCommand : ICommand
+public sealed class ShutdownCommand : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Owner;
-    public SupportedChatType SupportChatTypes  => SupportedChatType.Private;
+    public SupportedChatType SupportChatTypes => SupportedChatType.Private;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {

@@ -12,7 +12,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_game_signin")]
-public class KuroGameSignInCommand(BotUserService botUserService, KuroUserService kuroUserService) : ICommand
+public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroUserService kuroUserService) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {

@@ -16,7 +16,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_bind")]
-public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager actionManager) : ICommand
+public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionManager actionManager) : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;
 

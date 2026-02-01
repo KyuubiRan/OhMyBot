@@ -14,7 +14,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_auto_signin")]
-public class KuroBbsAutoSignCommand(BotUserService botUserService, BotActionManager actionManager) : ICommand
+public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotActionManager actionManager) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {

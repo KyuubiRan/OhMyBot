@@ -10,7 +10,7 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__help")]
-public class HelpCommand(CommandContext context) : ICommand
+public sealed class HelpCommand(CommandContext context) : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;
 

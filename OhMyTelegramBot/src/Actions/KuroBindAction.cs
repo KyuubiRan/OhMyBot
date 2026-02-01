@@ -11,7 +11,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Actions;
 
 [Component(Key = "action__kuro_bind")]
-public class KuroBindAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotActionHandler
+public sealed class KuroBindAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotActionHandler
 {
     public async Task OnReceiveAction(ITelegramBotClient botClient, CallbackQuery query, BotAction action)
     {

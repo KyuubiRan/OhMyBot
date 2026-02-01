@@ -10,7 +10,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.AdminCommands;
 
 [Component(Key = "cmd__add")]
-public class AddUserCommand(BotUserService botUserService, CommandContext context, TMessageHelperService helperService) : ICommand
+public sealed class AddUserCommand(BotUserService botUserService, CommandContext context, TMessageHelperService helperService) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Admin;
 

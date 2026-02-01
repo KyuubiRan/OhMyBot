@@ -14,7 +14,7 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__info")]
-public class InfoCommand(TelegramUserService tUserService, BotUserService bUserService, TMessageHelperService helperService) : ICommand
+public sealed class InfoCommand(TelegramUserService tUserService, BotUserService bUserService, TMessageHelperService helperService) : ICommand
 {
     private static string UserToText(User user, BotUserDto botUserDto)
     {

@@ -7,7 +7,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__start")]
-public class StartCommand : ICommand
+public sealed class StartCommand : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;
 

@@ -10,7 +10,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
 [Component(Key = "cmd__demote")]
-public class DelAdminCommand(BotUserService service, CommandContext context, TMessageHelperService helperService) : ICommand
+public sealed class DelAdminCommand(BotUserService service, CommandContext context, TMessageHelperService helperService) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Admin;
 

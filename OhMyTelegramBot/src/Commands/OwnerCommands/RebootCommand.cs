@@ -13,10 +13,10 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.OwnerCommands;
 
 [Component(Key = "cmd__reboot")]
-public class RebootCommand(ILogger<RebootCommand> logger) : ICommand
+public sealed class RebootCommand(ILogger<RebootCommand> logger) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Owner;
-    public SupportedChatType SupportChatTypes  => SupportedChatType.Private;
+    public SupportedChatType SupportChatTypes => SupportedChatType.Private;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
@@ -38,7 +38,7 @@ public class RebootCommand(ILogger<RebootCommand> logger) : ICommand
             var processPath = Environment.ProcessPath;
             var entryAssembly = Assembly.GetEntryAssembly()?.Location;
             var exe = processPath ?? entryAssembly;
-            
+
             var target = Process.Start(new ProcessStartInfo
             {
                 FileName = exe,
@@ -46,9 +46,9 @@ public class RebootCommand(ILogger<RebootCommand> logger) : ICommand
                 UseShellExecute = true,
                 WorkingDirectory = Path.GetDirectoryName(exe)
             });
-            
+
             logger.LogInformation("Started new process with PID {Pid} for reboot", target?.Id);
-            
+
             Environment.Exit(0);
         }
     }

@@ -7,7 +7,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__ping")]
-public class PingCommand : ICommand
+public sealed class PingCommand : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
