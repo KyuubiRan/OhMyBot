@@ -22,9 +22,9 @@ public class HelpCommand(CommandContext context) : ICommand
         /info \[uid/mention/reply\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
         /kuro\_bind \- 绑定库街区账号
-        /kuro\_init\_game\_char \- 初始化库街区游戏角色信息 用于游戏签到
         /kuro\_signin \[类型1\] \[类型2\] \.\.\. \- 执行库街区每日签到任务，类型可选：signin、like、share、view，留空为执行全部
         /kuro\_auto\_signin \- 设置库街区自动签到功能
+        /kuro\_game\_init\_char \- 初始化库街区游戏角色信息 用于游戏签到
         /kuro\_game\_signin \[类型1\] \[类型2\] \.\.\. \- 执行库街区游戏签到任务，类型可选：wuwa、pgr，留空为执行全部
         /kuro\_game\_auto\_signin \<on/off\> \[类型\]  \- 开关库街区游戏自动签到功能，类型可选：wuwa、pgr，留空为全部
         """;
@@ -48,8 +48,6 @@ public class HelpCommand(CommandContext context) : ICommand
         *\[所有者\]*
         /reboot \- 重启Bot
         /shutdown \- 关闭Bot
-        /setpriv \<uid/mention/reply\> \- 调整用户权限等级
-        /broadcast \<message\> \- 向所有用户广播消息
         """;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
