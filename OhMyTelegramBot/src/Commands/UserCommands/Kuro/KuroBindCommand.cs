@@ -30,7 +30,7 @@ public class KuroBindCommand(KuroUserService kuroUserService, BotActionManager a
                                       "uid": "必填，库街区UID",
                                       "token": "必填，请求头中的token字段",
                                       "devCode": "选填，建议填写，不填使用空值",
-                                      "distinctId": "选填，建议填写，不填使用空值",
+                                      "distinctId": "选填，建议填写，不填使用空值"
                                    }
                                    ```
                                    """;
