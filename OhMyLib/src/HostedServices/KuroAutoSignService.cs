@@ -195,7 +195,7 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
         }
         catch (Exception e)
         {
-            Console.WriteLine(e);
+            logger.LogError(e, "Kuro auto sign error occurred");
         }
     }
 
@@ -203,26 +203,29 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
     {
         while (!cancellationToken.IsCancellationRequested)
         {
-            var now = DateTimeOffset.Now;
-            // wait for next execution time
-            if (ExecuteAt < now.TimeOfDay)
-            {
-                var next = now.Date.AddDays(1).Add(ExecuteAt);
-                var delay = next - now;
-                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
-                await Task.Delay(delay, cancellationToken);
-            }
-            else
-            {
-                var next = now.Date.Add(ExecuteAt);
-                var delay = next - now;
-                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
-                await Task.Delay(delay, cancellationToken);
-            }
-
             try
             {
+                var now = DateTimeOffset.Now;
+                // wait for next execution time
+                if (ExecuteAt < now.TimeOfDay)
+                {
+                    var next = now.Date.AddDays(1).Add(ExecuteAt);
+                    var delay = next - now;
+                    logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
+                    await Task.Delay(delay, cancellationToken);
+                }
+                else
+                {
+                    var next = now.Date.Add(ExecuteAt);
+                    var delay = next - now;
+                    logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
+                    await Task.Delay(delay, cancellationToken);
+                }
+
                 await DoSigninAsync(cancellationToken);
+            }
+            catch (TaskCanceledException)
+            {
             }
             catch (Exception e)
             {
