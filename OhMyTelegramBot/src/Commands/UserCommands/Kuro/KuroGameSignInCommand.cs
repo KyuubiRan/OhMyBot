@@ -55,7 +55,7 @@ public class KuroGameSignInCommand(BotUserService botUserService, KuroUserServic
             if (config == null)
             {
                 if (notify)
-                    result.AppendLine($"未找到 {gameType.Name} 角色信息，请使用 /kuro_init_game_char 初始化游戏角色信息");
+                    result.AppendLine($"未找到 {gameType.Name} 角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息");
                 continue;
             }
 

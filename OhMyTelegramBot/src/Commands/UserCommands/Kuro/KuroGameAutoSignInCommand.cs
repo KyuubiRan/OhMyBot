@@ -32,7 +32,7 @@ public class KuroGameAutoSignInCommand(BotUserService botUserService, KuroUserSe
         var user = await botUserService.GetUserAsync(senderId.ToString(), SoftwareType.Telegram);
         if (user is not { KuroUser: { } ku } || ku.Token.IsWhiteSpaceOrNull || ku.BbsUserId == null)
         {
-            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用库街区游戏自动签到功能，若已绑定，请使用 /kuro_init_game_char 初始化游戏角色信息");
+            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用库街区游戏自动签到功能，若已绑定，请使用 /kuro_game_init_char 初始化游戏角色信息");
             return;
         }
 
@@ -41,7 +41,7 @@ public class KuroGameAutoSignInCommand(BotUserService botUserService, KuroUserSe
         {
             if (ku.GameConfigs.IsEmpty)
             {
-                await botClient.SendMessage(chatId, "未找到游戏角色信息，请使用 /kuro_init_game_char 初始化游戏角色信息");
+                await botClient.SendMessage(chatId, "未找到游戏角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息");
                 return;
             }
 
@@ -60,7 +60,7 @@ public class KuroGameAutoSignInCommand(BotUserService botUserService, KuroUserSe
             var config = user.KuroUser.GameConfigs.FirstOrDefault(x => x.GameType == t);
             if (config == null)
             {
-                await botClient.SendMessage(chatId, $"未找到游戏类型 {t.Name} 的角色信息，请使用 /kuro_init_game_char 初始化游戏角色信息");
+                await botClient.SendMessage(chatId, $"未找到游戏类型 {t.Name} 的角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息");
                 return;
             }
 
