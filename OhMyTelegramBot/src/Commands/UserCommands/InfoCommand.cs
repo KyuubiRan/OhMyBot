@@ -21,7 +21,7 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
         var sb = new StringBuilder();
         sb.AppendLine($"ID: `{user.Id}`");
         sb.AppendLine($"昵称: `{user.FirstName} {user.LastName}`");
-        sb.AppendLine($"用户名: {(string.IsNullOrEmpty(user.Username) ? "无" : "@" + user.Username)}");
+        sb.AppendLine($"用户名: {(string.IsNullOrEmpty(user.Username) ? "无" : "@" + user.Username.Replace("_", "\\_"))}");
         sb.AppendLine($"权限: `{botUserDto.Privilege}`");
         return sb.ToString();
     }
