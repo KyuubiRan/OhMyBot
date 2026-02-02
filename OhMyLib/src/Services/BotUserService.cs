@@ -93,7 +93,6 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         else
         {
             user.Privilege = privilege;
-            repo.Update(user);
         }
 
         await repo.SaveChangesAsync(cancellationToken);
@@ -101,12 +100,6 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         await cache.SetObjectAsync(KeyForUser(id, type), user.ToDto(), cancellationToken: cancellationToken);
 
         return user;
-    }
-
-    public async ValueTask<int> UpdateAsync(BotUser user, CancellationToken cancellationToken = default)
-    {
-        repo.Update(user);
-        return await repo.SaveChangesAsync(cancellationToken);
     }
 
     public async ValueTask<int> SaveAsync(CancellationToken cancellationToken = default)

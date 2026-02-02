@@ -26,7 +26,7 @@ public sealed class KuroAutoSignToggleAction(BotActionManager actionManager, Kur
             return;
 
         ku.BbsTask ^= data.Tasks;
-        await kuroUserService.UpdateAsync(ku);
+        await kuroUserService.SaveAsync();
 
         if (query.Message is not { } m)
             return;

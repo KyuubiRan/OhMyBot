@@ -61,7 +61,7 @@ public sealed class KuroGameInitCharCommand(BotUserService botUserService, KuroU
                 has.GameCharacterUid = long.Parse(result.RoleId);
             }
 
-            await kuroUserService.UpdateAsync(ku);
+            await kuroUserService.SaveAsync();
 
             msg.Append('[')
                 .Append(result.ServerName)

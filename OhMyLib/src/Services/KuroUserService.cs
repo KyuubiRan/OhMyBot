@@ -20,7 +20,7 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
     }
 
     public async ValueTask CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
-        string? ipAddress, CancellationToken cancellationToken = default)
+                                                   string? ipAddress, CancellationToken cancellationToken = default)
     {
         var user = await service.GetUserAsync(fromId.ToString(), type, cancellationToken);
         if (user == null)
@@ -35,7 +35,6 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
             exists.DevCode = kDevCode;
             exists.DistinctId = kDistinctId;
             exists.IpAddress = ipAddress;
-            repo.Update(exists);
         }
         else
         {
@@ -54,12 +53,6 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
         }
 
         await repo.SaveChangesAsync(cancellationToken);
-    }
-
-    public async ValueTask<int> UpdateAsync(KuroUser user, CancellationToken cancellationToken = default)
-    {
-        repo.Update(user);
-        return await repo.SaveChangesAsync(cancellationToken);
     }
 
     public async ValueTask<int> SaveAsync(CancellationToken cancellationToken = default)
