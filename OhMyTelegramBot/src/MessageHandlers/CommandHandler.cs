@@ -20,14 +20,30 @@ public sealed partial class CommandHandler(
     BotUserService userService
 )
 {
+    private static User? _botUser;
+
     public async Task HandleCommand(Message message, string command, params string[] args)
     {
         var chatId = message.Chat.Id;
         var senderId = message.From?.Id ?? 0;
 
-        LogHandleCommand(chatId, senderId, command, args);
-
         var commandLower = command.ToLowerInvariant();
+        if (commandLower.Contains('@'))
+        {
+            var split = commandLower.Split('@');
+            commandLower = split.ElementAtOrDefault(0) ?? "";
+            var mentionedBot = split.ElementAtOrDefault(1);
+            if (!mentionedBot.IsWhiteSpaceOrNull)
+            {
+                _botUser ??= await botClient.GetMe();
+                if (mentionedBot != _botUser.Username)
+                    return;
+            }
+        }
+
+        if (commandLower.IsWhiteSpaceOrNull)
+            return;
+
         var cmd = serviceProvider.GetKeyedService<ICommand>("cmd__" + commandLower);
         if (cmd == null)
             return;
@@ -38,6 +54,8 @@ public sealed partial class CommandHandler(
             LogNotEnoughPriv(senderId, command, cmd.RequirePrivilege, user.Privilege);
             return;
         }
+
+        LogHandleCommand(chatId, senderId, command, args);
 
         if (!cmd.SupportChatTypes.CanHandle(message))
         {
@@ -78,6 +96,6 @@ public sealed partial class CommandHandler(
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
 
     [LoggerMessage(LogLevel.Information,
-        "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
+                   "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
     private partial void LogNotEnoughPriv(long senderId, string command, UserPrivilege required, UserPrivilege actual);
 }
