@@ -12,3 +12,8 @@ public enum KuroBbsTaskType : uint
     [KuroBbsTask(Name = "点赞帖子")] LikePosts = 1 << 2,
     [KuroBbsTask(Name = "分享帖子")] SharePosts = 1 << 3,
 }
+
+public static class KuroBbsTaskTypeConsts
+{
+    public const KuroBbsTaskType All = KuroBbsTaskType.Signin | KuroBbsTaskType.ViewPosts | KuroBbsTaskType.LikePosts | KuroBbsTaskType.SharePosts;
+}

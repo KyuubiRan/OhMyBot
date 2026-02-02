@@ -25,7 +25,10 @@ public sealed class KuroAutoSignToggleAction(BotActionManager actionManager, Kur
         if (ku == null)
             return;
 
-        ku.BbsTask ^= data.Tasks;
+        if (data.Tasks == KuroBbsTaskTypeConsts.All)
+            ku.BbsTask = ku.BbsTask == KuroBbsTaskType.None ? KuroBbsTaskTypeConsts.All : KuroBbsTaskType.None;
+        else
+            ku.BbsTask ^= data.Tasks;
         await kuroUserService.SaveAsync();
 
         if (query.Message is not { } m)
@@ -34,7 +37,7 @@ public sealed class KuroAutoSignToggleAction(BotActionManager actionManager, Kur
         var features = Enum.GetValues<KuroBbsTaskType>().Where(x => x > 0).ToList();
         var msg = new StringBuilder("点击下方按钮进行开/关签到功能\n");
         msg.Append("当前已启用：")
-            .AppendLine(features.Where(x => (ku.BbsTask & x) != 0).Select(x => x.Name).JoinToString(' '));
+           .AppendLine(features.Where(x => (ku.BbsTask & x) != 0).Select(x => x.Name).JoinToString(' '));
 
         await botClient.EditMessageText(
             m.Chat.Id,

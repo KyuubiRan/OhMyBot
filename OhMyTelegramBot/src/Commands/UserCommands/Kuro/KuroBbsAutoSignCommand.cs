@@ -39,9 +39,9 @@ public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotAct
         buttons.Add([
             InlineKeyboardButton.WithCallbackData(
                 text: "全部开启/关闭",
-                callbackData: actionManager.PutActionAsync("kuro_auto_sign", chatId, senderId, new KuroAutoSignToggleData(ku.Id,
-                    KuroBbsTaskType.Signin | KuroBbsTaskType.ViewPosts | KuroBbsTaskType.SharePosts | KuroBbsTaskType.LikePosts
-                )).Result
+                callbackData: actionManager
+                              .PutActionAsync("kuro_auto_sign", chatId, senderId, new KuroAutoSignToggleData(ku.Id, KuroBbsTaskTypeConsts.All))
+                              .Result
             )
         ]);
 
