@@ -61,14 +61,14 @@ public sealed class KuroHttpClient : IDisposable
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-            .WithHeaders(BbsHeaders)
-            .WithHeader("token", _token)
-            .WithHeader("devCode", _devCode)
-            .WithHeader("distinct_id", _distinctId)
-            .Let(x => body != null
-                ? x.PostUrlEncodedAsync(body)
-                : x.PostAsync(new FormUrlEncodedContent([])))
-            .ReceiveJson<T>();
+                                .WithHeaders(BbsHeaders)
+                                .WithHeader("token", _token)
+                                .WithHeader("devCode", _devCode)
+                                .WithHeader("distinct_id", _distinctId)
+                                .Let(x => body != null
+                                              ? x.PostUrlEncodedAsync(body)
+                                              : x.PostAsync(new FormUrlEncodedContent([])))
+                                .ReceiveJson<T>();
     }
 
     public async Task<KuroHttpResponse<KuroBbsPostData>> BbsGetPostsAsync(
@@ -178,13 +178,10 @@ public sealed class KuroHttpClient : IDisposable
         return await PostBbsRequestAsync<KuroHttpResponse<KuroBbsTaskProgressData>>("/encourage/level/getTaskProcess", body);
     }
 
-    /**
-     * return nothing
-     */
-    public async Task<KuroHttpResponse<object>> BbsSharePostAsync(int gameId = 3)
+    public async Task<KuroBaseHttpResponse> BbsSharePostAsync(int gameId = 3)
     {
         var body = new { gameId };
-        return await PostBbsRequestAsync<KuroHttpResponse<object>>("/encourage/level/shareTask", body);
+        return await PostBbsRequestAsync<KuroBaseHttpResponse>("/encourage/level/shareTask", body);
     }
 
     public void Dispose()
