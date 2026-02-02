@@ -17,11 +17,10 @@ public sealed partial class CommandHandler(
     ILogger<CommandHandler> logger,
     ITelegramBotClient botClient,
     IServiceProvider serviceProvider,
-    BotUserService userService
+    BotUserService userService,
+    TelegramUserService tUserService
 )
 {
-    private static User? _botUser;
-
     public async Task HandleCommand(Message message, string command, params string[] args)
     {
         var chatId = message.Chat.Id;
@@ -35,8 +34,8 @@ public sealed partial class CommandHandler(
             var mentionedBot = split.ElementAtOrDefault(1);
             if (!mentionedBot.IsWhiteSpaceOrNull)
             {
-                _botUser ??= await botClient.GetMe();
-                if (mentionedBot != _botUser.Username)
+                var me = await tUserService.GetCachedUserByIdAsync(botClient.BotId);
+                if (mentionedBot != me.Username)
                     return;
             }
         }
@@ -96,6 +95,6 @@ public sealed partial class CommandHandler(
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
 
     [LoggerMessage(LogLevel.Information,
-                   "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
+        "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
     private partial void LogNotEnoughPriv(long senderId, string command, UserPrivilege required, UserPrivilege actual);
 }

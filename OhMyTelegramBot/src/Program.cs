@@ -99,6 +99,20 @@ public static class MyBot
     public static async Task Main(string[] args)
     {
         var bot = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
+        _ = bot.GetMe().ContinueWith(async x =>
+        {
+            try
+            {
+                var user = await x;
+                var service = Instance.ServiceProvider.GetRequiredService<TelegramUserService>();
+                await service.LogUserAsync(user.Id, user.Username, user.FirstName, user.LastName);
+            }
+            catch (Exception e)
+            {
+                Logger.LogWarning(e, "Failed to get bot info");
+            }
+        });
+
         Logger.LogInformation("Bot started.");
 
         var rebootArg = args.FirstOrDefault(a => a.StartsWith("reboot_chatid="));
