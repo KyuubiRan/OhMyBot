@@ -12,7 +12,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_game_signin")]
-public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroUserService kuroUserService) : ICommand
+public sealed class KuroGameSignInCommand(BotUserService botUserService) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
@@ -50,7 +50,7 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroUse
 
         foreach (var gameType in trueTypes)
         {
-            var config = user.KuroUser.GameConfigs.FirstOrDefault(x => x.GameType == gameType);
+            var config = ku.GameConfigs.FirstOrDefault(x => x.GameType == gameType);
 
             if (config == null)
             {
@@ -62,22 +62,24 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroUse
             var init = await kuroHttpClient.GameSignInInitAsync((int)gameType, gameType.ServerId, config.GameCharacterUid,
                 ku.BbsUserId.Value);
 
+            if (init.Code == 220)
+            {
+                ku.Invalidate();
+                await botUserService.SaveAsync();
+                    
+                throw new InvalidOperationException("Token已失效，请重新绑定库街区账号后再使用签到功能");
+            }
+
+            
             if (!init.Success || init.Data is not { } signData)
             {
                 await botClient.EditMessageText(chatId, msg.MessageId, $"初始化 {gameType.Name} 签到信息失败：{init.Msg}");
                 return;
             }
 
-            string GetSignInReward(int day)
-            {
-                return signData.SignInGoodsConfigs.Where(x => x.SerialNum == day - 1)
-                    .Select(x => $"{x.GoodsName} x{x.GoodsNum}")
-                    .JoinToString(", ");
-            }
-
             result.Append('[')
-                .Append(gameType.Name)
-                .AppendLine("]");
+                  .Append(gameType.Name)
+                  .AppendLine("]");
 
             if (signData.IsSigIn)
             {
@@ -102,6 +104,14 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroUse
             }
 
             await Task.Delay(Random.Shared.Next(1000, 3000));
+            continue;
+
+            string GetSignInReward(int day)
+            {
+                return signData.SignInGoodsConfigs.Where(x => x.SerialNum == day - 1)
+                               .Select(x => $"{x.GoodsName} x{x.GoodsNum}")
+                               .JoinToString(", ");
+            }
         }
 
         await botClient.EditMessageText(chatId, msg.MessageId, result.ToString());

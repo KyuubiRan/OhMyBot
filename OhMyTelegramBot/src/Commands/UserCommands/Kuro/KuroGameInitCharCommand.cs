@@ -13,7 +13,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_game_init_char")]
-public sealed class KuroGameInitCharCommand(BotUserService botUserService, KuroUserService kuroUserService) : ICommand
+public sealed class KuroGameInitCharCommand(BotUserService botUserService) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
@@ -27,6 +27,15 @@ public sealed class KuroGameInitCharCommand(BotUserService botUserService, KuroU
         using var kuroHttpClient = new KuroHttpClient(ku);
 
         var defaults = await kuroHttpClient.BbsGetDefaultRoleAsync(ku.BbsUserId.Value);
+
+        if (defaults.Code == 220)
+        {
+            ku.Invalidate();
+            await botUserService.SaveAsync();
+
+            throw new InvalidOperationException("Token已失效，请重新绑定库街区账号后再使用签到功能");
+        }
+
         if (!defaults.Success || defaults.Data == null)
         {
             await botClient.SendMessage(chatId, "获取默认角色信息失败：" + defaults.Msg);
@@ -61,18 +70,18 @@ public sealed class KuroGameInitCharCommand(BotUserService botUserService, KuroU
                 has.GameCharacterUid = long.Parse(result.RoleId);
             }
 
-            await kuroUserService.SaveAsync();
+            await botUserService.SaveAsync();
 
             msg.Append('[')
-                .Append(result.ServerName)
-                .AppendLine("]")
-                .AppendLine("UID: " + result.RoleId)
-                .AppendLine("昵称: " + result.RoleName)
-                .AppendLine("等级: " + result.GameLevel)
-                .AppendLine("活跃天数: " + result.ActiveDay);
+               .Append(result.ServerName)
+               .AppendLine("]")
+               .AppendLine("UID: " + result.RoleId)
+               .AppendLine("昵称: " + result.RoleName)
+               .AppendLine("等级: " + result.GameLevel)
+               .AppendLine("活跃天数: " + result.ActiveDay);
         }
 
-        await kuroUserService.SaveAsync();
+        await botUserService.SaveAsync();
         await botClient.SendMessage(chatId, msg.ToString());
     }
 }

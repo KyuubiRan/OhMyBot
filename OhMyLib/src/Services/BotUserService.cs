@@ -70,6 +70,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
     {
         return await repo.EntitySet
             .Where(x => x.OwnerType == type && x.Privilege > UserPrivilege.None)
+            .Where(x => x.KuroUser != null && x.KuroUser.Token != null)
             .Skip(offset)
             .Take(limit)
             .ToListAsync(cancellationToken: cancellationToken);

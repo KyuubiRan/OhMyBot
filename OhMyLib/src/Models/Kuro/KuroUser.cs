@@ -30,4 +30,12 @@ public class KuroUser
     [StringLength(255)] public string? IpAddress { get; set; }
 
     public DateTimeOffset CreateAt { get; set; } = DateTimeOffset.UtcNow;
+    
+    public void Invalidate()
+    {
+        Token = null;
+        DevCode = null;
+        DistinctId = null;
+        IpAddress = null;
+    }
 }

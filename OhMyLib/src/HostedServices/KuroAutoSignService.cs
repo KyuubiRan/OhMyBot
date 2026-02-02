@@ -29,7 +29,17 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
 
         var taskProgress = await client.BbsGetTaskProgressAsync(kUser.BbsUserId ?? 0);
         if (!taskProgress.Success)
+        {
+            if (taskProgress.Code == 220)
+            {
+                kUser.Invalidate();
+                await userService.SaveAsync(cancellationToken);
+                
+                throw new InvalidOperationException("用户Token已失效，请重新绑定库街区账号，自动签到将会关闭直到重新绑定。");
+            }
+            
             throw new InvalidOperationException("获取任务进度失败：" + taskProgress.Msg);
+        }
 
         var currentProgress = taskProgress.Data?.DailyTask ?? [];
         if (currentProgress.IsEmpty)

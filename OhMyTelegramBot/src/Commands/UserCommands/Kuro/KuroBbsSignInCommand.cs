@@ -47,6 +47,14 @@ public sealed class KuroBbsSignInCommand(BotUserService userService, ILogger<Kur
             var taskProgress = await client.BbsGetTaskProgressAsync(kUser.BbsUserId ?? 0);
             if (!taskProgress.Success)
             {
+                if (taskProgress.Code == 220)
+                {
+                    kUser.Invalidate();
+                    await userService.SaveAsync();
+                    
+                    throw new InvalidOperationException("Token已失效，请重新绑定库街区账号后再使用签到功能");
+                }
+                
                 throw new InvalidOperationException("获取任务进度失败：" + taskProgress.Msg);
             }
 
