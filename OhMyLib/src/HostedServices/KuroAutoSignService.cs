@@ -269,6 +269,7 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
                 }
 
                 await DoSigninAsync(cancellationToken);
+                await Task.Delay(1000, cancellationToken);
             }
             catch (TaskCanceledException)
             {
