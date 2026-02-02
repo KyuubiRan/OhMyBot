@@ -115,10 +115,10 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
 
                     var post = posts[i % posts.Count];
                     var likeResult = await client.BbsLikePostAsync(post.GameId,
-                        post.GameForumId,
-                        post.PostType,
-                        post.PostId,
-                        post.UserId);
+                                                                   post.GameForumId,
+                                                                   post.PostType,
+                                                                   post.PostId,
+                                                                   post.UserId);
                     if (likeResult.Success)
                         succCnt++;
                     else
@@ -149,22 +149,19 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
             }
         }
 
-        foreach (var kGameConfig in kUser.GameConfigs)
+        foreach (var kGameConfig in kUser.GameConfigs
+                                         .Where(kGameConfig => kGameConfig.GameCharacterUid != 0)
+                                         .Where(kGameConfig => kGameConfig.TaskType != KuroGameTaskType.None)
+                )
         {
-            if (kGameConfig.GameCharacterUid == 0)
-                continue;
-
-            if (kGameConfig.TaskType == KuroGameTaskType.None)
-                continue;
-
             var init = await client.GameSignInInitAsync((int)kGameConfig.GameType, kGameConfig.GameType.ServerId, kGameConfig.GameCharacterUid,
-                kUser.OwnerUserId);
+                                                        kUser.OwnerUserId);
 
             message.Append('[')
-                .Append(kGameConfig.GameType.Name)
-                .AppendLine("]");
+                   .Append(kGameConfig.GameType.Name)
+                   .AppendLine("]");
 
-            if (!init.Success)
+            if (!init.Success || init.Data is not { } initData)
             {
                 message.AppendLine($"初始化签到失败：{init.Msg}");
                 continue;
@@ -175,26 +172,38 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
                 await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
 
                 var sign = await client.GameSignInAsync((int)kGameConfig.GameType, kGameConfig.GameType.ServerId, kGameConfig.GameCharacterUid,
-                    kUser.OwnerUserId);
+                                                        kUser.OwnerUserId);
 
                 message.AppendLine($"签到结果：{(sign.Success ? "成功" : "失败")}");
                 if (sign.Success)
                 {
-                    var current = init.Data?.SigInNum ?? -1;
-                    var item = init.Data?.SignInGoodsConfigs.ElementAtOrDefault(current);
-                    message.AppendLine("签到天数：" + current);
-                    if (item != null)
-                    {
-                        message.AppendLine($"获得奖励：{item.GoodsName} x{item.GoodsNum}");
-                    }
+                    var current = initData.SigInNum + 1;
+                    var items = GetSignInReward(current);
+                    message.AppendLine("签到天数：" + current)
+                           .AppendLine($"奖励：{items}");
+                }
+                else
+                {
+                    message.Append("原因：").AppendLine(sign.Msg);
                 }
             }
             else
             {
-                message.AppendLine($"今日已签到");
+                var current = initData.SigInNum;
+                var items = GetSignInReward(current);
+                message.AppendLine($"今日已签到，签到天数：{current}")
+                       .AppendLine($"奖励：{items}");
             }
 
             await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+            continue;
+
+            string GetSignInReward(int day)
+            {
+                return initData.SignInGoodsConfigs.Where(x => x.SerialNum == day - 1)
+                               .Select(x => $"{x.GoodsName} x{x.GoodsNum}")
+                               .JoinToString(", ");
+            }
         }
 
         message.AppendLine("时间：" + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"));
