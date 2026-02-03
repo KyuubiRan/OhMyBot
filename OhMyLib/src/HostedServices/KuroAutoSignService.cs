@@ -34,10 +34,10 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
             {
                 kUser.Invalidate();
                 await userService.SaveAsync(cancellationToken);
-                
+
                 throw new InvalidOperationException("用户Token已失效，请重新绑定库街区账号，自动签到将会关闭直到重新绑定。");
             }
-            
+
             throw new InvalidOperationException("获取任务进度失败：" + taskProgress.Msg);
         }
 
@@ -261,32 +261,25 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
         {
             try
             {
-                var now = DateTimeOffset.Now;
-                // wait for next execution time
-                if (ExecuteAt < now.TimeOfDay)
-                {
-                    var next = now.Date.AddDays(1).Add(ExecuteAt);
-                    var delay = next - now;
-                    logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
-                    await Task.Delay(delay, cancellationToken);
-                }
-                else
-                {
-                    var next = now.Date.Add(ExecuteAt);
-                    var delay = next - now;
-                    logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
-                    await Task.Delay(delay, cancellationToken);
-                }
+                var now = DateTime.Now;
+                var today = now.Date.Add(ExecuteAt);
+                var next = today > now ? today : today.AddDays(1);
+                var delay = next - now;
+                delay = delay.Add(TimeSpan.FromSeconds(3));
+
+                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
+                await Task.Delay(delay, cancellationToken);
 
                 await DoSigninAsync(cancellationToken);
-                await Task.Delay(1000, cancellationToken);
             }
             catch (TaskCanceledException)
             {
+                break;
             }
             catch (Exception e)
             {
                 logger.LogWarning(e, "Daily job failed");
+                await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
             }
         }
     }
