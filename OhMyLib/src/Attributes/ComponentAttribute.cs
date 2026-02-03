@@ -1,5 +1,4 @@
 using System.Reflection;
-using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace OhMyLib.Attributes;

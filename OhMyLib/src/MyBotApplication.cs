@@ -79,7 +79,7 @@ public sealed class MyBotApplication : IDisposable
             }
 
             Services.AddDbContext<OhMyDbContext>()
-                .AddHostedService<DatabaseAutoMigrationService>();
+                    .AddHostedService<DatabaseAutoMigrationService>();
 
             return this;
         }
@@ -87,7 +87,7 @@ public sealed class MyBotApplication : IDisposable
         public Builder ConfigureDefaultConfiguration()
         {
             Configuration.AddJsonFile("appsettings.json", optional: true)
-                .AddEnvironmentVariables();
+                         .AddEnvironmentVariables();
             return this;
         }
 
@@ -110,7 +110,13 @@ public sealed class MyBotApplication : IDisposable
         var hostedServices = _sp.GetServices<IHostedService>();
         foreach (var hostedService in hostedServices)
         {
-            await hostedService.StartAsync(cancellationToken);
+            try
+            {
+                _ = Task.Run(async () => { await hostedService.StartAsync(cancellationToken); }, cancellationToken);
+            }
+            catch (TaskCanceledException)
+            {
+            }
         }
 
         try

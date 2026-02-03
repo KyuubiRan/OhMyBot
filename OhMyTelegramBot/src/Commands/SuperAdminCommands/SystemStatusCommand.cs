@@ -1,7 +1,6 @@
-using System.Diagnostics;
-using System.Text;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
+using OhMyLib.Utils;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -15,16 +14,6 @@ public class SystemStatusCommand : ICommand
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
-        var statusMessage = new StringBuilder();
-        using var proc = Process.GetCurrentProcess();
-
-        var workingSet = proc.WorkingSet64 / 1024.0 / 1024;
-        var managed = GC.GetTotalMemory(forceFullCollection: false) / 1024.0 / 1024;
-
-        statusMessage.AppendLine($"Working Set: {workingSet:F2} MB")
-                     .AppendLine($"Managed: {managed:F2} MB")
-                     .AppendLine($"Run: {DateTime.Now - proc.StartTime:g}");
-
-        await botClient.SendMessage(chatId, statusMessage.ToString());
+        await botClient.SendMessage(chatId, SystemUtils.GenSystemInfo());
     }
 }

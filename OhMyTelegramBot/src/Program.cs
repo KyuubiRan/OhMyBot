@@ -8,7 +8,6 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
-using OhMyLib.HostedServices;
 using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.HostedServices;
