@@ -268,7 +268,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceProvider provi
                 var delay = next - now;
                 delay = delay.Add(TimeSpan.FromSeconds(3));
 
-                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
+                logger.LogInformation("Next kuro auto sign execution at {ExecuteAt:yyyy/MM/dd HH:mm:ss} (in {Delay:g})", next, delay);
                 await Task.Delay(delay, stoppingToken);
 
                 await using var scope = provider.CreateAsyncScope();
