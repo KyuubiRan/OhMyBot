@@ -1,5 +1,6 @@
 using System.Text;
 using FoxTail.Extensions;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Enums;
@@ -11,7 +12,7 @@ using OhMyLib.Services;
 
 namespace OhMyLib.HostedServices;
 
-public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, BotUserService userService) : BackgroundService
+public abstract class KuroAutoSignService(ILogger logger, IServiceProvider provider) : BackgroundService
 {
     private static readonly TimeSpan ExecuteAt = new(0, 10, 0);
 
@@ -19,7 +20,7 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
 
     protected abstract Task SendMessage(long chatId, string message, CancellationToken cancellationToken);
 
-    private async Task ProcessSingle(BotUser user, CancellationToken cancellationToken)
+    private async Task ProcessSingle(BotUserService userService, BotUser user, CancellationToken cancellationToken)
     {
         var kUser = user.KuroUser;
         if (kUser == null || kUser.Token.IsWhiteSpaceOrNull)
@@ -221,7 +222,7 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
         await SendMessage(long.Parse(user.OwnerId), message.ToString(), cancellationToken);
     }
 
-    private async Task DoSigninAsync(CancellationToken cancellationToken)
+    private async Task DoSigninAsync(BotUserService userService, CancellationToken cancellationToken)
     {
         try
         {
@@ -236,7 +237,7 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
                 {
                     try
                     {
-                        await ProcessSingle(user, cancellationToken);
+                        await ProcessSingle(userService, user, cancellationToken);
                     }
                     catch (Exception e)
                     {
@@ -270,7 +271,8 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
                 logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
                 await Task.Delay(delay, stoppingToken);
 
-                await DoSigninAsync(stoppingToken);
+                await using var scope = provider.CreateAsyncScope();
+                await DoSigninAsync(scope.ServiceProvider.GetRequiredService<BotUserService>(), stoppingToken);
             }
             catch (TaskCanceledException)
             {

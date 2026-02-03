@@ -1,13 +1,12 @@
 using Microsoft.Extensions.Logging;
 using OhMyLib.Enums;
 using OhMyLib.HostedServices;
-using OhMyLib.Services;
 using Telegram.Bot;
 
 namespace OhMyTelegramBot.HostedServices;
 
-public class TelegramKuroAutoSignService(ILogger<KuroAutoSignService> logger, BotUserService userService, ITelegramBotClient botClient)
-    : KuroAutoSignService(logger, userService)
+public class TelegramKuroAutoSignService(ILogger<TelegramKuroAutoSignService> logger, IServiceProvider serviceProvider, ITelegramBotClient botClient)
+    : KuroAutoSignService(logger, serviceProvider)
 {
     protected override SoftwareType Software => SoftwareType.Telegram;
 
