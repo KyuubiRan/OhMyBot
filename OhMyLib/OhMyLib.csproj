@@ -34,8 +34,4 @@
                           OutputItemType="Analyzer"
                           ReferenceOutputAssembly="false"/>
     </ItemGroup>
-
-    <ItemGroup>
-      <Folder Include="src\Configs\" />
-    </ItemGroup>
 </Project>
