@@ -1,4 +1,5 @@
 using System.Reflection;
+using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace OhMyLib.Attributes;
@@ -31,6 +32,12 @@ public static class ComponentAttributeExtensions
 {
     public static void MapComponents(this IServiceCollection services, Assembly assembly)
     {
+        var blackListInterfaces = new[]
+        {
+            typeof(IDisposable),
+            typeof(IAsyncDisposable),
+        };
+
         foreach (var type in assembly.DefinedTypes.Where(x => x is { IsClass: true, IsAbstract: false, IsInterface: false }))
         {
             var componentAttr = type.GetCustomAttribute<ComponentAttribute>();
@@ -42,7 +49,9 @@ public static class ComponentAttributeExtensions
             if (serviceType is null)
             {
                 var interfaces = implType.GetInterfaces();
-                serviceType = interfaces.Length == 1 ? interfaces[0] : implType;
+                serviceType = interfaces.IsNotEmpty ? interfaces[0] : implType;
+                if (blackListInterfaces.Contains(serviceType))
+                    serviceType = implType;
             }
 
             if (componentAttr.Key is not null)
