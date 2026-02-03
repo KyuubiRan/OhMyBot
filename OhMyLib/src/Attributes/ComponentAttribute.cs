@@ -23,6 +23,11 @@ public sealed class ComponentAttribute : Attribute
     public Type? DerivedFrom { get; set; } = null;
 
     /// <summary>
+    /// If set to true, do not register derived types (interfaces or base classes) automatically.
+    /// </summary>
+    public bool NoAutoDerived { get; set; } = false;
+
+    /// <summary>
     /// If set, use this key for keyed service registration.
     /// </summary>
     public object? Key { get; set; } = null;
@@ -45,14 +50,9 @@ public static class ComponentAttributeExtensions
 
             var implType = type.AsType();
 
-            var serviceType = componentAttr.DerivedFrom;
-            if (serviceType is null)
-            {
-                var interfaces = implType.GetInterfaces();
-                serviceType = interfaces.IsNotEmpty ? interfaces[0] : implType;
-                if (blackListInterfaces.Contains(serviceType))
-                    serviceType = implType;
-            }
+            var serviceType = componentAttr.DerivedFrom ?? (componentAttr.NoAutoDerived
+                                                                ? implType
+                                                                : implType.GetInterfaces().FirstOrDefault(x => !blackListInterfaces.Contains(x)) ?? implType);
 
             if (componentAttr.Key is not null)
             {
