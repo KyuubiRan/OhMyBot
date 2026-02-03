@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Hardware.Info;
 
@@ -10,7 +11,7 @@ public static class SystemUtils
     {
         var sb = new StringBuilder();
 
-        sb.AppendLine($"OS Version: {Environment.OSVersion}");
+        sb.AppendLine($"OS: {RuntimeInformation.OSDescription}");
         sb.AppendLine($"Machine Name: {Environment.MachineName}");
         sb.AppendLine($".NET Version: {Environment.Version}");
         sb.AppendLine($"Processor Count: {Environment.ProcessorCount}");
@@ -28,7 +29,7 @@ public static class SystemUtils
 
         var usedPhysicalMemory = (hw.MemoryStatus.TotalPhysical - hw.MemoryStatus.AvailablePhysical) / 1024.0 / 1024;
         var totalPhysicalMemory = hw.MemoryStatus.TotalPhysical / 1024.0 / 1024;
-        sb.AppendLine($"Mem(Physical): {usedPhysicalMemory:F2} / {totalPhysicalMemory:F2} MB");
+        sb.AppendLine($"Mem(Physical): {usedPhysicalMemory:F2} / {totalPhysicalMemory:F2} MB ({usedPhysicalMemory / totalPhysicalMemory:P2})");
         using var proc = Process.GetCurrentProcess();
         var workingSet = proc.WorkingSet64 / 1024.0 / 1024;
         sb.AppendLine($"Mem(Working Set): {workingSet:F2} MB");

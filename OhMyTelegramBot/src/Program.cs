@@ -23,17 +23,18 @@ public static class MyBot
         new MyBotApplication.Builder()
             .ConfigureDefaultConsoleLogging()
             .ConfigureDefaultDatabase()
-            .ConfigureDefaultConfiguration()
             .ConfigureRedisCacheIfPresent()
-            .ConfigureServices((services, configManager) =>
+            .ConfigureServices((ctx, services) =>
             {
-                services.Configure<BotConfig>(configManager.GetSection("Bot"));
+                var config = ctx.Configuration;
+                services.Configure<BotConfig>(config.GetSection("Bot"));
 
                 Assembly.GetAssembly(typeof(MyBotApplication))?.Let(services.MapComponents);
                 services.MapComponents(Assembly.GetExecutingAssembly());
 
                 services.AddHostedService<AutoConfigOwnerService>();
                 services.AddHostedService<TelegramKuroAutoSignService>();
+                services.AddHostedService<LogMeService>();
 
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
@@ -82,60 +83,23 @@ public static class MyBot
             .Build();
 
     private static readonly ILogger Logger = Instance
-                                             .ServiceProvider
+                                             .Services
                                              .GetRequiredService<ILoggerFactory>()
                                              .CreateLogger("Main");
 
-    private static readonly CancellationTokenSource Cts = new();
 
-    private static void OnCancelKeyPress(object? sender, ConsoleCancelEventArgs e)
+    public static async Task Main()
     {
-        Logger.LogInformation("Shutdown requested, exiting...");
-        Cts.Cancel();
-        e.Cancel = true;
-    }
-
-    public static async Task Main(string[] args)
-    {
-        var bot = Instance.ServiceProvider.GetRequiredService<ITelegramBotClient>();
-        _ = bot.GetMe().ContinueWith(async x =>
-        {
-            try
-            {
-                var user = await x;
-                var service = Instance.ServiceProvider.GetRequiredService<TelegramUserService>();
-                await service.LogUserAsync(user.Id, user.Username, user.FirstName, user.LastName);
-            }
-            catch (Exception e)
-            {
-                Logger.LogWarning(e, "Failed to get bot info");
-            }
-        });
-
+        _ = Instance.Services.GetRequiredService<ITelegramBotClient>();
         Logger.LogInformation("Bot started.");
-
-        var rebootArg = args.FirstOrDefault(a => a.StartsWith("reboot_chatid="));
-        if (rebootArg != null)
-        {
-            var chatId = rebootArg["reboot_chatid=".Length..];
-            Logger.LogInformation("Sending reboot confirmation message to chat {ChatId}", chatId);
-            await bot.SendMessage(chatId, "重启完成");
-        }
-
-        // await botClient.TestApi();
-        // Logger.LogInformation("Telegram Bot API is working fine.");
-
-        Console.CancelKeyPress += OnCancelKeyPress;
-
-        await Instance.StartAsync(Cts.Token);
+        await Instance.StartAsync();
     }
-
-
+    
     private static async Task OnUpdate(Update update)
     {
         _ = Task.Run(async () =>
         {
-            await using var scope = Instance.ServiceProvider.CreateAsyncScope();
+            await using var scope = Instance.Services.CreateAsyncScope();
 
             if (update.Message is { } m)
             {

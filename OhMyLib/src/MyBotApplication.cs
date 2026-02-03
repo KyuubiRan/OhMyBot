@@ -9,46 +9,55 @@ using OhMyLib.HostedServices;
 
 namespace OhMyLib;
 
-public sealed class MyBotApplication : IDisposable
+public sealed class MyBotApplication
 {
-    private readonly ServiceProvider _sp;
+    private readonly IHost _host;
+    public IServiceProvider Services => _host.Services;
 
-    public IServiceProvider ServiceProvider => _sp;
-    public readonly ConfigurationManager Configuration;
-
-    private MyBotApplication(ServiceProvider serviceProvider, ConfigurationManager configuration)
+    private MyBotApplication(IHost host)
     {
-        _sp = serviceProvider;
-        Configuration = configuration;
+        _host = host;
     }
 
     public class Builder
     {
-        public readonly IServiceCollection Services = new ServiceCollection();
-        public readonly ConfigurationManager Configuration = new();
-
+        private readonly HostBuilder _hostBuilder = new();
         private bool _isRedisConfigured;
 
-        public Builder ConfigureServices(Action<IServiceCollection> configure)
+        public Builder()
         {
-            configure(Services);
+            _hostBuilder
+                .UseConsoleLifetime()
+                .ConfigureAppConfiguration(x =>
+                {
+                    x.AddJsonFile("appsettings.json", optional: true)
+                     .AddEnvironmentVariables();
+                });
+        }
+
+        public Builder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configure)
+        {
+            _hostBuilder.ConfigureServices(configure);
             return this;
         }
 
-        public Builder ConfigureServices(Action<IServiceCollection, ConfigurationManager> configure)
+        public Builder ConfigureServices(Action<IServiceCollection> configure)
         {
-            configure(Services, Configuration);
+            _hostBuilder.ConfigureServices(configure);
             return this;
         }
 
         public Builder ConfigureDefaultConsoleLogging()
         {
-            Services.AddLogging(builder =>
+            _hostBuilder.ConfigureServices(services =>
             {
-                builder.AddSimpleConsole(x =>
+                services.AddLogging(builder =>
                 {
-                    x.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
-                    x.UseUtcTimestamp = false;
+                    builder.AddSimpleConsole(x =>
+                    {
+                        x.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+                        x.UseUtcTimestamp = false;
+                    });
                 });
             });
             return this;
@@ -56,15 +65,20 @@ public sealed class MyBotApplication : IDisposable
 
         public Builder ConfigureRedisCacheIfPresent(string? prefix = null)
         {
-            var redisString = Configuration.GetConnectionString("Redis");
-            if (redisString.IsWhiteSpaceOrNull)
-                return this;
-
-            _isRedisConfigured = true;
-            Services.AddStackExchangeRedisCache(x =>
+            _hostBuilder.ConfigureServices((ctx, services) =>
             {
-                x.Configuration = redisString;
-                x.InstanceName = prefix ?? "OhMyBot:";
+                var configuration = ctx.Configuration;
+
+                var redisString = configuration.GetConnectionString("Redis");
+                if (redisString.IsWhiteSpaceOrNull)
+                    return;
+
+                _isRedisConfigured = true;
+                services.AddStackExchangeRedisCache(x =>
+                {
+                    x.Configuration = redisString;
+                    x.InstanceName = prefix ?? "OhMyBot:";
+                });
             });
 
             return this;
@@ -72,34 +86,32 @@ public sealed class MyBotApplication : IDisposable
 
         public Builder ConfigureDefaultDatabase()
         {
-            var dbString = Configuration.GetConnectionString("Database");
-            if (!dbString.IsWhiteSpaceOrNull)
+            _hostBuilder.ConfigureServices((ctx, services) =>
             {
-                Environment.SetEnvironmentVariable("DATABASE_URL", dbString);
-            }
+                var configuration = ctx.Configuration;
 
-            Services.AddDbContext<OhMyDbContext>()
-                    .AddHostedService<DatabaseAutoMigrationService>();
+                var dbString = configuration.GetConnectionString("Database");
+                if (!dbString.IsWhiteSpaceOrNull)
+                {
+                    Environment.SetEnvironmentVariable("DATABASE_URL", dbString);
+                }
 
-            return this;
-        }
+                services.AddDbContext<OhMyDbContext>()
+                        .AddHostedService<DatabaseAutoMigrationService>();
+            });
 
-        public Builder ConfigureDefaultConfiguration()
-        {
-            Configuration.AddJsonFile("appsettings.json", optional: true)
-                         .AddEnvironmentVariables();
+
             return this;
         }
 
         public MyBotApplication Build()
         {
             if (!_isRedisConfigured)
-                Services.AddDistributedMemoryCache();
+            {
+                _hostBuilder.ConfigureServices(services => { services.AddMemoryCache(); });
+            }
 
-            var app = new MyBotApplication(
-                serviceProvider: Services.BuildServiceProvider(),
-                configuration: Configuration
-            );
+            var app = new MyBotApplication(_hostBuilder.Build());
 
             return app;
         }
@@ -107,29 +119,6 @@ public sealed class MyBotApplication : IDisposable
 
     public async Task StartAsync(CancellationToken cancellationToken = default)
     {
-        var hostedServices = _sp.GetServices<IHostedService>();
-        foreach (var hostedService in hostedServices)
-        {
-            try
-            {
-                _ = Task.Run(async () => { await hostedService.StartAsync(cancellationToken); }, cancellationToken);
-            }
-            catch (TaskCanceledException)
-            {
-            }
-        }
-
-        try
-        {
-            await Task.Delay(-1, cancellationToken);
-        }
-        catch (TaskCanceledException)
-        {
-        }
-    }
-
-    public void Dispose()
-    {
-        _sp.Dispose();
+        await _host.RunAsync(cancellationToken);
     }
 }

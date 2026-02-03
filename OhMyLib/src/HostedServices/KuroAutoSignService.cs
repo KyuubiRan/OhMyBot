@@ -11,7 +11,7 @@ using OhMyLib.Services;
 
 namespace OhMyLib.HostedServices;
 
-public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, BotUserService userService) : IHostedService
+public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, BotUserService userService) : BackgroundService
 {
     private static readonly TimeSpan ExecuteAt = new(0, 10, 0);
 
@@ -255,22 +255,22 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
         }
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!cancellationToken.IsCancellationRequested)
+        while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                var now = DateTime.Now;
+                var now = DateTimeOffset.Now;
                 var today = now.Date.Add(ExecuteAt);
                 var next = today > now ? today : today.AddDays(1);
                 var delay = next - now;
                 delay = delay.Add(TimeSpan.FromSeconds(3));
 
                 logger.LogInformation("Next kuro auto sign execution at {ExecuteAt} (in {Delay})", next, delay);
-                await Task.Delay(delay, cancellationToken);
+                await Task.Delay(delay, stoppingToken);
 
-                await DoSigninAsync(cancellationToken);
+                await DoSigninAsync(stoppingToken);
             }
             catch (TaskCanceledException)
             {
@@ -279,13 +279,8 @@ public abstract class KuroAutoSignService(ILogger<KuroAutoSignService> logger, B
             catch (Exception e)
             {
                 logger.LogWarning(e, "Daily job failed");
-                await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
+                await Task.Delay(TimeSpan.FromMinutes(5), stoppingToken);
             }
         }
-    }
-
-    public Task StopAsync(CancellationToken cancellationToken)
-    {
-        return Task.CompletedTask;
     }
 }
