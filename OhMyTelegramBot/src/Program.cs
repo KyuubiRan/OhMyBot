@@ -83,9 +83,9 @@ public static class MyBot
             .Build();
 
     private static readonly ILogger Logger = Instance
-        .ServiceProvider
-        .GetRequiredService<ILoggerFactory>()
-        .CreateLogger("Main");
+                                             .ServiceProvider
+                                             .GetRequiredService<ILoggerFactory>()
+                                             .CreateLogger("Main");
 
     private static readonly CancellationTokenSource Cts = new();
 
@@ -134,45 +134,48 @@ public static class MyBot
 
     private static async Task OnUpdate(Update update)
     {
-        await using var scope = Instance.ServiceProvider.CreateAsyncScope();
-
-        if (update.Message is { } m)
+        _ = Task.Run(async () =>
         {
-            try
-            {
-                var sp = scope.ServiceProvider;
+            await using var scope = Instance.ServiceProvider.CreateAsyncScope();
 
-                var tgUserService = sp.GetRequiredService<TelegramUserService>();
-                if (m.From is { } sender)
-                    await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
-
-                var messageHandler = sp.GetKeyedService<IMessageHandler>("handler__" + m.Type);
-                if (messageHandler != null)
-                    await messageHandler.OnReceiveMessage(m);
-            }
-            catch (Exception e)
+            if (update.Message is { } m)
             {
-                Logger.LogWarning(e, "Unhandled exception in processing message");
-            }
-        }
-        else if (update.CallbackQuery is { } callback)
-        {
-            try
-            {
-                var sp = scope.ServiceProvider;
+                try
+                {
+                    var sp = scope.ServiceProvider;
 
-                var tgUserService = sp.GetRequiredService<TelegramUserService>();
-                if (callback.From is { } sender)
-                    await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
+                    var tgUserService = sp.GetRequiredService<TelegramUserService>();
+                    if (m.From is { } sender)
+                        await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
 
-                var callbackHandler = sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery");
-                if (callbackHandler != null)
-                    await callbackHandler.OnReceiveCallback(callback);
+                    var messageHandler = sp.GetKeyedService<IMessageHandler>("handler__" + m.Type);
+                    if (messageHandler != null)
+                        await messageHandler.OnReceiveMessage(m);
+                }
+                catch (Exception e)
+                {
+                    Logger.LogWarning(e, "Unhandled exception in processing message");
+                }
             }
-            catch (Exception e)
+            else if (update.CallbackQuery is { } callback)
             {
-                Logger.LogWarning(e, "Unhandled exception in processing callback query");
+                try
+                {
+                    var sp = scope.ServiceProvider;
+
+                    var tgUserService = sp.GetRequiredService<TelegramUserService>();
+                    if (callback.From is { } sender)
+                        await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
+
+                    var callbackHandler = sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery");
+                    if (callbackHandler != null)
+                        await callbackHandler.OnReceiveCallback(callback);
+                }
+                catch (Exception e)
+                {
+                    Logger.LogWarning(e, "Unhandled exception in processing callback query");
+                }
             }
-        }
+        });
     }
 }
