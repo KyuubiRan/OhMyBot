@@ -8,6 +8,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib;
 using OhMyLib.Attributes;
+using OhMyLib.HostedServices;
 using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.HostedServices;
@@ -35,6 +36,7 @@ public static class MyBot
                 services.AddHostedService<AutoConfigOwnerService>();
                 services.AddHostedService<TelegramKuroAutoSignService>();
                 services.AddHostedService<LogMeService>();
+                services.AddHostedService<AutoCleanCacheFileService>();
 
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
@@ -94,7 +96,7 @@ public static class MyBot
         Logger.LogInformation("Bot started.");
         await Instance.StartAsync();
     }
-    
+
     private static async Task OnUpdate(Update update)
     {
         _ = Task.Run(async () =>
