@@ -12,7 +12,7 @@ namespace OhMyLib.Requests.Kuro;
 public sealed class KuroHttpClient : IDisposable
 {
     private const string BaseUrl = "https://api.kurobbs.com";
-    private const string Version = "2.10.3";
+    private const string Version = "2.10.5";
 
     private static readonly FrozenDictionary<string, string> BbsHeaders = new Dictionary<string, string>
     {
@@ -61,14 +61,14 @@ public sealed class KuroHttpClient : IDisposable
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
     {
         return await _httpClient.Request(path)
-                                .WithHeaders(BbsHeaders)
-                                .WithHeader("token", _token)
-                                .WithHeader("devCode", _devCode)
-                                .WithHeader("distinct_id", _distinctId)
-                                .Let(x => body != null
-                                              ? x.PostUrlEncodedAsync(body)
-                                              : x.PostAsync(new FormUrlEncodedContent([])))
-                                .ReceiveJson<T>();
+            .WithHeaders(BbsHeaders)
+            .WithHeader("token", _token)
+            .WithHeader("devCode", _devCode)
+            .WithHeader("distinct_id", _distinctId)
+            .Let(x => body != null
+                ? x.PostUrlEncodedAsync(body)
+                : x.PostAsync(new FormUrlEncodedContent([])))
+            .ReceiveJson<T>();
     }
 
     public async Task<KuroHttpResponse<KuroBbsPostData>> BbsGetPostsAsync(
