@@ -17,6 +17,8 @@
 /OhMyTelegramBot/bin
 /OhMyTelegramBot/obj
 
+/TestResults
+
 /OhMyTelegramBot/appsettings.json
 /OhMyBot.Tests/appsettings.Test.json
 OhMyBot.sln.DotSettings.user

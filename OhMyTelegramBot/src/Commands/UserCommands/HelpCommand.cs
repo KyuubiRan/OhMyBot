@@ -23,6 +23,7 @@ public sealed class HelpCommand(CommandContext context) : ICommand
         /help \[类型\] \- 显示帮助菜单，支持的类型：`kuro`
         /info \[uid/mention/reply\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
+        /imgcvt \- 图片格式转换，支持 jpg、png、webp 互转及生成贴纸
         """;
 
     private const string AdminHelpCommandText =
