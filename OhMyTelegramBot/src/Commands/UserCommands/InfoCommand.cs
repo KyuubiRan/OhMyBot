@@ -28,25 +28,33 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
+        string m;
         if (args.IsEmpty && message.ReplyToMessage == null)
         {
             var self = await tUserService.GetCachedUserByIdAsync(senderId);
             var selfBotUser = await bUserService.GetCachedUserAsync(senderId.ToString(), SoftwareType.Telegram);
-            var text = UserToText(self.ToUser(), selfBotUser);
-            await botClient.SendMessage(chatId, text, ParseMode.MarkdownV2);
-            return;
+            m = UserToText(self.ToUser(), selfBotUser);
         }
-
-        var mentioned = await helperService.GetReplyToOrFirstMentionedUser(message);
-        if (mentioned == null)
+        else if (args.Length == 1 && long.TryParse(args[0], out var id))
         {
-            await botClient.SendMessage(chatId, "未找到指定用户");
-            return;
+            var target = await tUserService.GetCachedUserByIdAsync(id);
+            var targetBotUser = await bUserService.GetCachedUserAsync(id.ToString(), SoftwareType.Telegram);
+            m = UserToText(target.ToUser(), targetBotUser);
+        }
+        else
+        {
+            var mentioned = await helperService.GetReplyToOrFirstMentionedUser(message);
+            if (mentioned == null)
+            {
+                await botClient.SendMessage(chatId, "未找到指定用户");
+                return;
+            }
+
+            var target = await tUserService.GetCachedUserByIdAsync(mentioned.Id);
+            var targetBotUser = await bUserService.GetCachedUserAsync(mentioned.Id.ToString(), SoftwareType.Telegram);
+            m = UserToText(target.ToUser(), targetBotUser);
         }
 
-        var target = await tUserService.GetCachedUserByIdAsync(mentioned.Id);
-        var targetBotUser = await bUserService.GetCachedUserAsync(mentioned.Id.ToString(), SoftwareType.Telegram);
-        var targetText = UserToText(target.ToUser(), targetBotUser);
-        await botClient.SendMessage(chatId, targetText, ParseMode.MarkdownV2);
+        await botClient.SendMessage(chatId, m, ParseMode.MarkdownV2);
     }
 }
