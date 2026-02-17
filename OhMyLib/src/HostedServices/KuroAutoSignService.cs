@@ -47,116 +47,124 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceProvider provi
             return;
 
         var tasks = kUser.BbsTask;
-        if (tasks == KuroBbsTaskType.None)
-            return;
-
         var message = new StringBuilder("自动签到结果：\n");
-
-        var signTask = currentProgress.FirstOrDefault(x => x.Remark == "用户签到");
-        if ((tasks & KuroBbsTaskType.Signin) != 0)
+        var hasResult = false;
+        if (tasks != KuroBbsTaskType.None)
         {
-            if (signTask?.Finished == true)
+            var signTask = currentProgress.FirstOrDefault(x => x.Remark == "用户签到");
+            if ((tasks & KuroBbsTaskType.Signin) != 0)
             {
-                message.AppendLine("社区签到结果：今日已签到");
-            }
-            else
-            {
-                var signinResult = await client.BbsSignInAsync();
-                message.AppendLine($"社区签到结果：{(signinResult.Success ? "成功" : "失败")}");
-                if (!signinResult.Success)
-                    message.AppendLine($"原因：{signinResult.Msg}");
+                hasResult = true;
 
-                await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
-            }
-        }
-
-        KuroHttpResponse<KuroBbsPostData>? lazyPosts = null;
-
-        var viewTask = currentProgress.FirstOrDefault(x => x.Remark == "浏览3篇帖子");
-        if ((tasks & KuroBbsTaskType.ViewPosts) != 0)
-        {
-            if (viewTask?.Finished == true)
-            {
-                message.AppendLine("浏览帖子结果：任务已完成");
-            }
-            else
-            {
-                lazyPosts ??= await client.BbsGetPostsAsync();
-                var posts = lazyPosts.Data?.PostList ?? [];
-
-                int succCnt = 0, failedCnt = 0;
-
-                for (var i = viewTask?.CompleteTimes ?? 0; i < viewTask?.NeedActionTimes; i++)
+                if (signTask?.Finished == true)
                 {
-                    if (posts.IsEmpty)
-                        break;
-
-                    var post = posts[i % posts.Count];
-                    var viewResult = await client.BbsGetPostDetailAsync(post.PostId);
-                    if (viewResult.Success)
-                        succCnt++;
-                    else
-                        failedCnt++;
+                    message.AppendLine("社区签到结果：今日已签到");
+                }
+                else
+                {
+                    var signinResult = await client.BbsSignInAsync();
+                    message.AppendLine($"社区签到结果：{(signinResult.Success ? "成功" : "失败")}");
+                    if (!signinResult.Success)
+                        message.AppendLine($"原因：{signinResult.Msg}");
 
                     await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
                 }
-
-                message.AppendLine($"浏览帖子结果：成功 {succCnt} 次，失败 {failedCnt} 次");
             }
-        }
 
-        var likeTask = currentProgress.FirstOrDefault(x => x.Remark == "点赞5次");
-        if ((tasks & KuroBbsTaskType.LikePosts) != 0)
-        {
-            if (likeTask?.Finished == true)
+            KuroHttpResponse<KuroBbsPostData>? lazyPosts = null;
+
+            var viewTask = currentProgress.FirstOrDefault(x => x.Remark == "浏览3篇帖子");
+            if ((tasks & KuroBbsTaskType.ViewPosts) != 0)
             {
-                message.AppendLine("点赞帖子结果：任务已完成");
-            }
-            else
-            {
-                lazyPosts ??= await client.BbsGetPostsAsync();
-                var posts = lazyPosts.Data?.PostList ?? [];
+                hasResult = true;
 
-                int succCnt = 0, failedCnt = 0;
-
-                for (var i = likeTask?.CompleteTimes ?? 0; i < likeTask?.NeedActionTimes; i++)
+                if (viewTask?.Finished == true)
                 {
-                    if (posts.IsEmpty)
-                        break;
-
-                    var post = posts[i % posts.Count];
-                    var likeResult = await client.BbsLikePostAsync(post.GameId,
-                        post.GameForumId,
-                        post.PostType,
-                        post.PostId,
-                        post.UserId);
-                    if (likeResult.Success)
-                        succCnt++;
-                    else
-                        failedCnt++;
-
-                    await Task.Delay(Random.Shared.Next(2000, 5000), cancellationToken);
+                    message.AppendLine("浏览帖子结果：任务已完成");
                 }
+                else
+                {
+                    lazyPosts ??= await client.BbsGetPostsAsync();
+                    var posts = lazyPosts.Data?.PostList ?? [];
 
-                message.AppendLine($"点赞帖子结果：成功 {succCnt} 次，失败 {failedCnt} 次");
+                    int succCnt = 0, failedCnt = 0;
+
+                    for (var i = viewTask?.CompleteTimes ?? 0; i < viewTask?.NeedActionTimes; i++)
+                    {
+                        if (posts.IsEmpty)
+                            break;
+
+                        var post = posts[i % posts.Count];
+                        var viewResult = await client.BbsGetPostDetailAsync(post.PostId);
+                        if (viewResult.Success)
+                            succCnt++;
+                        else
+                            failedCnt++;
+
+                        await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+                    }
+
+                    message.AppendLine($"浏览帖子结果：成功 {succCnt} 次，失败 {failedCnt} 次");
+                }
             }
-        }
 
-        var shareTask = currentProgress.FirstOrDefault(x => x.Remark == "分享1次帖子");
-        if ((tasks & KuroBbsTaskType.SharePosts) != 0)
-        {
-            if (shareTask?.Finished == true)
+            var likeTask = currentProgress.FirstOrDefault(x => x.Remark == "点赞5次");
+            if ((tasks & KuroBbsTaskType.LikePosts) != 0)
             {
-                message.AppendLine("分享帖子结果：任务已完成");
+                hasResult = true;
+
+                if (likeTask?.Finished == true)
+                {
+                    message.AppendLine("点赞帖子结果：任务已完成");
+                }
+                else
+                {
+                    lazyPosts ??= await client.BbsGetPostsAsync();
+                    var posts = lazyPosts.Data?.PostList ?? [];
+
+                    int succCnt = 0, failedCnt = 0;
+
+                    for (var i = likeTask?.CompleteTimes ?? 0; i < likeTask?.NeedActionTimes; i++)
+                    {
+                        if (posts.IsEmpty)
+                            break;
+
+                        var post = posts[i % posts.Count];
+                        var likeResult = await client.BbsLikePostAsync(post.GameId,
+                            post.GameForumId,
+                            post.PostType,
+                            post.PostId,
+                            post.UserId);
+                        if (likeResult.Success)
+                            succCnt++;
+                        else
+                            failedCnt++;
+
+                        await Task.Delay(Random.Shared.Next(2000, 5000), cancellationToken);
+                    }
+
+                    message.AppendLine($"点赞帖子结果：成功 {succCnt} 次，失败 {failedCnt} 次");
+                }
             }
-            else
-            {
-                var shareResult = await client.BbsSharePostAsync();
-                message.AppendLine($"分享帖子结果：{(shareResult.Success ? "成功" : "失败")}");
-                if (!shareResult.Success)
-                    message.AppendLine($"原因：{shareResult.Msg}");
 
-                await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+            var shareTask = currentProgress.FirstOrDefault(x => x.Remark == "分享1次帖子");
+            if ((tasks & KuroBbsTaskType.SharePosts) != 0)
+            {
+                hasResult = true;
+
+                if (shareTask?.Finished == true)
+                {
+                    message.AppendLine("分享帖子结果：任务已完成");
+                }
+                else
+                {
+                    var shareResult = await client.BbsSharePostAsync();
+                    message.AppendLine($"分享帖子结果：{(shareResult.Success ? "成功" : "失败")}");
+                    if (!shareResult.Success)
+                        message.AppendLine($"原因：{shareResult.Msg}");
+
+                    await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
+                }
             }
         }
 
@@ -177,6 +185,8 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceProvider provi
                 message.AppendLine($"初始化签到失败：{init.Msg}");
                 continue;
             }
+
+            hasResult = true;
 
             if (init.Data?.IsSigIn == false)
             {
@@ -217,9 +227,11 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceProvider provi
             }
         }
 
-        message.AppendLine("时间：" + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-
-        await SendMessage(long.Parse(user.OwnerId), message.ToString(), cancellationToken);
+        if (hasResult)
+        {
+            message.AppendLine("时间：" + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"));
+            await SendMessage(long.Parse(user.OwnerId), message.ToString(), cancellationToken);
+        }
     }
 
     private async Task DoSigninAsync(BotUserService userService, CancellationToken cancellationToken)
