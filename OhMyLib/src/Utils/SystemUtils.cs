@@ -40,6 +40,8 @@ public static class SystemUtils
         sb.AppendLine($" - GC Heap: {gcMemory.HeapSizeBytes / 1024.0 / 1024:F2} MB");
         var managed = GC.GetTotalMemory(forceFullCollection: false) / 1024.0 / 1024;
         sb.AppendLine($" - Managed: {managed:F2} MB");
+        var (gc0, gc1, gc2) = (GC.CollectionCount(0), GC.CollectionCount(1), GC.CollectionCount(2));
+        sb.AppendLine($" - GC Collections: g0={gc0}, g1={gc1}, g2={gc2}, ttl={gc0 + gc1 + gc2}");
         var runTime = DateTime.Now - proc.StartTime;
         sb.AppendLine($"Uptime: {runTime:g}");
 
