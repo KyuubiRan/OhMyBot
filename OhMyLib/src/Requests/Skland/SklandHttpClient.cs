@@ -1,3 +1,5 @@
+// reference: https://github.com/AEtherside/skland-kit
+
 using System.Security.Cryptography;
 using Flurl.Http;
 using OhMyLib.Extensions;
@@ -29,7 +31,7 @@ public sealed class SklandHttpClient : IDisposable
         { "protocol", "https" },
         { "apiHost", "fp-it.portal101.cn" }
     };
-    
+
     private static readonly Lazy<RSA> Rsa = new(() =>
     {
         var pk = SmConfig["publicKey"];
@@ -71,7 +73,7 @@ public sealed class SklandHttpClient : IDisposable
         ["vpw"] = new(IsEncrypt: true, Cipher: "DES", Key: "r9924ab5", ObfuscatedName: "ca"),
     };
     // ReSharper restore ArrangeObjectCreationWhenTypeNotEvident
-    
+
     private static readonly Dictionary<string, object> BrowserEnv = new()
     {
         ["plugins"] = "MicrosoftEdgePDFPluginPortableDocumentFormatinternal-pdf-viewer1,MicrosoftEdgePDFViewermhjfbmdgcfjbbpaeojofohoefgiehjai1",
