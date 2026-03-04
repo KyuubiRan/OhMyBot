@@ -26,6 +26,6 @@ public class TestSklandApi
     public async Task TestGrantOAuth()
     {
         var oauth = await _client.GrantUserOAuth();
-        Console.WriteLine(JsonSerializer.SerializeToNode(oauth));
+        Console.WriteLine(JsonSerializer.SerializeToNode(oauth)!.ToString());
     }
 }
