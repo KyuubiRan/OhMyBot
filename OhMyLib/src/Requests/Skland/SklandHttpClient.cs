@@ -13,6 +13,8 @@ public sealed class SklandHttpClient : IDisposable
 
     public SklandHttpClient(string token)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        
         Token = token;
     }
 

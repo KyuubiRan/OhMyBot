@@ -43,6 +43,8 @@ public sealed class KuroHttpClient : IDisposable
 
     public KuroHttpClient(string token, string? devCode = null, string? distinctId = null, string? ipAddress = null)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(token);
+        
         _token = token;
         _devCode = devCode ?? "";
         _distinctId = distinctId ?? "";
