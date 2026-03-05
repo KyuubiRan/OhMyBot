@@ -14,7 +14,7 @@
 
     <ItemGroup>
       <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.3" />
-        <PackageReference Include="Telegram.Bot" Version="22.9.5.2" />
+        <PackageReference Include="Telegram.Bot" Version="22.9.5.3" />
     </ItemGroup>
 
     <ItemGroup>
