@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using FoxTail.Extensions;
 using Hardware.Info;
 
 namespace OhMyLib.Utils;
@@ -14,6 +15,10 @@ public static class SystemUtils
         sb.AppendLine($"OS: {RuntimeInformation.OSDescription}");
         sb.AppendLine($"Machine Name: {Environment.MachineName}");
         sb.AppendLine($"Runtime: {RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine("Build: {0} | {1}".Fmt(ThisAssembly.Git.Commit,
+                                             DateTime.TryParse(ThisAssembly.Git.CommitDate, out var buildDate)
+                                                 ? buildDate.ToString("yyyy-MM-dd HH:mm:ss")
+                                                 : "<Unknown>"));
 
         var hw = new HardwareInfo();
         hw.RefreshMemoryStatus();
