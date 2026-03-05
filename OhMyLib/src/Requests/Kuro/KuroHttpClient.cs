@@ -14,7 +14,7 @@ public sealed class KuroHttpClient : IDisposable
     private const string BaseUrl = "https://api.kurobbs.com";
     private const string Version = "2.10.5";
 
-    private static readonly FrozenDictionary<string, string> BbsHeaders = new Dictionary<string, string>
+    private static readonly Dictionary<string, string> BbsHeaders = new()
     {
         { "Accept", "application/json, text/plain, */*" },
         { "Accept-Encoding", "gzip, deflate, br, zstd" },
@@ -33,7 +33,7 @@ public sealed class KuroHttpClient : IDisposable
         { "User-Agent", RequestConstants.UserAgent },
         { "source", "h5" },
         { "version", Version },
-    }.ToFrozenDictionary();
+    };
 
     private readonly FlurlClient _httpClient;
 
