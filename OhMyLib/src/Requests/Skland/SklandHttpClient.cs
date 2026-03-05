@@ -14,11 +14,12 @@ public sealed class SklandHttpClient : IDisposable
     public SklandHttpClient(string token)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
-        
+
         Token = token;
+        _httpClient = new();
     }
 
-    private readonly FlurlClient _httpClient = new();
+    private readonly FlurlClient _httpClient;
 
     #region 数美
 

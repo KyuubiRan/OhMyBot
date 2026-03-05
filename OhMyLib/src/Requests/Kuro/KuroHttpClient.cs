@@ -35,7 +35,7 @@ public sealed class KuroHttpClient : IDisposable
         { "version", Version },
     }.ToFrozenDictionary();
 
-    private readonly FlurlClient _httpClient = new();
+    private readonly FlurlClient _httpClient;
 
     private readonly string _token;
     private readonly string _devCode;
@@ -44,10 +44,12 @@ public sealed class KuroHttpClient : IDisposable
     public KuroHttpClient(string token, string? devCode = null, string? distinctId = null, string? ipAddress = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(token);
-        
+
         _token = token;
         _devCode = devCode ?? "";
         _distinctId = distinctId ?? "";
+
+        _httpClient = new();
         _httpClient.BaseUrl = BaseUrl;
         _httpClient.WithSettings(x => x.JsonSerializer = new DefaultJsonSerializer(new JsonSerializerOptions
         {
@@ -62,15 +64,16 @@ public sealed class KuroHttpClient : IDisposable
 
     private async Task<T> PostBbsRequestAsync<T>(string path, object? body = null)
     {
-        return await _httpClient.Request(path)
-            .WithHeaders(BbsHeaders)
-            .WithHeader("token", _token)
-            .WithHeader("devCode", _devCode)
-            .WithHeader("distinct_id", _distinctId)
-            .Let(x => body != null
-                ? x.PostUrlEncodedAsync(body)
-                : x.PostAsync(new FormUrlEncodedContent([])))
-            .ReceiveJson<T>();
+        return await _httpClient
+                     .Request(path)
+                     .WithHeaders(BbsHeaders)
+                     .WithHeader("token", _token)
+                     .WithHeader("devCode", _devCode)
+                     .WithHeader("distinct_id", _distinctId)
+                     .Let(x => body != null
+                                   ? x.PostUrlEncodedAsync(body)
+                                   : x.PostAsync(new FormUrlEncodedContent([])))
+                     .ReceiveJson<T>();
     }
 
     public async Task<KuroHttpResponse<KuroBbsPostData>> BbsGetPostsAsync(
