@@ -10,8 +10,11 @@
 
     <ItemGroup>
         <PackageReference Include="Flurl.Http" Version="4.0.2" />
-        <PackageReference Include="FoxTail.Common" Version="0.2.0"/>
-        <PackageReference Include="FoxTail.Extensions" Version="0.2.0"/>
+        <PackageReference Include="FoxTail.Common" Version="0.2.2" />
+        <PackageReference Include="FoxTail.Extensions" Version="0.2.2">
+          <PrivateAssets>all</PrivateAssets>
+          <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+        </PackageReference>
         <PackageReference Include="GitInfo" Version="3.6.0">
           <PrivateAssets>all</PrivateAssets>
           <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
