@@ -4,7 +4,7 @@ using Microsoft.Extensions.Hosting;
 
 namespace OhMyLib.HostedServices;
 
-public class DatabaseAutoMigrationService(IServiceProvider serviceProvider) : IHostedService
+public class DatabaseAutoMigrationService(IServiceScopeFactory serviceProvider) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {

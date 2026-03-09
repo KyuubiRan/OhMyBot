@@ -12,7 +12,7 @@ using OhMyLib.Services;
 
 namespace OhMyLib.HostedServices;
 
-public abstract class KuroAutoSignService(ILogger logger, IServiceProvider provider) : BackgroundService
+public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory provider) : BackgroundService
 {
     private static readonly TimeSpan ExecuteAt = new(0, 10, 0);
 

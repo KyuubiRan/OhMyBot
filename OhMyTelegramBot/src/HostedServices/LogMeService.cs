@@ -5,7 +5,7 @@ using Telegram.Bot;
 
 namespace OhMyTelegramBot.HostedServices;
 
-public class LogMeService(ITelegramBotClient botClient, IServiceProvider provider) : IHostedService
+public class LogMeService(ITelegramBotClient botClient, IServiceScopeFactory provider) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {

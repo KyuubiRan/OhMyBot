@@ -8,7 +8,7 @@ using OhMyTelegramBot.Configs;
 
 namespace OhMyTelegramBot.HostedServices;
 
-public class AutoConfigOwnerService(IServiceProvider provider, IOptionsMonitor<BotConfig> config, ILogger<AutoConfigOwnerService> logger) : IHostedService
+public class AutoConfigOwnerService(IServiceScopeFactory provider, IOptionsMonitor<BotConfig> config, ILogger<AutoConfigOwnerService> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
