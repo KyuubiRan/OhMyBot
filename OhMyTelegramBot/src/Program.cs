@@ -114,8 +114,7 @@ public static class MyBot
                         await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
 
                     var messageHandler = sp.GetKeyedService<IMessageHandler>("handler__" + m.Type);
-                    if (messageHandler != null)
-                        await messageHandler.OnReceiveMessage(m);
+                    await (messageHandler?.OnReceiveMessage(m)).OrCompletedTask();
                 }
                 catch (Exception e)
                 {
@@ -133,8 +132,7 @@ public static class MyBot
                         await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
 
                     var callbackHandler = sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery");
-                    if (callbackHandler != null)
-                        await callbackHandler.OnReceiveCallback(callback);
+                    await (callbackHandler?.OnReceiveCallback(callback)).OrCompletedTask();
                 }
                 catch (Exception e)
                 {
