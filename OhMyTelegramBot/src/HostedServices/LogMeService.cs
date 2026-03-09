@@ -5,12 +5,12 @@ using Telegram.Bot;
 
 namespace OhMyTelegramBot.HostedServices;
 
-public class LogMeService(ITelegramBotClient botClient, IServiceScopeFactory provider) : IHostedService
+public class LogMeService(ITelegramBotClient botClient, IServiceScopeFactory serviceFactory) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         var me = await botClient.GetMe(cancellationToken: cancellationToken);
-        await using var scoped = provider.CreateAsyncScope();
+        await using var scoped = serviceFactory.CreateAsyncScope();
         var userService = scoped.ServiceProvider.GetRequiredService<TelegramUserService>();
         await userService.LogUserAsync(me.Id, me.Username, me.FirstName, me.LastName, cancellationToken);
     }

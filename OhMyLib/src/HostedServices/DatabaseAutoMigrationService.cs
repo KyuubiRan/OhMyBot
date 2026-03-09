@@ -4,11 +4,11 @@ using Microsoft.Extensions.Hosting;
 
 namespace OhMyLib.HostedServices;
 
-public class DatabaseAutoMigrationService(IServiceScopeFactory serviceProvider) : IHostedService
+public class DatabaseAutoMigrationService(IServiceScopeFactory serviceFactory) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
-        await using var scoped = serviceProvider.CreateAsyncScope();
+        await using var scoped = serviceFactory.CreateAsyncScope();
         await scoped.ServiceProvider.GetRequiredService<OhMyDbContext>().Database.MigrateAsync(cancellationToken);
     }
 

@@ -8,7 +8,7 @@ using OhMyTelegramBot.Configs;
 
 namespace OhMyTelegramBot.HostedServices;
 
-public class AutoConfigOwnerService(IServiceScopeFactory provider, IOptionsMonitor<BotConfig> config, ILogger<AutoConfigOwnerService> logger) : IHostedService
+public class AutoConfigOwnerService(IServiceScopeFactory serviceFactory, IOptionsMonitor<BotConfig> config, ILogger<AutoConfigOwnerService> logger) : IHostedService
 {
     public async Task StartAsync(CancellationToken cancellationToken)
     {
@@ -16,7 +16,7 @@ public class AutoConfigOwnerService(IServiceScopeFactory provider, IOptionsMonit
         if (cfg.OwnerId == 0)
             return;
 
-        await using var scoped = provider.CreateAsyncScope();
+        await using var scoped = serviceFactory.CreateAsyncScope();
         var botUserService = scoped.ServiceProvider.GetRequiredService<BotUserService>();
 
         var created = await botUserService.CreateUserIfNotExistsAsync(cfg.OwnerId.ToString(), SoftwareType.Telegram, UserPrivilege.Owner, cancellationToken);

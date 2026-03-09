@@ -12,7 +12,7 @@ using OhMyLib.Services;
 
 namespace OhMyLib.HostedServices;
 
-public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory provider) : BackgroundService
+public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory serviceFactory) : BackgroundService
 {
     private static readonly TimeSpan ExecuteAt = new(0, 10, 0);
 
@@ -289,7 +289,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory p
                 logger.LogInformation("Next kuro auto sign execution at {ExecuteAt:yyyy/MM/dd HH:mm:ss} (in {Delay:g})", next, delay);
                 await Task.Delay(delay, stoppingToken);
 
-                await using var scope = provider.CreateAsyncScope();
+                await using var scope = serviceFactory.CreateAsyncScope();
                 await DoSigninAsync(scope.ServiceProvider.GetRequiredService<BotUserService>(), stoppingToken);
                 logger.LogInformation("Kuro auto sign task completed.");
             }

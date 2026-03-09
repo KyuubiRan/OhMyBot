@@ -6,8 +6,8 @@ using Telegram.Bot;
 
 namespace OhMyTelegramBot.HostedServices;
 
-public class TelegramKuroAutoSignService(ILogger<TelegramKuroAutoSignService> logger, IServiceScopeFactory serviceProvider, ITelegramBotClient botClient)
-    : KuroAutoSignService(logger, serviceProvider)
+public class TelegramKuroAutoSignService(ILogger<TelegramKuroAutoSignService> logger, IServiceScopeFactory serviceServiceFactory, ITelegramBotClient botClient)
+    : KuroAutoSignService(logger, serviceServiceFactory)
 {
     protected override SoftwareType Software => SoftwareType.Telegram;
 
