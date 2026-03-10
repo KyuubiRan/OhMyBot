@@ -30,7 +30,7 @@ public class ImageConvertCommand(CacheFileService cacheFileService, ILogger<Imag
                   .FirstOrDefault() is not { } photo)
         {
             await botClient.SendMessage(
-                chatId, "用法（回复图片）：/imgcvt <格式> [参数]... \n支持格式：png, jpg, webp, sticker\n参数：w=<宽度> h=<高度> q=<质量，1-100，仅jpg/webp有效>");
+                chatId, "用法（回复图片）：/imgcvt <格式> [参数]... \n支持格式：png, jpg, webp, sticker\n参数(可选)：w=[宽度] h=[高度] q=[质量，1-100，仅jpg/webp有效]");
             return;
         }
 
