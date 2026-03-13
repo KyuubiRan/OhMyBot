@@ -30,7 +30,7 @@ public sealed class MyBotApplication
                 .UseConsoleLifetime()
                 .ConfigureAppConfiguration(x =>
                 {
-                    x.AddJsonFile("appsettings.json", optional: true)
+                    x.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                      .AddEnvironmentVariables();
                 });
         }
