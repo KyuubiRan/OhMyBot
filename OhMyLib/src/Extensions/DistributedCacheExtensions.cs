@@ -7,17 +7,17 @@ namespace OhMyLib.Extensions;
 public static class DistributedCacheExtensions
 {
     private const int DefaultCacheDurationHours = 12;
-    
+
     extension(IDistributedCache cache)
     {
-        public T? GetObject<T>(string key)
+        public T? GetObject<T>(string key, T? defaultValue = default)
         {
             var data = cache.Get(key);
             if (data == null)
-                return default;
+                return defaultValue;
 
             var json = Encoding.UTF8.GetString(data);
-            return JsonSerializer.Deserialize<T>(json);
+            return JsonSerializer.Deserialize<T>(json) ?? defaultValue;
         }
 
         public void SetObject<T>(string key, T value, DistributedCacheEntryOptions? options = null)
@@ -36,7 +36,9 @@ public static class DistributedCacheExtensions
             if (data != null)
             {
                 var json = Encoding.UTF8.GetString(data);
-                return JsonSerializer.Deserialize<T>(json)!;
+                var o = JsonSerializer.Deserialize<T>(json);
+                if (o != null)
+                    return o;
             }
 
             var obj = factory();
@@ -44,14 +46,14 @@ public static class DistributedCacheExtensions
             return obj;
         }
 
-        public async Task<T?> GetObjectAsync<T>(string key, CancellationToken cancellationToken = default)
+        public async Task<T?> GetObjectAsync<T>(string key, T? defaultValue = default, CancellationToken cancellationToken = default)
         {
             var data = await cache.GetAsync(key, cancellationToken);
             if (data == null)
-                return default;
+                return defaultValue;
 
             var json = Encoding.UTF8.GetString(data);
-            return JsonSerializer.Deserialize<T>(json);
+            return JsonSerializer.Deserialize<T>(json) ?? defaultValue;
         }
 
         public async Task SetObjectAsync<T>(string key, T value, DistributedCacheEntryOptions? options = null, CancellationToken cancellationToken = default)
@@ -65,13 +67,15 @@ public static class DistributedCacheExtensions
         }
 
         public async Task<T> GetOrSetObjectAsync<T>(string key, Func<Task<T>> factory, DistributedCacheEntryOptions? options = null,
-            CancellationToken token = default)
+                                                    CancellationToken token = default)
         {
             var data = await cache.GetAsync(key, token);
             if (data != null)
             {
                 var json = Encoding.UTF8.GetString(data);
-                return JsonSerializer.Deserialize<T>(json)!;
+                var o = JsonSerializer.Deserialize<T>(json);
+                if (o != null)
+                    return o;
             }
 
             var obj = await factory();
