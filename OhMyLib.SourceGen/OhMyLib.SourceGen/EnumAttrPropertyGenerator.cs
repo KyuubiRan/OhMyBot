@@ -223,7 +223,7 @@ public class EnumAttrPropertyGenerator : IIncrementalGenerator
         if (string.IsNullOrEmpty(name))
             return name;
 
-        return char.ToLowerInvariant(name[0]) + name.Substring(1);
+        return char.ToLowerInvariant(name[0]) + name[1..];
     }
 
     private static string FormatValue(object? value)
@@ -240,7 +240,7 @@ public class EnumAttrPropertyGenerator : IIncrementalGenerator
         if (value is char charValue)
             return "'" + charValue + "'";
 
-        return value.ToString();
+        return value.ToString() ?? "";
     }
 }
 

@@ -6,7 +6,7 @@ public static class BoolUtils
 {
     public static bool TryParse(string str, [NotNullWhen(true)] out bool? value)
     {
-        switch (str.ToLower())
+        switch (str.ToLowerInvariant())
         {
             case "1":
             case "on":

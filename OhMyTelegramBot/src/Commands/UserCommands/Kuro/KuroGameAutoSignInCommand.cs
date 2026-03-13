@@ -22,7 +22,7 @@ public sealed class KuroGameAutoSignInCommand(BotUserService botUserService, Kur
             return;
         }
 
-        var onOff = args[0].ToLower();
+        var onOff = args[0].ToLowerInvariant();
         if (!BoolUtils.TryParse(onOff, out var onOffBool))
         {
             await botClient.SendMessage(chatId, "参数错误，第一参数应为 on 或 off");
