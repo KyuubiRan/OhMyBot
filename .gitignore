@@ -1,6 +1,7 @@
 /.idea
 /.vs
 /.vscode
+.DS_Store
 
 /OhMyLib/bin
 /OhMyLib/obj
