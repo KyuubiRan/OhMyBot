@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Dto;
 using OhMyLib.Enums;
@@ -6,6 +7,7 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Components;
 
 [Component]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class CommandContext
 {
     public ChatType ChatType { get; set; }

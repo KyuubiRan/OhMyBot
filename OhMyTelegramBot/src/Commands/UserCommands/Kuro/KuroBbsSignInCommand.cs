@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using Microsoft.Extensions.Logging;
@@ -14,6 +15,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_signin")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroBbsSignInCommand(BotUserService userService, ILogger<KuroBbsSignInCommand> logger) : ICommand
 {
     private static bool ShouldDoAction(KuroBbsTaskType tasks, KuroBbsTaskType target, string[] args, string key) =>

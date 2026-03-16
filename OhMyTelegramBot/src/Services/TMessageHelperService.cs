@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Dto;
 using OhMyLib.Services;
@@ -8,6 +9,7 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Services;
 
 [Component]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 // ReSharper disable once InconsistentNaming
 public class TMessageHelperService(TelegramUserService userService)
 {

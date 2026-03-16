@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Caching.Distributed;
 using OhMyLib.Attributes;
 using OhMyLib.Extensions;
@@ -6,6 +7,7 @@ using OhMyTelegramBot.Models;
 namespace OhMyTelegramBot.Services;
 
 [Component(Scope = ComponentAttribute.LifetimeScope.Singleton)]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class BotActionManager(IDistributedCache cache)
 {
     private static string KeyForAction(string hash) => $"bot_action:action:{hash}";

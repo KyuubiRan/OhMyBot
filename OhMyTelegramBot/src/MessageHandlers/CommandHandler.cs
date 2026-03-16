@@ -1,4 +1,5 @@
-﻿using FoxTail.Extensions;
+﻿using System.Diagnostics.CodeAnalysis;
+using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
@@ -13,6 +14,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.MessageHandlers;
 
 [Component]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed partial class CommandHandler(
     ILogger<CommandHandler> logger,
     ITelegramBotClient botClient,

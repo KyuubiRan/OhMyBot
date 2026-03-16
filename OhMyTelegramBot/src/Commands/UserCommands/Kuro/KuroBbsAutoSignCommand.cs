@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
@@ -14,6 +15,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_auto_signin")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotActionManager actionManager) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)

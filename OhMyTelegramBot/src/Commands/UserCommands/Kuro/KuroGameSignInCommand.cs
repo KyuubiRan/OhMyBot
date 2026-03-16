@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
@@ -12,6 +13,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_game_signin")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroGameSignInCommand(BotUserService botUserService) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)

@@ -10,9 +10,20 @@ public sealed class ComponentAttribute : Attribute
     {
     }
 
-    public ComponentAttribute(string key)
+    public ComponentAttribute(bool noDerived = false)
+    {
+        NoDerived = noDerived;
+    }
+
+    public ComponentAttribute(Type derivedFrom)
+    {
+        DerivedFrom = derivedFrom;
+    }
+
+    public ComponentAttribute(string key, LifetimeScope scope = LifetimeScope.Scoped)
     {
         Key = key;
+        Scope = scope;
     }
 
     public enum LifetimeScope
@@ -33,7 +44,7 @@ public sealed class ComponentAttribute : Attribute
     /// <summary>
     /// If set to true, do not register derived types (interfaces or base classes) automatically.
     /// </summary>
-    public bool NoAutoDerived { get; set; } = false;
+    public bool NoDerived { get; set; } = false;
 
     /// <summary>
     /// If set, use this key for keyed service registration.
@@ -58,7 +69,7 @@ public static class ComponentAttributeExtensions
 
             var implType = type.AsType();
 
-            var serviceType = componentAttr.DerivedFrom ?? (componentAttr.NoAutoDerived
+            var serviceType = componentAttr.DerivedFrom ?? (componentAttr.NoDerived
                                                                 ? implType
                                                                 : implType.GetInterfaces().FirstOrDefault(x => !blackListInterfaces.Contains(x)) ?? implType);
 

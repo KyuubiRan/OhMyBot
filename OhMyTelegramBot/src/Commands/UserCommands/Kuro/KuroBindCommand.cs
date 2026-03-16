@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json.Nodes;
 using FoxTail.Extensions;
@@ -16,6 +17,7 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_bind")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionManager actionManager) : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;

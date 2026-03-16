@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
@@ -10,6 +11,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
 [Component(Key = "cmd__promote")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class AddAdminCommand(BotUserService service, CommandContext context, TMessageHelperService helperService) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.SuperAdmin;

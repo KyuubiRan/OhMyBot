@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -10,6 +11,7 @@ using OhMyLib.Repositories;
 namespace OhMyLib.Services;
 
 [Component]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
 {
     private static string KeyForUserId(long id) => $"tg_user:id:{id}";

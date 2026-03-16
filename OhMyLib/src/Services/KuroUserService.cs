@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
@@ -7,6 +8,7 @@ using OhMyLib.Repositories;
 namespace OhMyLib.Services;
 
 [Component]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class KuroUserService(KuroUserRepo repo, BotUserService service)
 {
     public async ValueTask<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default)

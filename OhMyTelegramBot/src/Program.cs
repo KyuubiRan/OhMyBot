@@ -13,7 +13,6 @@ using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
 using OhMyTelegramBot.Extensions;
 using OhMyTelegramBot.HostedServices;
-using OhMyTelegramBot.Interfaces;
 using OhMyTelegramBot.Interfaces.Handlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -122,20 +121,33 @@ public class Application
                 {
                     await tUserService.LogUserAsync(callback.From);
 
-                    await (sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery")?.OnReceiveCallbackQuery(callback)).OrCompletedTask();
+                    await sp.GetRequiredKeyedService<ICallbackQueryHandler>("handler__CallbackQuery").OnReceiveCallbackQuery(callback);
                 }
                 catch (Exception e)
                 {
                     Logger.LogWarning(e, "Unhandled exception in processing callback query");
                 }
             }
-            else if (update.InlineQuery is { } inlineQuery)
+            else if (update.InlineQuery != null || update.ChosenInlineResult != null)
             {
                 try
                 {
-                    await tUserService.LogUserAsync(inlineQuery.From);
+                    var inlineQuery = update.InlineQuery;
+                    var chosenInlineResult = update.ChosenInlineResult;
+                    var from = inlineQuery?.From ?? chosenInlineResult?.From;
+                    if (from is null)
+                        return;
 
-                    await (sp.GetKeyedService<IInlineQueryHandler>("handler__InlineQuery")?.OnReceiveInlineQuery(inlineQuery)).OrCompletedTask();
+                    await tUserService.LogUserAsync(from);
+                    var inlineQueryHandler = sp.GetRequiredKeyedService<IInlineQueryHandler>("handler__InlineQuery");
+                    if (inlineQuery != null)
+                    {
+                        await inlineQueryHandler.OnReceiveInlineQuery(inlineQuery);
+                    }
+                    else if (chosenInlineResult != null)
+                    {
+                        await inlineQueryHandler.OnReceiveChosenInlineQuery(chosenInlineResult);
+                    }
                 }
                 catch (Exception e)
                 {

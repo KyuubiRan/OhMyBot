@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
@@ -14,6 +15,7 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__info")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class InfoCommand(TelegramUserService tUserService, BotUserService bUserService, TMessageHelperService helperService) : ICommand
 {
     private static string UserToText(User user, BotUserDto botUserDto)

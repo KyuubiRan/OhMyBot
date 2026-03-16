@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
@@ -13,6 +14,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__imgcvt")]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class ImageConvertCommand(CacheFileService cacheFileService, ILogger<ImageConvertCommand> logger) : ICommand
 {
     private static readonly FrozenSet<string> AvailableFormats = new[]
