@@ -1,7 +1,7 @@
 using OhMyTelegramBot.Enums;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Interfaces;
+namespace OhMyTelegramBot.Interfaces.Handlers;
 
 public interface IMessageHandler
 {

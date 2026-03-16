@@ -2,7 +2,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Configs;
-using OhMyTelegramBot.Interfaces;
+using OhMyTelegramBot.Interfaces.Handlers;
 using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot.MessageHandlers;

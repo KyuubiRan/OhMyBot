@@ -6,6 +6,15 @@ namespace OhMyLib.Attributes;
 [AttributeUsage(AttributeTargets.Class)]
 public sealed class ComponentAttribute : Attribute
 {
+    public ComponentAttribute()
+    {
+    }
+
+    public ComponentAttribute(string key)
+    {
+        Key = key;
+    }
+
     public enum LifetimeScope
     {
         Scoped,

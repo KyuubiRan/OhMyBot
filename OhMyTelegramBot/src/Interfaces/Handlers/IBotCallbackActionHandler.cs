@@ -2,9 +2,9 @@ using OhMyTelegramBot.Models;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Interfaces;
+namespace OhMyTelegramBot.Interfaces.Handlers;
 
-public interface IBotActionHandler
+public interface IBotCallbackActionHandler
 {
     public bool OnlyForOwner => true;
 

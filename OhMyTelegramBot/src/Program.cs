@@ -11,8 +11,10 @@ using OhMyLib.Attributes;
 using OhMyLib.HostedServices;
 using OhMyLib.Services;
 using OhMyTelegramBot.Configs;
+using OhMyTelegramBot.Extensions;
 using OhMyTelegramBot.HostedServices;
 using OhMyTelegramBot.Interfaces;
+using OhMyTelegramBot.Interfaces.Handlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
@@ -54,7 +56,7 @@ public class Application
                     if (cfg.EnableProxy)
                     {
                         var proxyUrl = cfg.HttpProxy.Host.IfWhiteSpaceOrNull(Environment.GetEnvironmentVariable("TELEGRAME_BOT_PROXY_URL"));
-                        
+
                         if (proxyUrl.IsWhiteSpaceOrNull)
                         {
                             throw new ArgumentException(
@@ -97,19 +99,17 @@ public class Application
         _ = Task.Run(async () =>
         {
             await using var scope = Instance.Services.CreateAsyncScope();
+            var sp = scope.ServiceProvider;
+            var tUserService = sp.GetRequiredService<TelegramUserService>();
 
             if (update.Message is { } m)
             {
                 try
                 {
-                    var sp = scope.ServiceProvider;
-
-                    var tgUserService = sp.GetRequiredService<TelegramUserService>();
                     if (m.From is { } sender)
-                        await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
+                        await tUserService.LogUserAsync(sender);
 
-                    var messageHandler = sp.GetKeyedService<IMessageHandler>("handler__" + m.Type);
-                    await (messageHandler?.OnReceiveMessage(m)).OrCompletedTask();
+                    await (sp.GetKeyedService<IMessageHandler>("handler__" + m.Type)?.OnReceiveMessage(m)).OrCompletedTask();
                 }
                 catch (Exception e)
                 {
@@ -120,18 +120,26 @@ public class Application
             {
                 try
                 {
-                    var sp = scope.ServiceProvider;
+                    await tUserService.LogUserAsync(callback.From);
 
-                    var tgUserService = sp.GetRequiredService<TelegramUserService>();
-                    if (callback.From is { } sender)
-                        await tgUserService.LogUserAsync(sender.Id, sender.Username, sender.FirstName, sender.LastName);
-
-                    var callbackHandler = sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery");
-                    await (callbackHandler?.OnReceiveCallback(callback)).OrCompletedTask();
+                    await (sp.GetKeyedService<ICallbackQueryHandler>("handler__CallbackQuery")?.OnReceiveCallbackQuery(callback)).OrCompletedTask();
                 }
                 catch (Exception e)
                 {
                     Logger.LogWarning(e, "Unhandled exception in processing callback query");
+                }
+            }
+            else if (update.InlineQuery is { } inlineQuery)
+            {
+                try
+                {
+                    await tUserService.LogUserAsync(inlineQuery.From);
+
+                    await (sp.GetKeyedService<IInlineQueryHandler>("handler__InlineQuery")?.OnReceiveInlineQuery(inlineQuery)).OrCompletedTask();
+                }
+                catch (Exception e)
+                {
+                    Logger.LogWarning(e, "Unhandled exception in processing inline query");
                 }
             }
         });

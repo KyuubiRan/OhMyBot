@@ -1,7 +1,7 @@
 using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using OhMyLib.Attributes;
-using OhMyTelegramBot.Interfaces;
+using OhMyTelegramBot.Interfaces.Handlers;
 using OhMyTelegramBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -11,7 +11,7 @@ namespace OhMyTelegramBot.MessageHandlers;
 [Component(Key = "handler__CallbackQuery")]
 public class CallbackQueryHandler(BotActionManager actionManager, IServiceProvider provider, ITelegramBotClient botClient) : ICallbackQueryHandler
 {
-    public async Task OnReceiveCallback(CallbackQuery query)
+    public async Task OnReceiveCallbackQuery(CallbackQuery query)
     {
         if (query.Data.IsWhiteSpaceOrNull)
             return;
@@ -21,7 +21,7 @@ public class CallbackQueryHandler(BotActionManager actionManager, IServiceProvid
         if (acton == null)
             return;
 
-        var service = provider.GetKeyedService<IBotActionHandler>("action__" + acton.ActionType);
+        var service = provider.GetKeyedService<IBotCallbackActionHandler>("action__" + acton.ActionType);
         if (service == null)
             return;
 

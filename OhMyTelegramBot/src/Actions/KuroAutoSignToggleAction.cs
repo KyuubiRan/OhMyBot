@@ -3,7 +3,7 @@ using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Enums.Kuro;
 using OhMyLib.Services;
-using OhMyTelegramBot.Interfaces;
+using OhMyTelegramBot.Interfaces.Handlers;
 using OhMyTelegramBot.Models;
 using OhMyTelegramBot.Models.ActionData;
 using OhMyTelegramBot.Services;
@@ -13,7 +13,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Actions;
 
 [Component(Key = "action__kuro_auto_sign")]
-public sealed class KuroAutoSignToggleAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotActionHandler
+public sealed class KuroAutoSignToggleAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotCallbackActionHandler
 {
     public async Task OnReceiveAction(ITelegramBotClient botClient, CallbackQuery query, BotAction action)
     {

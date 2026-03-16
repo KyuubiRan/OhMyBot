@@ -1,7 +1,7 @@
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
-using OhMyTelegramBot.Interfaces;
+using OhMyTelegramBot.Interfaces.Handlers;
 using OhMyTelegramBot.Models;
 using OhMyTelegramBot.Models.ActionData;
 using OhMyTelegramBot.Services;
@@ -11,7 +11,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Actions;
 
 [Component(Key = "action__kuro_bind")]
-public sealed class KuroBindAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotActionHandler
+public sealed class KuroBindAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotCallbackActionHandler
 {
     public async Task OnReceiveAction(ITelegramBotClient botClient, CallbackQuery query, BotAction action)
     {
