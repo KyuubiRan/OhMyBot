@@ -18,7 +18,7 @@ using Telegram.Bot.Types;
 
 namespace OhMyTelegramBot;
 
-public static class MyBot
+public class Application
 {
     private static readonly MyBotApplication Instance =
         new MyBotApplication.Builder()
@@ -40,9 +40,10 @@ public static class MyBot
 
                 services.AddSingleton<ITelegramBotClient, TelegramBotClient>(p =>
                 {
+                    var logger = p.GetRequiredService<ILogger<Application>>();
+
                     var cfg = p.GetRequiredService<IOptionsMonitor<BotConfig>>().CurrentValue;
-                    var token = cfg.Token.IfWhiteSpaceOrNull(
-                        Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN"));
+                    var token = cfg.Token.IfWhiteSpaceOrNull(Environment.GetEnvironmentVariable("TELEGRAME_BOT_TOKEN"));
                     if (token.IsWhiteSpaceOrNull)
                     {
                         throw new ArgumentException(
@@ -52,8 +53,8 @@ public static class MyBot
                     HttpClient? client = null;
                     if (cfg.EnableProxy)
                     {
-                        var proxyUrl = cfg.HttpProxy.Host.IfWhiteSpaceOrNull(
-                            Environment.GetEnvironmentVariable("TELEGRAME_BOT_PROXY_URL"));
+                        var proxyUrl = cfg.HttpProxy.Host.IfWhiteSpaceOrNull(Environment.GetEnvironmentVariable("TELEGRAME_BOT_PROXY_URL"));
+                        
                         if (proxyUrl.IsWhiteSpaceOrNull)
                         {
                             throw new ArgumentException(
@@ -70,9 +71,7 @@ public static class MyBot
 
                         client = new HttpClient(new HttpClientHandler { Proxy = new WebProxy(proxyUrl, port), UseProxy = true });
 
-#nullable disable
-                        Logger.LogInformation("Setup HTTP {ProxyUrl}:{Port} proxy for Telegram Bot Client.", proxyUrl, port);
-#nullable restore
+                        logger.LogInformation("Setup HTTP {ProxyUrl}:{Port} proxy for Telegram Bot Client.", proxyUrl, port);
                     }
 
                     var botClient = new TelegramBotClient(token, client);
@@ -84,11 +83,7 @@ public static class MyBot
             })
             .Build();
 
-    private static readonly ILogger Logger = Instance
-                                             .Services
-                                             .GetRequiredService<ILoggerFactory>()
-                                             .CreateLogger("Main");
-
+    private static readonly ILogger Logger = Instance.Services.GetRequiredService<ILogger<Application>>();
 
     public static async Task Main()
     {
