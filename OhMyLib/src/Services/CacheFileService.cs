@@ -1,9 +1,10 @@
+using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
 
 namespace OhMyLib.Services;
 
 [Component(Scope = ComponentAttribute.LifetimeScope.Singleton)]
-public class CacheFileService
+public class CacheFileService(ILogger<CacheFileService> logger)
 {
     public readonly DirectoryInfo CacheDirectory = new(Path.Combine(AppContext.BaseDirectory, "cache"));
 
@@ -17,7 +18,10 @@ public class CacheFileService
     public FileInfo MakeFileInfo(string? fileName = null, OnConflict conflict = OnConflict.Throw)
     {
         if (!CacheDirectory.Exists)
+        {
             CacheDirectory.Create();
+            logger.LogInformation("Created CacheDirectory: {Path}", CacheDirectory.FullName);
+        }
 
         var file = Path.Combine(CacheDirectory.FullName, fileName ?? Guid.NewGuid().ToString("N"));
 
