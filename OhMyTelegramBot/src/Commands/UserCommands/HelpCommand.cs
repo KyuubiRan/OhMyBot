@@ -30,13 +30,13 @@ public sealed class HelpCommand(CommandContext context) : ICommand
 
     private const string AdminHelpCommandText =
         """
+        /coin \<add/set\> \<uid/mention/reply\> \- 增加或设置用户的哈狐币
         /add \<uid/mention/reply\> \- 添加用户使用bot基本功能的权限
         /del \<uid/mention/reply\> \- 删除用户使用bot基本功能的权限
         """;
 
     private const string SuperAdminHelpCommandText =
         """
-        /coin \<add/set\> \<uid/mention/reply\> \- 增加或设置用户的哈狐币
         /promote \<uid/mention/reply\> \- 调整用户为管理员
         /demote \<uid/mention/reply\> \- 取消用户的管理员权限
         /status \- 查看内存占用信息

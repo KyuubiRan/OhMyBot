@@ -8,13 +8,13 @@ using OhMyTelegramBot.Services;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Commands.SuperAdminCommands;
+namespace OhMyTelegramBot.Commands.AdminCommands;
 
 [Component(Key = "cmd__coin")]
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public partial class CoinCommand(BotUserService userService, ILogger<CoinCommand> logger, TMessageHelperService helperService) : ICommand
 {
-    public UserPrivilege RequirePrivilege => UserPrivilege.SuperAdmin;
+    public UserPrivilege RequirePrivilege => UserPrivilege.Admin;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
