@@ -36,6 +36,7 @@ public sealed class HelpCommand(CommandContext context) : ICommand
 
     private const string SuperAdminHelpCommandText =
         """
+        /coin \<add/set\> \<uid/mention/reply\> \- 增加或设置用户的哈狐币
         /promote \<uid/mention/reply\> \- 调整用户为管理员
         /demote \<uid/mention/reply\> \- 取消用户的管理员权限
         /status \- 查看内存占用信息
@@ -74,15 +75,15 @@ public sealed class HelpCommand(CommandContext context) : ICommand
             if (context.Privilege >= UserPrivilege.Owner)
                 text += "\n" + OwnerHelpCommandText;
 
-            await botClient.SendMessage(chatId, text, ParseMode.MarkdownV2);
+            await botClient.SendMessage(chatId, text, ParseMode.MarkdownV2, replyParameters: message);
         }
         else if (SubCommandHelpTexts.TryGetValue(args[0], out var text))
         {
-            await botClient.SendMessage(chatId, text, ParseMode.MarkdownV2);
+            await botClient.SendMessage(chatId, text, ParseMode.MarkdownV2, replyParameters: message);
         }
         else
         {
-            await botClient.SendMessage(chatId, $"未知的参数 '{args[0]}'，请使用 /help 查看可用的帮助。");
+            await botClient.SendMessage(chatId, $"未知的参数 '{args[0]}'，请使用 /help 查看可用的帮助。", replyParameters: message);
         }
     }
 }

@@ -21,7 +21,7 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService) : IComm
         var user = await botUserService.GetUserAsync(senderId.ToString(), SoftwareType.Telegram);
         if (user is not { KuroUser: { } ku } || ku.Token.IsWhiteSpaceOrNull || ku.BbsUserId == null)
         {
-            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用初始化游戏角色功能");
+            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用初始化游戏角色功能", replyParameters: message);
             return;
         }
 
@@ -35,7 +35,7 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService) : IComm
                 continue;
             }
 
-            await botClient.SendMessage(chatId, "参数错误，类型可选：wuwa、pgr");
+            await botClient.SendMessage(chatId, "参数错误，类型可选：wuwa、pgr", replyParameters: message);
             return;
         }
 
@@ -44,7 +44,7 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService) : IComm
             trueTypes.AddRange(Enum.GetValues<KuroGameType>());
         }
 
-        var msg = await botClient.SendMessage(chatId, "签到中...");
+        var msg = await botClient.SendMessage(chatId, "签到中...", replyParameters: message);
 
         using var kuroHttpClient = new KuroHttpClient(ku);
 

@@ -39,7 +39,8 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
 
             await botClient.SendMessage(
                 chatId,
-                "用法：/kuro_bind <data> 按照下方Json格式填入"
+                "用法：/kuro_bind <data> 按照下方Json格式填入",
+                replyParameters: message
             );
 
             await botClient.SendMessage(chatId, argJson, parseMode: ParseMode.MarkdownV2);
@@ -52,7 +53,7 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
             : message.Text?[(message.Text.IndexOf(' ') + 1)..]?.Trim();
         if (json == null)
         {
-            await botClient.SendMessage(chatId, "参数错误，请检查后重新输入");
+            await botClient.SendMessage(chatId, "参数错误，请检查后重新输入", replyParameters: message);
             return;
         }
 
@@ -63,7 +64,7 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
         }
         catch
         {
-            await botClient.SendMessage(chatId, "参数错误，Json格式有误，请检查后重新输入");
+            await botClient.SendMessage(chatId, "参数错误，Json格式有误，请检查后重新输入", replyParameters: message);
             return;
         }
 
@@ -71,14 +72,14 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
 
         if (!long.TryParse(uid, out var kuid))
         {
-            await botClient.SendMessage(chatId, "参数错误，uid格式有误，请检查后重新输入");
+            await botClient.SendMessage(chatId, "参数错误，uid格式有误，请检查后重新输入", replyParameters: message);
             return;
         }
 
         var token = data["token"]?.GetValue<string>();
         if (token.IsWhiteSpaceOrNull)
         {
-            await botClient.SendMessage(chatId, "参数错误，token不能为空，请检查后重新输入");
+            await botClient.SendMessage(chatId, "参数错误，token不能为空，请检查后重新输入", replyParameters: message);
             return;
         }
 
@@ -87,17 +88,17 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
         var ipAddress = data["ipAddress"]?.GetValue<string>();
         if (!ipAddress.IsWhiteSpaceOrNull && !IPAddress.TryParse(ipAddress, out _))
         {
-            await botClient.SendMessage(chatId, "参数错误，ipAddress格式有误，请检查后重新输入");
+            await botClient.SendMessage(chatId, "参数错误，ipAddress格式有误，请检查后重新输入", replyParameters: message);
         }
 
         var existsBinding = await kuroUserService.FindByBbsIdAsync(kuid);
         if (existsBinding != null && existsBinding.OwnerBotUser.OwnerId != senderId.ToString())
         {
-            await botClient.SendMessage(chatId, "该库街区UID已被绑定，如有疑问请联系Bot管理员处理");
+            await botClient.SendMessage(chatId, "该库街区UID已被绑定，如有疑问请联系Bot管理员处理", replyParameters: message);
             return;
         }
 
-        var msg = await botClient.SendMessage(chatId, "正在获取库街区信息，请稍候...");
+        var msg = await botClient.SendMessage(chatId, "正在获取库街区信息，请稍候...", replyParameters: message);
 
         using var client = new KuroHttpClient(token, devCode, distinctId);
         var me = await client.BbsGetMineAsync(kuid);

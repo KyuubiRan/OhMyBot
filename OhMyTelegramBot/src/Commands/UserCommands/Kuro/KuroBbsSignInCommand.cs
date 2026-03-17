@@ -27,19 +27,19 @@ public sealed class KuroBbsSignInCommand(BotUserService userService, ILogger<Kur
         var kUser = botUser?.KuroUser;
         if (kUser == null)
         {
-            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用签到功能");
+            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用签到功能", replyParameters: message);
             return;
         }
 
         if (kUser.Token.IsWhiteSpaceOrNull)
         {
-            await botClient.SendMessage(chatId, "绑定的库街区账号信息不完整，请重新绑定后再使用签到功能");
+            await botClient.SendMessage(chatId, "绑定的库街区账号信息不完整，请重新绑定后再使用签到功能", replyParameters: message);
             return;
         }
 
         var tasks = kUser.BbsTask;
 
-        var msg = await botClient.SendMessage(chatId, "签到中，请稍候...");
+        var msg = await botClient.SendMessage(chatId, "签到中，请稍候...", replyParameters: message);
 
         var resultMessage = new StringBuilder("签到结果：\n");
         _ = Task.Run(async () =>

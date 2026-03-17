@@ -21,6 +21,10 @@ public class BotUser
     public DateTimeOffset CreateAt { get; set; } = DateTimeOffset.UtcNow;
 
     public virtual KuroUser? KuroUser { get; set; } = null;
+
+    public virtual BotUserCheckin? UserCheckin { get; set; }
+
+    public int Coin { get; set; }   
 }
 
 public static class UserExtensions

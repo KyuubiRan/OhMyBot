@@ -20,7 +20,7 @@ public sealed class KuroGameAutoSignInCommand(BotUserService botUserService, Kur
     {
         if (args.Length < 1)
         {
-            await botClient.SendMessage(chatId, "用法：/kuro_game_auto_signin <on/off> [类型]，类型可选：wuwa、pgr，留空为全部");
+            await botClient.SendMessage(chatId, "用法：/kuro_game_auto_signin <on/off> [类型]，类型可选：wuwa、pgr，留空为全部", replyParameters: message);
             return;
         }
 
@@ -34,7 +34,7 @@ public sealed class KuroGameAutoSignInCommand(BotUserService botUserService, Kur
         var user = await botUserService.GetUserAsync(senderId.ToString(), SoftwareType.Telegram);
         if (user is not { KuroUser: { } ku } || ku.Token.IsWhiteSpaceOrNull || ku.BbsUserId == null)
         {
-            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用库街区游戏自动签到功能，若已绑定，请使用 /kuro_game_init_char 初始化游戏角色信息");
+            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用库街区游戏自动签到功能，若已绑定，请使用 /kuro_game_init_char 初始化游戏角色信息", replyParameters: message);
             return;
         }
 
@@ -43,7 +43,7 @@ public sealed class KuroGameAutoSignInCommand(BotUserService botUserService, Kur
         {
             if (ku.GameConfigs.IsEmpty)
             {
-                await botClient.SendMessage(chatId, "未找到游戏角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息");
+                await botClient.SendMessage(chatId, "未找到游戏角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息", replyParameters: message);
                 return;
             }
 
@@ -55,26 +55,26 @@ public sealed class KuroGameAutoSignInCommand(BotUserService botUserService, Kur
             }
 
             await kuroUserService.SaveAsync();
-            await botClient.SendMessage(chatId, sb.ToString());
+            await botClient.SendMessage(chatId, sb.ToString(), replyParameters: message);
         }
         else if (Enum.TryParse<KuroGameType>(type, true, out var t))
         {
             var config = user.KuroUser.GameConfigs.FirstOrDefault(x => x.GameType == t);
             if (config == null)
             {
-                await botClient.SendMessage(chatId, $"未找到游戏类型 {t.Name} 的角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息");
+                await botClient.SendMessage(chatId, $"未找到游戏类型 {t.Name} 的角色信息，请使用 /kuro_game_init_char 初始化游戏角色信息", replyParameters: message);
                 return;
             }
 
             config.TaskType = onOffBool.Value ? config.TaskType | KuroGameTaskType.Signin : config.TaskType & ~KuroGameTaskType.Signin;
 
             await kuroUserService.SaveAsync();
-            await botClient.SendMessage(chatId, $"{t.Name} 自动签到已{(onOffBool.Value ? "开启" : "关闭")}");
+            await botClient.SendMessage(chatId, $"{t.Name} 自动签到已{(onOffBool.Value ? "开启" : "关闭")}", replyParameters: message);
             return;
         }
         else
         {
-            await botClient.SendMessage(chatId, "参数错误，类型可选：wuwa、pgr");
+            await botClient.SendMessage(chatId, "参数错误，类型可选：wuwa、pgr", replyParameters: message);
             return;
         }
     }

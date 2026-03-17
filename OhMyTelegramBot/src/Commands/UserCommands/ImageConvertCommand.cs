@@ -39,11 +39,11 @@ public class ImageConvertCommand(CacheFileService cacheFileService, ILogger<Imag
         var format = args[0].ToLowerInvariant();
         if (!AvailableFormats.Contains(format))
         {
-            await botClient.SendMessage(chatId, "不支持的格式：" + format);
+            await botClient.SendMessage(chatId, "不支持的格式：" + format, replyParameters: message);
             return;
         }
 
-        var msg = await botClient.SendMessage(chatId, "下载中...");
+        var msg = await botClient.SendMessage(chatId, "下载中...", replyParameters: message);
 
         var tgFileName = $"photo_{photo.FileId}";
         var srcFile = cacheFileService.MakeFileInfo(tgFileName, CacheFileService.OnConflict.Ignore);
@@ -145,7 +145,7 @@ public class ImageConvertCommand(CacheFileService cacheFileService, ILogger<Imag
         await botClient.EditMessageText(msg.Chat.Id, msg.Id, "上传中...");
 
         await using var targetRead = targetFile.OpenRead();
-        await botClient.SendDocument(chatId, targetRead);
+        await botClient.SendDocument(chatId, targetRead, replyParameters: message);
 
         await botClient.DeleteMessage(msg.Chat.Id, msg.Id);
     }

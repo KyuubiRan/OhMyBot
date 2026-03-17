@@ -14,7 +14,7 @@ public sealed class PingCommand : ICommand
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
         var stopwatch = Stopwatch.StartNew();
-        var m = await botClient.SendMessage(chatId, "Pong!");
+        var m = await botClient.SendMessage(chatId, "Pong!", replyParameters: message);
         stopwatch.Stop();
         await botClient.EditMessageText(chatId, m.MessageId, $"Pong! | {stopwatch.ElapsedMilliseconds} ms");
     }

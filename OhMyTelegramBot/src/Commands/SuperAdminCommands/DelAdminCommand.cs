@@ -27,30 +27,30 @@ public sealed class DelAdminCommand(BotUserService service, CommandContext conte
 
         if (target.Uid == senderId.ToString())
         {
-            await botClient.SendMessage(chatId, "喵喵喵？");
+            await botClient.SendMessage(chatId, "喵喵喵？", replyParameters: message);
             return;
         }
 
         if (target.Privilege >= UserPrivilege.Owner)
         {
-            await botClient.SendMessage(chatId, "休要造反！");
+            await botClient.SendMessage(chatId, "休要造反！", replyParameters: message);
             return;
         }
 
         if (context.Privilege < target.Privilege)
         {
-            await botClient.SendMessage(chatId, "无法操作比自己权限更高的用户");
+            await botClient.SendMessage(chatId, "无法操作比自己权限更高的用户", replyParameters: message);
             return;
         }
 
         if (target.Privilege == UserPrivilege.None)
         {
-            await botClient.SendMessage(chatId, "该用户已无任何权限");
+            await botClient.SendMessage(chatId, "该用户已无任何权限", replyParameters: message);
             return;
         }
 
         var tagetPriv = (UserPrivilege)((byte)target.Privilege / 10);
         await service.SetPrivilegeAsync(id, SoftwareType.Telegram, tagetPriv);
-        await botClient.SendMessage(chatId, $"将该用户权限降级至 {tagetPriv.ToString()}");
+        await botClient.SendMessage(chatId, $"将该用户权限降级至 {tagetPriv.ToString()}", replyParameters: message);
     }
 }

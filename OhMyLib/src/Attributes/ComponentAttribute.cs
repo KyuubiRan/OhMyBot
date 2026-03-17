@@ -10,7 +10,7 @@ public sealed class ComponentAttribute : Attribute
     {
     }
 
-    public ComponentAttribute(bool noDerived = false)
+    public ComponentAttribute(bool noDerived)
     {
         NoDerived = noDerived;
     }

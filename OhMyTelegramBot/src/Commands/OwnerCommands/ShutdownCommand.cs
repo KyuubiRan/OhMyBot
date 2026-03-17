@@ -24,12 +24,13 @@ public sealed class ShutdownCommand : ICommand
             await botClient.SendMessage(
                 chatId,
                 "输入`/shutdown confirm`来确认关闭Bot",
-                ParseMode.MarkdownV2
+                ParseMode.MarkdownV2,
+                replyParameters: message
             );
         }
         else
         {
-            await botClient.SendMessage(chatId, "正在关闭Bot...");
+            await botClient.SendMessage(chatId, "正在关闭Bot...", replyParameters: message);
             await Task.Delay(2000);
             Environment.Exit(0);
         }

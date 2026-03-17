@@ -23,7 +23,7 @@ public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotAct
         var user = await botUserService.GetUserAsync(senderId.ToString(), SoftwareType.Telegram);
         if (user is not { KuroUser: { } ku } || ku.Token.IsWhiteSpaceOrNull)
         {
-            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用自动签到功能");
+            await botClient.SendMessage(chatId, "请先绑定库街区账号后再使用自动签到功能", replyParameters: message);
             return;
         }
 
@@ -52,7 +52,8 @@ public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotAct
         await botClient.SendMessage(
             chatId,
             m.ToString(),
-            replyMarkup: keyboard
+            replyMarkup: keyboard, 
+            replyParameters: message
         );
     }
 }

@@ -27,30 +27,30 @@ public sealed class AddAdminCommand(BotUserService service, CommandContext conte
 
         if (target.Uid == senderId.ToString())
         {
-            await botClient.SendMessage(chatId, "喵喵喵？");
+            await botClient.SendMessage(chatId, "喵喵喵？", replyParameters: message);
             return;
         }
 
         if (target.Privilege >= UserPrivilege.Owner)
         {
-            await botClient.SendMessage(chatId, "休要造反！");
+            await botClient.SendMessage(chatId, "休要造反！", replyParameters: message);
             return;
         }
 
         if (context.Privilege < target.Privilege)
         {
-            await botClient.SendMessage(chatId, "无法操作比自己权限更高的用户");
+            await botClient.SendMessage(chatId, "无法操作比自己权限更高的用户", replyParameters: message);
             return;
         }
 
         if ((byte)target.Privilege * 10 >= (byte)context.Privilege)
         {
-            await botClient.SendMessage(chatId, $"该用户已有 {target.Privilege.ToString()} 权限");
+            await botClient.SendMessage(chatId, $"该用户已有 {target.Privilege.ToString()} 权限", replyParameters: message);
             return;
         }
 
         var promotedPriv = (UserPrivilege)Math.Max(1, (byte)target.Privilege * 10);
         await service.SetPrivilegeAsync(id, SoftwareType.Telegram, promotedPriv);
-        await botClient.SendMessage(chatId, $"已提升该用户权限至 {promotedPriv.ToString()}");
+        await botClient.SendMessage(chatId, $"已提升该用户权限至 {promotedPriv.ToString()}", replyParameters: message);
     }
 }

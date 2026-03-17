@@ -16,6 +16,6 @@ public class SystemStatusCommand : ICommand
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
-        await botClient.SendMessage(chatId, SystemUtils.GetSystemInfo());
+        await botClient.SendMessage(chatId, SystemUtils.GetSystemInfo(), replyParameters: message);
     }
 }

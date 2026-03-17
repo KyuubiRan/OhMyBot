@@ -2,6 +2,8 @@ using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using OhMyLib.Attributes;
+using OhMyLib.Enums;
+using OhMyLib.Services;
 using OhMyTelegramBot.Interfaces.Handlers;
 using OhMyTelegramBot.Interfaces.Inline;
 using Telegram.Bot;
@@ -12,7 +14,7 @@ namespace OhMyTelegramBot.MessageHandlers;
 
 [Component("handler__InlineQuery")]
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
-public class InlineQueryHandler(ITelegramBotClient botClient, IServiceProvider serviceProvider) : IInlineQueryHandler
+public class InlineQueryHandler(ITelegramBotClient botClient, BotUserService userService, IServiceProvider serviceProvider) : IInlineQueryHandler
 {
     private static readonly Dictionary<IInlineQuery, InlineQueryResult> Handlers = new();
 
@@ -42,7 +44,15 @@ public class InlineQueryHandler(ITelegramBotClient botClient, IServiceProvider s
 
     public async Task OnReceiveInlineQuery(InlineQuery query)
     {
-        await botClient.AnswerInlineQuery(query.Id, Handlers.Values);
+        var u = await userService.GetCachedUserAsync(query.From.Id.ToString(), SoftwareType.Telegram);
+        if (u.Privilege < UserPrivilege.User)
+            return;
+
+        await botClient.AnswerInlineQuery(query.Id, Handlers.Values, isPersonal: true
+#if DEBUG
+                                        , cacheTime: 1
+#endif
+        );
     }
 
     public async Task OnReceiveChosenInlineQuery(ChosenInlineResult query)

@@ -8,9 +8,20 @@ namespace OhMyTelegramBot.Inline.Defs;
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class SignHaFoxCoinInlineDef : IArticleInlineQuery
 {
+    private static readonly string[] SignTexts =
+    [
+        "正在撤离酸饺粥...",
+        "正在逃离塔克狐...",
+    ];
+
     public string[] QueryKeys => ["签到", "哈狐币"];
     public string Id => "sign_hafu";
-    public string Title => "喵喵喵";
-    public InputMessageContent InputMessage => new InputTextMessageContent("签到中...");
-    public InlineKeyboardMarkup ReplyMarkup => InlineKeyboardMarkup.Empty();
+    public string Title => "签个到喵";
+    public string Description => "打赛博卡，赚哈狐币！";
+    public InputMessageContent InputMessage => new InputTextMessageContent(SignTexts[Random.Shared.Next(SignTexts.Length)]);
+
+    public InlineKeyboardMarkup ReplyMarkup => new()
+    {
+        InlineKeyboard = [[InlineKeyboardButton.WithCallbackData("签到中...")]]
+    };
 }

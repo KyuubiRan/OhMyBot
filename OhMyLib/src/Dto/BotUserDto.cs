@@ -7,7 +7,8 @@ public record BotUserDto(
     long Id,
     string Uid,
     SoftwareType Type,
-    UserPrivilege Privilege
+    UserPrivilege Privilege,
+    int Coin
 )
 {
     public bool ExistsInDatabase => Id > 0;
@@ -21,7 +22,8 @@ public static class BotUserExtensions
             Id: botUser.Id,
             Uid: botUser.OwnerId,
             Type: botUser.OwnerType,
-            Privilege: botUser.Privilege
+            Privilege: botUser.Privilege,
+            Coin: botUser.Coin
         );
     }
 }

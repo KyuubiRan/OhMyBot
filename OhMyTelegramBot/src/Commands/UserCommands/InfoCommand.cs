@@ -25,6 +25,7 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
         sb.AppendLine($"昵称: `{user.FirstName} {user.LastName}`");
         sb.AppendLine($"用户名: {(string.IsNullOrEmpty(user.Username) ? "无" : "@" + user.Username.Replace("_", "\\_"))}");
         sb.AppendLine($"权限: `{botUserDto.Privilege}`");
+        sb.AppendLine($"哈狐币: {botUserDto.Coin}");
         return sb.ToString();
     }
 
@@ -48,7 +49,7 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
             var mentioned = await helperService.GetReplyToOrFirstMentionedUser(message);
             if (mentioned == null)
             {
-                await botClient.SendMessage(chatId, "未找到指定用户");
+                await botClient.SendMessage(chatId, "未找到指定用户", replyParameters: message);
                 return;
             }
 
@@ -57,6 +58,6 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
             m = UserToText(target.ToUser(), targetBotUser);
         }
 
-        await botClient.SendMessage(chatId, m, ParseMode.MarkdownV2);
+        await botClient.SendMessage(chatId, m, ParseMode.MarkdownV2, replyParameters: message);
     }
 }

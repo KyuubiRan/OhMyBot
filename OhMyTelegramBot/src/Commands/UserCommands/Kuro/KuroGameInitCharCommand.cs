@@ -35,19 +35,20 @@ public sealed class KuroGameInitCharCommand(BotUserService botUserService) : ICo
             ku.Invalidate();
             await botUserService.SaveAsync();
 
-            throw new InvalidOperationException("Token已失效，请重新绑定库街区账号后再使用签到功能");
+            await botClient.SendMessage(chatId,"Token已失效，请重新绑定库街区账号后再使用签到功能", replyParameters: message);
+            return;
         }
 
         if (!defaults.Success || defaults.Data == null)
         {
-            await botClient.SendMessage(chatId, "获取默认角色信息失败：" + defaults.Msg);
+            await botClient.SendMessage(chatId, "获取默认角色信息失败：" + defaults.Msg, replyParameters: message);
             return;
         }
 
         var results = defaults.Data;
         if (results.DefaultRoleList.IsEmpty)
         {
-            await botClient.SendMessage(chatId, "角色列表为空");
+            await botClient.SendMessage(chatId, "角色列表为空", replyParameters: message);
             return;
         }
 

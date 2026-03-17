@@ -17,6 +17,6 @@ public class GCCommand : ICommand
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
         GC.Collect(2, GCCollectionMode.Aggressive, true);
-        await botClient.SendMessage(chatId, "垃圾回收完成");
+        await botClient.SendMessage(chatId, "垃圾回收完成", replyParameters: message);
     }
 }
