@@ -7,7 +7,7 @@ using OhMyTelegramBot.Interfaces.Handlers;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 
-namespace OhMyTelegramBot.Inline.Handler;
+namespace OhMyTelegramBot.Inlines.Handlers;
 
 [Component("inline_chosen_query_handler__sign_hafu")]
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]

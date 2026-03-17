@@ -3,7 +3,7 @@ using OhMyTelegramBot.Interfaces.Inline;
 using Telegram.Bot.Types.InlineQueryResults;
 using Telegram.Bot.Types.ReplyMarkups;
 
-namespace OhMyTelegramBot.Inline.Defs;
+namespace OhMyTelegramBot.Inlines.Defs;
 
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class SignHaFoxCoinInlineDef : IArticleInlineQuery
