@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using OhMyLib.Attributes;
@@ -11,7 +10,6 @@ using OhMyLib.Repositories;
 namespace OhMyLib.Services;
 
 [Component]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 {
     private static string KeyForUser(string id, SoftwareType type) => $"bot_user:{type}:{id}";

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyTelegramBot.Enums;
 using OhMyTelegramBot.Interfaces;
@@ -8,7 +7,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__start")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class StartCommand : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;

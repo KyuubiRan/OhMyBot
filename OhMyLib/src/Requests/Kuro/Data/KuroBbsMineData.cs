@@ -33,7 +33,7 @@ namespace OhMyLib.Requests.Kuro.Data;
 public class KuroBbsMineData
 {
     public MineData? Mine { get; set; } = null;
-    
+
     public class MineData
     {
         public int? CollectCount { get; set; } = null;

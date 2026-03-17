@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyTelegramBot.Interfaces;
@@ -8,7 +7,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.OwnerCommands;
 
 [Component(Key = "cmd__gc")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 // ReSharper disable once InconsistentNaming
 public class GCCommand : ICommand
 {

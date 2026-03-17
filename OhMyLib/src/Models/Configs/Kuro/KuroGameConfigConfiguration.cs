@@ -11,8 +11,8 @@ public class KuroGameConfigConfiguration : IEntityTypeConfiguration<KuroGameConf
         builder.HasIndex(x => x.KuroUserId);
 
         builder.HasOne(x => x.KuroUser)
-            .WithMany(x => x.GameConfigs)
-            .HasForeignKey(x => x.KuroUserId)
-            .OnDelete(DeleteBehavior.Cascade);
+               .WithMany(x => x.GameConfigs)
+               .HasForeignKey(x => x.KuroUserId)
+               .OnDelete(DeleteBehavior.Cascade);
     }
 }

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Dto;
 using OhMyLib.Services;
@@ -9,15 +8,15 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Services;
 
 [Component]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
+
 // ReSharper disable once InconsistentNaming
 public class TMessageHelperService(TelegramUserService userService)
 {
     public async Task<TelegramUserDto?> GetMentionedUserAsync(Message message, int index = 0, CancellationToken cancellationToken = default)
     {
         var mentionEntity = message.Entities?
-            .Where(e => e.Type == MessageEntityType.Mention)
-            .ElementAtOrDefault(index);
+                                   .Where(e => e.Type == MessageEntityType.Mention)
+                                   .ElementAtOrDefault(index);
 
         if (mentionEntity is null)
             return null;

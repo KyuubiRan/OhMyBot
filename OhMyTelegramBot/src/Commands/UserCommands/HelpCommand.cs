@@ -1,5 +1,4 @@
 using System.Collections.Frozen;
-using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
@@ -13,7 +12,6 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.UserCommands;
 
 [Component(Key = "cmd__help")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class HelpCommand(CommandContext context) : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;

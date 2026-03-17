@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Text.Json.Nodes;
 using FoxTail.Extensions;
@@ -17,7 +16,6 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_bind")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionManager actionManager) : ICommand
 {
     public SupportedChatType SupportChatTypes => SupportedChatType.Private;
@@ -49,8 +47,8 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
 
         var entity = message.Entities?.FirstOrDefault(x => x.Type == MessageEntityType.Pre);
         var json = entity != null
-            ? message.Text?.Substring(entity.Offset, entity.Length)
-            : message.Text?[(message.Text.IndexOf(' ') + 1)..]?.Trim();
+                       ? message.Text?.Substring(entity.Offset, entity.Length)
+                       : message.Text?[(message.Text.IndexOf(' ') + 1)..]?.Trim();
         if (json == null)
         {
             await botClient.SendMessage(chatId, "参数错误，请检查后重新输入", replyParameters: message);
@@ -121,10 +119,10 @@ public sealed class KuroBindCommand(KuroUserService kuroUserService, BotActionMa
                 [
                     InlineKeyboardButton.WithCallbackData(
                         "确认绑定", await actionManager.PutActionAsync("kuro_bind", chatId, senderId,
-                            new KuroBindActionData(true, kuid, token, devCode, distinctId, ipAddress))),
+                                                                   new KuroBindActionData(true, kuid, token, devCode, distinctId, ipAddress))),
                     InlineKeyboardButton.WithCallbackData(
                         "取消绑定", await actionManager.PutActionAsync("kuro_bind", chatId, senderId,
-                            new KuroBindActionData(false, kuid, token)))
+                                                                   new KuroBindActionData(false, kuid, token)))
                 ]
             ]
         });

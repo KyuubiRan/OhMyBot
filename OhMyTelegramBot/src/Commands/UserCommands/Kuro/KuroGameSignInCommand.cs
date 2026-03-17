@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
@@ -13,7 +12,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_game_signin")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroGameSignInCommand(BotUserService botUserService) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
@@ -62,17 +60,17 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService) : IComm
             }
 
             var init = await kuroHttpClient.GameSignInInitAsync((int)gameType, gameType.ServerId, config.GameCharacterUid,
-                ku.BbsUserId.Value);
+                                                                ku.BbsUserId.Value);
 
             if (init.Code == 220)
             {
                 ku.Invalidate();
                 await botUserService.SaveAsync();
-                    
+
                 throw new InvalidOperationException("Token已失效，请重新绑定库街区账号后再使用签到功能");
             }
 
-            
+
             if (!init.Success || init.Data is not { } signData)
             {
                 await botClient.EditMessageText(chatId, msg.MessageId, $"初始化 {gameType.Name} 签到信息失败：{init.Msg}");
@@ -98,7 +96,7 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService) : IComm
                 await kuroHttpClient.GameSignInAsync((int)gameType, gameType.ServerId, config.GameCharacterUid, ku.BbsUserId.Value);
 
             result.AppendLine($"签到结果：{(signInResult.Success ? "成功" : "失败：" + signInResult.Msg)}")
-                .AppendLine("签到天数：" + (signInResult.Success ? signData.SigInNum + 1 : signData.SigInNum));
+                  .AppendLine("签到天数：" + (signInResult.Success ? signData.SigInNum + 1 : signData.SigInNum));
 
             if (signInResult.Success)
             {

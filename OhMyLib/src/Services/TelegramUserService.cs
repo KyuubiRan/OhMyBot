@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
@@ -11,7 +10,6 @@ using OhMyLib.Repositories;
 namespace OhMyLib.Services;
 
 [Component]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
 {
     private static string KeyForUserId(long id) => $"tg_user:id:{id}";
@@ -22,7 +20,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
         return await cache.GetOrSetObjectAsync(KeyForUserId(userId), async () =>
         {
             var user = await repo.EntitySet.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
+                                 .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
             if (user == null)
                 return new TelegramUserDto(-1, userId, null, null, null, null, null);
 
@@ -46,7 +44,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
         var userId = await cache.GetOrSetObjectAsync(KeyForUsername(username), async () =>
         {
             var user = await repo.EntitySet.AsNoTracking()
-                .FirstOrDefaultAsync(x => x.Username == username, cancellationToken: cancellationToken);
+                                 .FirstOrDefaultAsync(x => x.Username == username, cancellationToken: cancellationToken);
             if (user == null)
                 return -1L;
 
@@ -67,7 +65,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
     public async ValueTask<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet
-            .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
+                         .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
     }
 
     public async ValueTask LogUserAsync(

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Utils;
@@ -9,7 +8,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.SuperAdminCommands;
 
 [Component(Key = "cmd__status")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class SystemStatusCommand : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.SuperAdmin;

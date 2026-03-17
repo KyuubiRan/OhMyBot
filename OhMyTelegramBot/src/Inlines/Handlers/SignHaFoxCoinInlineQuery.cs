@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
@@ -10,7 +9,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Inlines.Handlers;
 
 [Component("inline_chosen_query_handler__sign_hafu")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class SignHaFoxCoinInlineQuery(
     ITelegramBotClient botClient,
     BotUserCheckinService checkinService,

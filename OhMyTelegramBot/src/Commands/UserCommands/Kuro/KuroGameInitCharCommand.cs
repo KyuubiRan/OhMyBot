@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
@@ -14,7 +13,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_game_init_char")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroGameInitCharCommand(BotUserService botUserService) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
@@ -35,7 +33,7 @@ public sealed class KuroGameInitCharCommand(BotUserService botUserService) : ICo
             ku.Invalidate();
             await botUserService.SaveAsync();
 
-            await botClient.SendMessage(chatId,"Token已失效，请重新绑定库街区账号后再使用签到功能", replyParameters: message);
+            await botClient.SendMessage(chatId, "Token已失效，请重新绑定库街区账号后再使用签到功能", replyParameters: message);
             return;
         }
 

@@ -1,9 +1,11 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 
 namespace OhMyLib.Attributes;
 
 [AttributeUsage(AttributeTargets.Class)]
+[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class ComponentAttribute : Attribute
 {
     public ComponentAttribute()

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using OhMyLib.Attributes;
@@ -13,7 +12,6 @@ using Telegram.Bot.Types.InlineQueryResults;
 namespace OhMyTelegramBot.MessageHandlers;
 
 [Component("handler__InlineQuery")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class InlineQueryHandler(ITelegramBotClient botClient, BotUserService userService, IServiceProvider serviceProvider) : IInlineQueryHandler
 {
     private static readonly Dictionary<IInlineQuery, InlineQueryResult> Handlers = new();

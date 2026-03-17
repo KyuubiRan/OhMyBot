@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyLib.Attributes;
@@ -9,7 +8,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.MessageHandlers;
 
 [Component(Key = "handler__Text")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed partial class PlantTextHandler(
     ILogger<PlantTextHandler> logger,
     IOptionsMonitor<BotConfig> config,

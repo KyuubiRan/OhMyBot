@@ -20,7 +20,7 @@ public class BotCheckinResultDto
     public int MaxStreakDays { get; init; } = 0;
     public int CoinGain { get; init; } = 0;
     public int TotalCoins { get; init; } = 0;
-    
+
     public override string ToString()
     {
         if (Result is ResultType.UserNotFound or ResultType.Failure)
@@ -39,7 +39,7 @@ public class BotCheckinResultDto
         {
             sb.AppendLine("今天是疯狂星期四，额外V你50哈狐币！");
         }
-        
+
         sb.AppendLine($"获得哈狐币: {CoinGain}");
         sb.AppendLine($"当前哈狐币：{TotalCoins}");
         sb.AppendLine($"总签到天数: {TotalDays}");

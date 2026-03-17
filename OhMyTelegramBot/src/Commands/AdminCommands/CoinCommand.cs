@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
@@ -11,7 +10,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.AdminCommands;
 
 [Component(Key = "cmd__coin")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public partial class CoinCommand(BotUserService userService, ILogger<CoinCommand> logger, TMessageHelperService helperService) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Admin;

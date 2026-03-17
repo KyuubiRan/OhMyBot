@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
@@ -15,7 +14,6 @@ using Telegram.Bot.Types.ReplyMarkups;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_auto_signin")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotActionManager actionManager) : ICommand
 {
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
@@ -30,13 +28,14 @@ public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotAct
         var features = Enum.GetValues<KuroBbsTaskType>().Where(x => x > 0).ToList();
         var m = new StringBuilder("点击下方按钮进行开/关签到功能\n");
         m.Append("当前已启用：")
-            .AppendLine(features.Where(x => (ku.BbsTask & x) != 0).Select(x => x.Name).JoinToString(' '));
+         .AppendLine(features.Where(x => (ku.BbsTask & x) != 0).Select(x => x.Name).JoinToString(' '));
 
         var buttons = features.Select(x =>
-            InlineKeyboardButton.WithCallbackData(
-                text: $"{x.Name}",
-                callbackData: actionManager.PutActionAsync("kuro_auto_sign", chatId, senderId, new KuroAutoSignToggleData(ku.Id, x)).Result
-            )).Chunk(2).ToList();
+                                          InlineKeyboardButton.WithCallbackData(
+                                              text: $"{x.Name}",
+                                              callbackData: actionManager
+                                                            .PutActionAsync("kuro_auto_sign", chatId, senderId, new KuroAutoSignToggleData(ku.Id, x)).Result
+                                          )).Chunk(2).ToList();
 
         buttons.Add([
             InlineKeyboardButton.WithCallbackData(
@@ -52,7 +51,7 @@ public sealed class KuroBbsAutoSignCommand(BotUserService botUserService, BotAct
         await botClient.SendMessage(
             chatId,
             m.ToString(),
-            replyMarkup: keyboard, 
+            replyMarkup: keyboard,
             replyParameters: message
         );
     }

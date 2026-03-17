@@ -1,10 +1,8 @@
-using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 
 namespace OhMyLib.Services;
 
 [Component(Scope = ComponentAttribute.LifetimeScope.Singleton)]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class CacheFileService
 {
     public readonly DirectoryInfo CacheDirectory = new(Path.Combine(AppContext.BaseDirectory, "cache"));

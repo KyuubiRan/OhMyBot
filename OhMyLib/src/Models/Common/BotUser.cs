@@ -24,7 +24,7 @@ public class BotUser
 
     public virtual BotUserCheckin? UserCheckin { get; set; }
 
-    public int Coin { get; set; }   
+    public int Coin { get; set; }
 }
 
 public static class UserExtensions

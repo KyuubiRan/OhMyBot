@@ -131,10 +131,10 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
 
                         var post = posts[i % posts.Count];
                         var likeResult = await client.BbsLikePostAsync(post.GameId,
-                            post.GameForumId,
-                            post.PostType,
-                            post.PostId,
-                            post.UserId);
+                                                                       post.GameForumId,
+                                                                       post.PostType,
+                                                                       post.PostId,
+                                                                       post.UserId);
                         if (likeResult.Success)
                             succCnt++;
                         else
@@ -169,16 +169,16 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
         }
 
         foreach (var kGameConfig in kUser.GameConfigs
-                     .Where(kGameConfig => kGameConfig.GameCharacterUid != 0)
-                     .Where(kGameConfig => kGameConfig.TaskType != KuroGameTaskType.None)
+                                         .Where(kGameConfig => kGameConfig.GameCharacterUid != 0)
+                                         .Where(kGameConfig => kGameConfig.TaskType != KuroGameTaskType.None)
                 )
         {
             var init = await client.GameSignInInitAsync((int)kGameConfig.GameType, kGameConfig.GameType.ServerId, kGameConfig.GameCharacterUid,
-                kUser.OwnerUserId);
+                                                        kUser.OwnerUserId);
 
             message.Append('[')
-                .Append(kGameConfig.GameType.Name)
-                .AppendLine("]");
+                   .Append(kGameConfig.GameType.Name)
+                   .AppendLine("]");
 
             if (!init.Success || init.Data is not { } initData)
             {
@@ -193,7 +193,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
                 await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
 
                 var sign = await client.GameSignInAsync((int)kGameConfig.GameType, kGameConfig.GameType.ServerId, kGameConfig.GameCharacterUid,
-                    kUser.OwnerUserId);
+                                                        kUser.OwnerUserId);
 
                 message.AppendLine($"签到结果：{(sign.Success ? "成功" : "失败")}");
                 if (sign.Success)
@@ -201,7 +201,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
                     var current = initData.SigInNum + 1;
                     var items = GetSignInReward(current);
                     message.AppendLine("签到天数：" + current)
-                        .AppendLine($"奖励：{items}");
+                           .AppendLine($"奖励：{items}");
                 }
                 else
                 {
@@ -213,7 +213,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
                 var current = initData.SigInNum;
                 var items = GetSignInReward(current);
                 message.AppendLine($"今日已签到，签到天数：{current}")
-                    .AppendLine($"奖励：{items}");
+                       .AppendLine($"奖励：{items}");
             }
 
             await Task.Delay(Random.Shared.Next(1000, 2000), cancellationToken);
@@ -222,8 +222,8 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
             string GetSignInReward(int day)
             {
                 return initData.SignInGoodsConfigs.Where(x => x.SerialNum == day - 1)
-                    .Select(x => $"{x.GoodsName} x{x.GoodsNum}")
-                    .JoinToString(", ");
+                               .Select(x => $"{x.GoodsName} x{x.GoodsNum}")
+                               .JoinToString(", ");
             }
         }
 

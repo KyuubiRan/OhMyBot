@@ -11,7 +11,7 @@ public class OhMyDbContext : DbContext
     {
         var databaseUrl = Environment.GetEnvironmentVariable("DATABASE_URL");
         optionsBuilder.UseNpgsql(databaseUrl ?? DefaultPgsqlConnection)
-            .UseLazyLoadingProxies();
+                      .UseLazyLoadingProxies();
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)

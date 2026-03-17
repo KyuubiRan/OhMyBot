@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
@@ -11,7 +10,6 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.OwnerCommands;
 
 [Component(Key = "cmd__shutdown")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class ShutdownCommand : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Owner;

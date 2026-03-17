@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
@@ -11,7 +10,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.AdminCommands;
 
 [Component(Key = "cmd__del")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class DelUserCommand(BotUserService service, CommandContext context, TMessageHelperService helperService) : ICommand
 {
     public UserPrivilege RequirePrivilege => UserPrivilege.Admin;

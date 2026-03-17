@@ -27,8 +27,8 @@ public static class TMessageExtensions
 
         public User? GetTextMentionedUser(int index = 0) =>
             msg.Entities?.Where(e => e.Type is MessageEntityType.TextMention)
-                .ElementAtOrDefault(index)
-                ?.User;
+               .ElementAtOrDefault(index)
+               ?.User;
 
         public bool TryGetTextMentionedUser(out User? user, int index = 0)
         {

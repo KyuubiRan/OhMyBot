@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Text;
 using FoxTail.Extensions;
 using Microsoft.Extensions.Logging;
@@ -15,7 +14,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Commands.UserCommands.Kuro;
 
 [Component(Key = "cmd__kuro_signin")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed class KuroBbsSignInCommand(BotUserService userService, ILogger<KuroBbsSignInCommand> logger) : ICommand
 {
     private static bool ShouldDoAction(KuroBbsTaskType tasks, KuroBbsTaskType target, string[] args, string key) =>
@@ -53,10 +51,10 @@ public sealed class KuroBbsSignInCommand(BotUserService userService, ILogger<Kur
                 {
                     kUser.Invalidate();
                     await userService.SaveAsync();
-                    
+
                     throw new InvalidOperationException("Token已失效，请重新绑定库街区账号后再使用签到功能");
                 }
-                
+
                 throw new InvalidOperationException("获取任务进度失败：" + taskProgress.Msg);
             }
 
@@ -153,12 +151,12 @@ public sealed class KuroBbsSignInCommand(BotUserService userService, ILogger<Kur
 
                         var post = pst[i % pst.Count];
                         var likeResult = await client.BbsLikePostAsync(
-                            post.GameId,
-                            post.GameForumId,
-                            post.PostType,
-                            post.PostId,
-                            post.UserId
-                        );
+                                             post.GameId,
+                                             post.GameForumId,
+                                             post.PostType,
+                                             post.PostId,
+                                             post.UserId
+                                         );
 
                         if (likeResult.Success)
                         {

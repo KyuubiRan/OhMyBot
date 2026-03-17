@@ -11,6 +11,7 @@ public static class DictExtensions
             {
                 result[kv.Key] = kv.Value;
             }
+
             return result;
         }
     }

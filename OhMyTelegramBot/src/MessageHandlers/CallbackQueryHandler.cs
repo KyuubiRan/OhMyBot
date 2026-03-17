@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using OhMyLib.Attributes;
@@ -10,7 +9,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.MessageHandlers;
 
 [Component(Key = "handler__CallbackQuery")]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class CallbackQueryHandler(BotActionManager actionManager, IServiceProvider provider, ITelegramBotClient botClient) : ICallbackQueryHandler
 {
     public async Task OnReceiveCallbackQuery(CallbackQuery query)

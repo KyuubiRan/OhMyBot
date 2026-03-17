@@ -1,5 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
-using FoxTail.Extensions;
+﻿using FoxTail.Extensions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
@@ -14,7 +13,6 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.MessageHandlers;
 
 [Component]
-[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public sealed partial class CommandHandler(
     ILogger<CommandHandler> logger,
     ITelegramBotClient botClient,
@@ -97,6 +95,6 @@ public sealed partial class CommandHandler(
     private partial void LogHandleCommand(long chatId, long senderId, string command, string[] args);
 
     [LoggerMessage(LogLevel.Information,
-        "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
+                   "User SID={senderId} does not have enough privilege to run command '{command}' (required: {required}, actual: {actual})")]
     private partial void LogNotEnoughPriv(long senderId, string command, UserPrivilege required, UserPrivilege actual);
 }
