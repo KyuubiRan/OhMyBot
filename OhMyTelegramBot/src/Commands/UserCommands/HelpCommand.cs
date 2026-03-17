@@ -23,22 +23,22 @@ public sealed class HelpCommand(CommandContext context) : ICommand
         *\[帮助菜单\]*
         `<尖括号>` 内为 *必填* 参数，`[方括号]` 内为 _选填_ 参数。
         /help \[类型\] \- 显示帮助菜单，支持的类型：`kuro`
-        /info \[uid/mention/reply\] \- 查找记录的用户信息
+        /info \[uid/@/回复\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
         /imgcvt \- 图片格式转换，支持 jpg、png、webp 互转及生成贴纸
         """;
 
     private const string AdminHelpCommandText =
         """
-        /coin \<add/set\> \<uid/mention/reply\> \- 增加或设置用户的哈狐币
-        /add \<uid/mention/reply\> \- 添加用户使用bot基本功能的权限
-        /del \<uid/mention/reply\> \- 删除用户使用bot基本功能的权限
+        /coin \<add/set\> \<数量\> \<uid/@/回复\>  \- 增加或设置用户的哈狐币
+        /add \<uid/@/回复\> \- 添加用户使用bot基本功能的权限
+        /del \<uid/@/回复\>  \- 删除用户使用bot基本功能的权限
         """;
 
     private const string SuperAdminHelpCommandText =
         """
-        /promote \<uid/mention/reply\> \- 调整用户为管理员
-        /demote \<uid/mention/reply\> \- 取消用户的管理员权限
+        /promote \<uid/@/回复\>  \- 调整用户为管理员
+        /demote \<uid/@/回复\>  \- 取消用户的管理员权限
         /status \- 查看内存占用信息
         """;
 
