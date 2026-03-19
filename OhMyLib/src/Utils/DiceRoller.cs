@@ -58,13 +58,13 @@ public static class DiceRoller
                 '/' => new Token(TokenType.Slash, "/"),
                 '(' => new Token(TokenType.LParen, "("),
                 ')' => new Token(TokenType.RParen, ")"),
-                _ => throw new FormatException($"非法字符: '{c}'")
+                _ => throw new FormatException($"Invalid character: '{c}' at {_pos}")
             };
         }
 
         public Token Peek()
         {
-            int saved = _pos;
+            var saved = _pos;
             var tok = Next();
             _pos = saved;
             return tok;
@@ -94,7 +94,7 @@ public static class DiceRoller
         private Token Expect(TokenType t)
         {
             if (_cur.Type != t)
-                throw new FormatException($"期望 {t}，实际得到 '{_cur.Raw}'");
+                throw new FormatException($"Expect {t} but got '{_cur.Raw}'");
             return Consume();
         }
 
@@ -102,7 +102,7 @@ public static class DiceRoller
         public DiceResult Parse(string expr)
         {
             var details = new List<string>();
-            int total = Expr(details);
+            var total = Expr(details);
 
             // 把 details 合并成展开字符串
             var breakdown = string.Join(" ", details).Trim();
@@ -217,9 +217,9 @@ public static class DiceRoller
                 var faces = Expect(TokenType.Number).NumValue;
 
                 if (count is < 1 or > 100)
-                    throw new ArgumentOutOfRangeException($"骰子数量 {count} 超出范围 [1,100]");
+                    throw new ArgumentOutOfRangeException(nameof(count), $"Dice count {count} out of range [1,100]");
                 if (faces < 2)
-                    throw new ArgumentOutOfRangeException($"面数 {faces} 至少为 2");
+                    throw new ArgumentOutOfRangeException(nameof(faces), $"Dice faces must be at least 2 faces, got {faces}");
 
                 var rolls = new int[count];
                 for (var i = 0; i < count; i++)
@@ -227,10 +227,7 @@ public static class DiceRoller
 
                 var sum = rolls.Sum();
 
-                // 展示：1d20[15] 或 3d6[2,5,4]
-                var detail = count == 1
-                                 ? $"{count}d{faces}[{rolls[0]}]"
-                                 : $"{count}d{faces}[{string.Join(",", rolls)}]";
+                var detail = $"{count}d{faces}[{string.Join(",", rolls)}]";
 
                 d.Add(detail);
                 return sum;
