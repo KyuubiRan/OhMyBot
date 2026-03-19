@@ -37,7 +37,7 @@ public partial class CoinCommand(BotUserService userService, ILogger<CoinCommand
 
         if (!int.TryParse(args[1], out var amount))
         {
-            await botClient.SendMessage(chatId, $"无法解析的数字 {args[1]}, 有效范围:{int.MinValue} ~ {int.MaxValue}");
+            await botClient.SendMessage(chatId, $"无法解析的数字 {args[1]}, 有效范围:{int.MinValue} ~ {int.MaxValue}", replyParameters: message);
             return;
         }
 

@@ -31,7 +31,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         }
 
         var oldCoin = user.Coin;
-        user.Coin = isAdd ? user.Coin + amount : amount;
+        user.Coin = isAdd ? user.Coin.SaturatingAdd(amount) : amount;
         await SaveAsync(cancellationToken);
 
         await cache.RemoveAsync(KeyForUser(id, type), cancellationToken);

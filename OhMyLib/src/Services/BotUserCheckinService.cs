@@ -2,6 +2,7 @@ using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Dto;
 using OhMyLib.Enums;
+using OhMyLib.Extensions;
 using OhMyLib.Models.Common;
 
 namespace OhMyLib.Services;
@@ -33,7 +34,7 @@ public class BotUserCheckinService(BotUserService userService)
                 TotalCoins = user.Coin,
                 StreakDays = checkinState.StreakDays,
                 MaxStreakDays = checkinState.MaxStreakDays,
-                CoinGain = checkinState.StreakDays * 9 + (DateTime.Now.IsThursday ? +50 : 0),
+                CoinGain = checkinState.DailyClaimed,
             };
         }
 
@@ -45,8 +46,8 @@ public class BotUserCheckinService(BotUserService userService)
         checkinState.TotalDays++;
         checkinState.StreakDays = breakStreak ? 1 : checkinState.StreakDays + 1;
         checkinState.MaxStreakDays = Math.Max(checkinState.MaxStreakDays, checkinState.StreakDays);
-        var reward = checkinState.StreakDays * 9 + (DateTime.Now.IsThursday ? +50 : 0);
-        user.Coin += reward;
+        checkinState.DailyClaimed = Random.Shared.Next(checkinState.StreakDays, checkinState.StreakDays * 9) + (DateTime.Now.IsThursday ? +50 : 0);
+        user.Coin = user.Coin.SaturatingAdd(checkinState.DailyClaimed);
 
         await userService.SaveAsync(cancellationToken);
 
@@ -59,7 +60,7 @@ public class BotUserCheckinService(BotUserService userService)
             TotalCoins = user.Coin,
             StreakDays = checkinState.StreakDays,
             MaxStreakDays = checkinState.MaxStreakDays,
-            CoinGain = reward,
+            CoinGain = checkinState.DailyClaimed,
         };
     }
 }

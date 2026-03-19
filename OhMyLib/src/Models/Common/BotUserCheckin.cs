@@ -9,6 +9,7 @@ public class BotUserCheckin
     public int TotalDays { get; set; }
     public int StreakDays { get; set; }
     public int MaxStreakDays { get; set; }
+    public int DailyClaimed { get; set; }
     public DateTimeOffset? LastCheckinTime { get; set; }
 
     public virtual BotUser User { get; set; } = null!;

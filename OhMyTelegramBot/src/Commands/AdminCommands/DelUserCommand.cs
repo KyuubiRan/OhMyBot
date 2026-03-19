@@ -48,6 +48,6 @@ public sealed class DelUserCommand(BotUserService service, CommandContext contex
         }
 
         await service.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.None);
-        await botClient.SendMessage(chatId, "已删除该用户权限");
+        await botClient.SendMessage(chatId, "已删除该用户权限", replyParameters: message);
     }
 }

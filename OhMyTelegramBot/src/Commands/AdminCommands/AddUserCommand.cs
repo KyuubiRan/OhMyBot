@@ -48,6 +48,6 @@ public sealed class AddUserCommand(BotUserService botUserService, CommandContext
         }
 
         await botUserService.SetPrivilegeAsync(id, SoftwareType.Telegram, UserPrivilege.User);
-        await botClient.SendMessage(chatId, "已提升该用户权限至 User");
+        await botClient.SendMessage(chatId, "已提升该用户权限至 User", replyParameters: message);
     }
 }
