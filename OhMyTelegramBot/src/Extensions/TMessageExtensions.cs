@@ -6,6 +6,29 @@ namespace OhMyTelegramBot.Extensions;
 // ReSharper disable once InconsistentNaming
 public static class TMessageExtensions
 {
+    extension(string messageString)
+    {
+        public string NormalizeMarkdownV2()
+        {
+            return messageString.Replace("_", "\\_")
+                .Replace("*", "\\*")
+                .Replace("[", "\\[")
+                .Replace("]", "\\]")
+                .Replace("(", "\\(")
+                .Replace(")", "\\)")
+                .Replace("~", "\\~")
+                .Replace("`", "\\`")
+                .Replace(">", "\\>")
+                .Replace("#", "\\#")
+                .Replace("+", "\\+")
+                .Replace("-", "\\-")
+                .Replace("=", "\\=")
+                .Replace("|", "\\|")
+                .Replace("{", "\\{")
+                .Replace("}", "\\}");
+        }
+    }
+    
     extension(Message msg)
     {
         public List<User> GetAllTextMentionedUsers()
