@@ -8,6 +8,8 @@ namespace OhMyTelegramBot.Inlines.Defs;
 [DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.All)]
 public class SignHaFoxCoinInlineDef : IArticleInlineQuery
 {
+    public int Priority => int.MaxValue;
+
     private static readonly string[] SignTexts =
     [
         "正在撤离酸饺粥...",

@@ -22,6 +22,7 @@ public class InlineQueryHandler(ITelegramBotClient botClient, BotUserService use
                                              .Where(t => typeof(IInlineQuery).IsAssignableFrom(t) && t is { IsInterface: false, IsAbstract: false })
                                              .Select(Activator.CreateInstance)
                                              .Select(x => (IInlineQuery)x!)
+                                             .OrderByDescending(t => t.Priority)
                                              .ToList();
 
         foreach (var type in queryTypes)
