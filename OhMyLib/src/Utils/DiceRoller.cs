@@ -123,19 +123,21 @@ public static class DiceRoller
             while (_cur.Type is TokenType.Plus or TokenType.Minus)
             {
                 var op = Consume();
-                var right = Term(d);
+                var sub = new List<string>();
+                var right = Term(sub);
+
                 if (op.Type == TokenType.Plus)
                 {
                     val += right;
                     d.Add("+");
-                    d.Add(right.ToString());
                 }
                 else
                 {
                     val -= right;
                     d.Add("-");
-                    d.Add(right.ToString());
                 }
+
+                d.AddRange(sub); // ← 最后合并
             }
 
             return val;
@@ -151,19 +153,20 @@ public static class DiceRoller
                 var op = Consume();
                 var sub = new List<string>();
                 var right = Unary(sub);
+
                 if (op.Type == TokenType.Star)
                 {
                     val *= right;
                     d.Add("×");
-                    d.AddRange(sub);
                 }
                 else
                 {
                     if (right == 0) throw new DivideByZeroException();
                     val /= right;
                     d.Add("÷");
-                    d.AddRange(sub);
                 }
+
+                d.AddRange(sub);
             }
 
             return val;
