@@ -35,6 +35,7 @@ public class BotUserCheckinService(BotUserService userService)
                 StreakDays = checkinState.StreakDays,
                 MaxStreakDays = checkinState.MaxStreakDays,
                 CoinGain = checkinState.DailyClaimed,
+                Time = checkinState.LastCheckinTime.Value.LocalDateTime
             };
         }
 
@@ -61,6 +62,7 @@ public class BotUserCheckinService(BotUserService userService)
             StreakDays = checkinState.StreakDays,
             MaxStreakDays = checkinState.MaxStreakDays,
             CoinGain = checkinState.DailyClaimed,
+            Time = checkinState.LastCheckinTime.Value.LocalDateTime
         };
     }
 }
