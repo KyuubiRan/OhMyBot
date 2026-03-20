@@ -21,11 +21,13 @@ public class BotUserCheckinService(BotUserService userService)
             };
         }
 
-        var now = DateTimeOffset.UtcNow;
+        var now = DateTime.Now;
 
         var checkinState = user.UserCheckin ??= new BotUserCheckin();
 
-        if (checkinState.LastCheckinTime?.Date == now.Date)
+        var localLastCheckinTime = checkinState.LastCheckinTime?.LocalDateTime;
+
+        if (localLastCheckinTime is { } time && time.Date == now.Date)
         {
             return new()
             {
@@ -35,13 +37,11 @@ public class BotUserCheckinService(BotUserService userService)
                 StreakDays = checkinState.StreakDays,
                 MaxStreakDays = checkinState.MaxStreakDays,
                 CoinGain = checkinState.DailyClaimed,
-                Time = checkinState.LastCheckinTime.Value.LocalDateTime
+                Time = time
             };
         }
 
-        var lastCheckinDate = checkinState.LastCheckinTime?.Date;
-
-        var breakStreak = lastCheckinDate != null && Math.Abs((lastCheckinDate.Value - now.Date).TotalDays) > 1;
+        var breakStreak = localLastCheckinTime != null && Math.Abs((localLastCheckinTime.Value - now.Date).TotalDays) > 1;
 
         checkinState.LastCheckinTime = DateTimeOffset.UtcNow;
         checkinState.TotalDays++;

@@ -20,7 +20,6 @@ public class SignHaFoxCoinInlineQuery(
         if (chosenInlineResult.InlineMessageId == null)
             return;
 
-        await Task.Delay(1500);
         var result = await checkinService.CheckinAsync(chosenInlineResult.From.Id.ToString(), SoftwareType.Telegram);
         await botClient.EditMessageText(chosenInlineResult.InlineMessageId, result.ToString());
     }
