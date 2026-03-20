@@ -42,6 +42,7 @@ public sealed class HelpCommand(CommandContext context) : ICommand
 
     private const string OwnerHelpCommandText =
         """
+        /sql \<statement\> \- 执行SQL语句
         /shutdown \- 关闭Bot
         /gc \- 强制触发垃圾回收
         """;
