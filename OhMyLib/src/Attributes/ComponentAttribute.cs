@@ -22,6 +22,11 @@ public sealed class ComponentAttribute : Attribute
         DerivedFrom = derivedFrom;
     }
 
+    public ComponentAttribute(LifetimeScope scope)
+    {
+        Scope = scope;
+    }
+
     public ComponentAttribute(string key, LifetimeScope scope = LifetimeScope.Scoped)
     {
         Key = key;

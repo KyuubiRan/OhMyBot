@@ -106,7 +106,6 @@ public sealed class MyBotApplication
                     .AddHostedService<DatabaseAutoMigrationService>();
             });
 
-
             return this;
         }
 
