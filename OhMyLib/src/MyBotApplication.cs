@@ -23,7 +23,6 @@ public sealed class MyBotApplication
     public class Builder
     {
         private readonly HostBuilder _hostBuilder = new();
-        private bool _isRedisConfigured;
         private bool _isBuild;
 
         public Builder()
@@ -35,7 +34,25 @@ public sealed class MyBotApplication
                     x.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                      .AddEnvironmentVariables();
                 })
-                .ConfigureLogging((context, builder) => builder.AddConfiguration(context.Configuration.GetSection("Logging")));
+                .ConfigureLogging((context, builder) => builder.AddConfiguration(context.Configuration.GetSection("Logging")))
+                .ConfigureServices((ctx, services) =>
+                {
+                    var configuration = ctx.Configuration;
+
+                    var redisString = configuration.GetConnectionString("Redis");
+                    if (redisString.IsWhiteSpaceOrNull)
+                    {
+                        services.AddDistributedMemoryCache();
+                    }
+                    else
+                    {
+                        services.AddStackExchangeRedisCache(x =>
+                        {
+                            x.Configuration = redisString;
+                            x.InstanceName = "OhMyBot:";
+                        });
+                    }
+                });
         }
 
         public Builder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configure)
@@ -60,27 +77,6 @@ public sealed class MyBotApplication
                     x.UseUtcTimestamp = false;
                 });
             });
-            return this;
-        }
-
-        public Builder ConfigureRedisCacheIfPresent(string? prefix = null)
-        {
-            _hostBuilder.ConfigureServices((ctx, services) =>
-            {
-                var configuration = ctx.Configuration;
-
-                var redisString = configuration.GetConnectionString("Redis");
-                if (redisString.IsWhiteSpaceOrNull)
-                    return;
-
-                _isRedisConfigured = true;
-                services.AddStackExchangeRedisCache(x =>
-                {
-                    x.Configuration = redisString;
-                    x.InstanceName = prefix ?? "OhMyBot:";
-                });
-            });
-
             return this;
         }
 
@@ -114,9 +110,6 @@ public sealed class MyBotApplication
             if (_isBuild)
                 throw new InvalidOperationException("Build() can only be called once");
             _isBuild = true;
-
-            if (!_isRedisConfigured)
-                _hostBuilder.ConfigureServices(services => { services.AddMemoryCache(); });
 
             var app = new MyBotApplication(_hostBuilder.Build());
 

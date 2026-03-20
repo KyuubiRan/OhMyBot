@@ -25,7 +25,6 @@ public class Application
         new MyBotApplication.Builder()
             .ConfigureDefaultConsoleLogging()
             .ConfigureDefaultDatabase()
-            .ConfigureRedisCacheIfPresent()
             .ConfigureServices((ctx, services) =>
             {
                 var config = ctx.Configuration;
