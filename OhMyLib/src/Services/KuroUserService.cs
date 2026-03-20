@@ -9,18 +9,18 @@ namespace OhMyLib.Services;
 [Component]
 public class KuroUserService(KuroUserRepo repo, BotUserService service)
 {
-    public async ValueTask<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default)
+    public async Task<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet.FirstOrDefaultAsync(x => x.BbsUserId == bbsId, cancellationToken: cancellationToken);
     }
 
-    public async ValueTask<KuroUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default)
+    public async Task<KuroUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet.FirstOrDefaultAsync(x => x.Id == id, cancellationToken: cancellationToken);
     }
 
-    public async ValueTask CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
-                                                   string? ipAddress, CancellationToken cancellationToken = default)
+    public async Task CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
+                                              string? ipAddress, CancellationToken cancellationToken = default)
     {
         var user = await service.GetUserAsync(fromId.ToString(), type, cancellationToken);
         if (user == null)
@@ -55,7 +55,7 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
         await repo.SaveChangesAsync(cancellationToken);
     }
 
-    public async ValueTask<int> SaveAsync(CancellationToken cancellationToken = default)
+    public async Task<int> SaveAsync(CancellationToken cancellationToken = default)
     {
         return await repo.SaveChangesAsync(cancellationToken);
     }

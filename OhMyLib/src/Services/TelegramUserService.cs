@@ -15,7 +15,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
     private static string KeyForUserId(long id) => $"tg_user:id:{id}";
     private static string KeyForUsername(string username) => $"tg_user:username:{username}";
 
-    public async ValueTask<TelegramUserDto> GetCachedUserByIdAsync(long userId, CancellationToken cancellationToken = default)
+    public async Task<TelegramUserDto> GetCachedUserByIdAsync(long userId, CancellationToken cancellationToken = default)
     {
         return await cache.GetOrSetObjectAsync(KeyForUserId(userId), async () =>
         {
@@ -39,7 +39,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
         }, token: cancellationToken);
     }
 
-    public async ValueTask<TelegramUserDto> GetCachedUserByUsernameAsync(string username, CancellationToken cancellationToken = default)
+    public async Task<TelegramUserDto> GetCachedUserByUsernameAsync(string username, CancellationToken cancellationToken = default)
     {
         var userId = await cache.GetOrSetObjectAsync(KeyForUsername(username), async () =>
         {
@@ -57,18 +57,18 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
         return await GetCachedUserByIdAsync(userId, cancellationToken);
     }
 
-    public async ValueTask<bool> ExistsAsync(long userId, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(long userId, CancellationToken cancellationToken = default)
     {
         return await GetCachedUserByIdAsync(userId, cancellationToken) is { ExistsInDatabase: true };
     }
 
-    public async ValueTask<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default)
+    public async Task<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet
                          .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
     }
 
-    public async ValueTask LogUserAsync(
+    public async Task LogUserAsync(
         long userId,
         string? username = null,
         string? firstName = null,

@@ -16,7 +16,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
     public async Task InvalidateCacheAsync(string id, SoftwareType type) => await cache.RemoveAsync(KeyForUser(id, type));
 
-    public async ValueTask<BotUser?> GetUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
+    public async Task<BotUser?> GetUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet
                          .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
@@ -39,7 +39,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         return (oldCoin, user.Coin);
     }
 
-    public async ValueTask<BotUserDto> GetCachedUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
+    public async Task<BotUserDto> GetCachedUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
         return await cache.GetOrSetObjectAsync(KeyForUser(id, type), async () =>
         {
@@ -58,13 +58,13 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         }, token: cancellationToken);
     }
 
-    public async ValueTask<bool> ExistsAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
+    public async Task<bool> ExistsAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
         var cachedUser = await GetCachedUserAsync(id, type, cancellationToken);
         return cachedUser is { Id: > 0 };
     }
 
-    public async ValueTask<BotUser?> CreateUserIfNotExistsAsync(string id, SoftwareType type, UserPrivilege privilege = UserPrivilege.User,
+    public async Task<BotUser?> CreateUserIfNotExistsAsync(string id, SoftwareType type, UserPrivilege privilege = UserPrivilege.User,
                                                                 CancellationToken cancellationToken = default)
     {
         if (await ExistsAsync(id, type, cancellationToken))
@@ -85,8 +85,8 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         return user;
     }
 
-    public async ValueTask<List<BotUser>> GetAvailableUsersAsync(SoftwareType type, int offset = 0, int limit = 20,
-                                                                 CancellationToken cancellationToken = default)
+    public async Task<List<BotUser>> GetAvailableUsersAsync(SoftwareType type, int offset = 0, int limit = 20,
+                                                            CancellationToken cancellationToken = default)
     {
         return await repo.EntitySet
                          .Where(x => x.OwnerType == type && x.Privilege > UserPrivilege.None)
@@ -96,7 +96,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
                          .ToListAsync(cancellationToken: cancellationToken);
     }
 
-    public async ValueTask<BotUser> SetPrivilegeAsync(string id, SoftwareType type, UserPrivilege privilege, CancellationToken cancellationToken = default)
+    public async Task<BotUser> SetPrivilegeAsync(string id, SoftwareType type, UserPrivilege privilege, CancellationToken cancellationToken = default)
     {
         var user = await GetUserAsync(id, type, cancellationToken);
         if (user == null)
@@ -123,7 +123,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         return user;
     }
 
-    public async ValueTask<int> SaveAsync(CancellationToken cancellationToken = default)
+    public async Task<int> SaveAsync(CancellationToken cancellationToken = default)
     {
         return await repo.SaveChangesAsync(cancellationToken);
     }
