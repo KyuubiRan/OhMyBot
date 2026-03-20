@@ -56,6 +56,7 @@ public sealed class ComponentAttribute : Attribute
 
 public static class ComponentAttributeExtensions
 {
+    [RequiresUnreferencedCode("This API isn't safe for trimming, since it searches for types in an arbitrary assembly.")]
     public static void MapComponents(this IServiceCollection services, Assembly assembly)
     {
         var blackListInterfaces = new[]

@@ -1,6 +1,7 @@
 ﻿// See https://aka.ms/new-console-template for more information
 
 using FoxTail.Extensions;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -23,6 +24,7 @@ public sealed class MyBotApplication
     {
         private readonly HostBuilder _hostBuilder = new();
         private bool _isRedisConfigured;
+        private bool _isBuild;
 
         public Builder()
         {
@@ -32,7 +34,8 @@ public sealed class MyBotApplication
                 {
                     x.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                      .AddEnvironmentVariables();
-                });
+                })
+                .ConfigureLogging((context, builder) => builder.AddConfiguration(context.Configuration.GetSection("Logging")));
         }
 
         public Builder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configure)
@@ -49,15 +52,12 @@ public sealed class MyBotApplication
 
         public Builder ConfigureDefaultConsoleLogging()
         {
-            _hostBuilder.ConfigureServices(services =>
+            _hostBuilder.ConfigureLogging(builder =>
             {
-                services.AddLogging(builder =>
+                builder.AddSimpleConsole(x =>
                 {
-                    builder.AddSimpleConsole(x =>
-                    {
-                        x.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
-                        x.UseUtcTimestamp = false;
-                    });
+                    x.TimestampFormat = "yyyy-MM-dd HH:mm:ss.fff ";
+                    x.UseUtcTimestamp = false;
                 });
             });
             return this;
@@ -90,14 +90,20 @@ public sealed class MyBotApplication
             {
                 var configuration = ctx.Configuration;
 
-                var dbString = configuration.GetConnectionString("Database");
-                if (!dbString.IsWhiteSpaceOrNull)
-                {
-                    Environment.SetEnvironmentVariable("DATABASE_URL", dbString);
-                }
+                const string defaultPgsqlConnectionString = "Host=localhost;Port=5432;Username=postgres;Password=password;Database=oh_my_bot";
 
-                services.AddDbContext<OhMyDbContext>()
-                        .AddHostedService<DatabaseAutoMigrationService>();
+                var dbString = configuration
+                               .GetConnectionString("Database")
+                               .IfWhiteSpaceOrNull(Environment.GetEnvironmentVariable("DATABASE_URL"))
+                               .IfWhiteSpaceOrNull(defaultPgsqlConnectionString);
+
+                services
+                    .AddDbContextFactory<OhMyDbContext>(options =>
+                    {
+                        options.UseNpgsql(dbString)
+                               .UseLazyLoadingProxies();
+                    })
+                    .AddHostedService<DatabaseAutoMigrationService>();
             });
 
 
@@ -106,10 +112,12 @@ public sealed class MyBotApplication
 
         public MyBotApplication Build()
         {
+            if (_isBuild)
+                throw new InvalidOperationException("Build() can only be called once");
+            _isBuild = true;
+
             if (!_isRedisConfigured)
-            {
                 _hostBuilder.ConfigureServices(services => { services.AddMemoryCache(); });
-            }
 
             var app = new MyBotApplication(_hostBuilder.Build());
 

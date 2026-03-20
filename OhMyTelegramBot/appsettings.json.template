@@ -1,4 +1,10 @@
 {
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.EntityFrameworkCore.Database.Command": "None"
+    }
+  },
   "Bot": {
     "Token": "",
     "OwnerId": 0,
