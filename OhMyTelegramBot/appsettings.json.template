@@ -9,8 +9,8 @@
     "Token": "",
     "OwnerId": 0,
     "CommandPrefixes": ["/", "!"],
-    "EnableProxy": true,
     "DefaultUserPrivilege": "None",
+    "EnableProxy": false,
     "HttpProxy": {
       "Host": "http://127.0.0.1",
       "Port": 7890
