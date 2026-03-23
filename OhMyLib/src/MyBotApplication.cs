@@ -2,8 +2,10 @@
 
 using FoxTail.Extensions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OhMyLib.HostedServices;
@@ -34,25 +36,7 @@ public sealed class MyBotApplication
                     x.AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
                      .AddEnvironmentVariables();
                 })
-                .ConfigureLogging((context, builder) => builder.AddConfiguration(context.Configuration.GetSection("Logging")))
-                .ConfigureServices((ctx, services) =>
-                {
-                    var configuration = ctx.Configuration;
-
-                    var redisString = configuration.GetConnectionString("Redis");
-                    if (redisString.IsWhiteSpaceOrNull)
-                    {
-                        services.AddDistributedMemoryCache();
-                    }
-                    else
-                    {
-                        services.AddStackExchangeRedisCache(x =>
-                        {
-                            x.Configuration = redisString;
-                            x.InstanceName = "OhMyBot:";
-                        });
-                    }
-                });
+                .ConfigureLogging((context, builder) => builder.AddConfiguration(context.Configuration.GetSection("Logging")));
         }
 
         public Builder ConfigureServices(Action<HostBuilderContext, IServiceCollection> configure)
@@ -64,6 +48,27 @@ public sealed class MyBotApplication
         public Builder ConfigureServices(Action<IServiceCollection> configure)
         {
             _hostBuilder.ConfigureServices(configure);
+            return this;
+        }
+
+        public Builder ConfigureRedisIfPresent(string? prefix = null)
+        {
+            ConfigureServices((context, services) =>
+            {
+                var configuration = context.Configuration;
+
+                var redisString = configuration.GetConnectionString("Redis");
+                if (!redisString.IsWhiteSpaceOrNull)
+                {
+                    services.RemoveAll<IDistributedCache>();
+                    services.AddStackExchangeRedisCache(x =>
+                    {
+                        x.Configuration = redisString;
+                        x.InstanceName = prefix ?? "OhMyBot:";
+                    });
+                }
+            });
+
             return this;
         }
 
@@ -110,6 +115,8 @@ public sealed class MyBotApplication
             if (_isBuild)
                 throw new InvalidOperationException("Build() can only be called once");
             _isBuild = true;
+
+            _hostBuilder.ConfigureServices(services => services.AddDistributedMemoryCache());
 
             var app = new MyBotApplication(_hostBuilder.Build());
 
