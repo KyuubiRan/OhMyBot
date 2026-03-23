@@ -1,3 +1,5 @@
+using OhMyLib.Enums;
+
 namespace OhMyTelegramBot.Configs;
 
 public class BotConfig
@@ -7,6 +9,7 @@ public class BotConfig
     public string[] CommandPrefixes { get; set; } = ["/"];
     public bool EnableProxy { get; set; } = false;
     public HttpProxyConfig HttpProxy { get; set; } = new();
+    public UserPrivilege DefaultUserPrivilege { get; set; } = UserPrivilege.None;
 
     public class HttpProxyConfig
     {

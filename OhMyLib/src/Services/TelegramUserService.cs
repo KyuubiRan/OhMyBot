@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Distributed;
 using OhMyLib.Attributes;
 using OhMyLib.Dto;
+using OhMyLib.Enums;
 using OhMyLib.Extensions;
 using OhMyLib.Models.Telegram;
 using OhMyLib.Repositories;
@@ -10,7 +11,7 @@ using OhMyLib.Repositories;
 namespace OhMyLib.Services;
 
 [Component]
-public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
+public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserService, IDistributedCache cache)
 {
     private static string KeyForUserId(long id) => $"tg_user:id:{id}";
     private static string KeyForUsername(string username) => $"tg_user:username:{username}";
@@ -73,6 +74,7 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
         string? username = null,
         string? firstName = null,
         string? lastName = null,
+        UserPrivilege privilege = UserPrivilege.None,
         CancellationToken cancellationToken = default
     )
     {
@@ -95,6 +97,13 @@ public class TelegramUserService(TelegramUserRepo repo, IDistributedCache cache)
                     await cache.RemoveAsync(KeyForUserId(user.UserId), cancellationToken);
                 }
             }
+        }
+
+        if (privilege > UserPrivilege.None)
+        {
+            var cached = await botUserService.GetCachedUserAsync(userId.ToString(), SoftwareType.Telegram, cancellationToken);
+            if (!cached.ExistsInDatabase)
+                await botUserService.CreateUserIfNotExistsAsync(userId.ToString(), SoftwareType.Telegram, privilege, cancellationToken);
         }
 
         TelegramUser entity;

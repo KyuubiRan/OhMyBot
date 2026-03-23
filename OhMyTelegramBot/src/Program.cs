@@ -100,13 +100,14 @@ public class Application
             await using var scope = Instance.Services.CreateAsyncScope();
             var sp = scope.ServiceProvider;
             var tUserService = sp.GetRequiredService<TelegramUserService>();
+            var defaultPriv = sp.GetRequiredService<IOptionsMonitor<BotConfig>>();
 
             if (update.Message is { } m)
             {
                 try
                 {
                     if (m.From is { } sender)
-                        await tUserService.LogUserAsync(sender);
+                        await tUserService.LogUserAsync(sender, defaultPriv.CurrentValue.DefaultUserPrivilege);
 
                     await (sp.GetKeyedService<IMessageHandler>("handler__" + m.Type)?.OnReceiveMessage(m)).OrCompletedTask();
                 }
@@ -119,7 +120,7 @@ public class Application
             {
                 try
                 {
-                    await tUserService.LogUserAsync(callback.From);
+                    await tUserService.LogUserAsync(callback.From, defaultPriv.CurrentValue.DefaultUserPrivilege);
 
                     await sp.GetRequiredKeyedService<ICallbackQueryHandler>("handler__CallbackQuery").OnReceiveCallbackQuery(callback);
                 }
@@ -138,7 +139,7 @@ public class Application
                     if (from is null)
                         return;
 
-                    await tUserService.LogUserAsync(from);
+                    await tUserService.LogUserAsync(from, defaultPriv.CurrentValue.DefaultUserPrivilege);
                     var inlineQueryHandler = sp.GetRequiredKeyedService<IInlineQueryHandler>("handler__InlineQuery");
                     if (inlineQuery != null)
                     {

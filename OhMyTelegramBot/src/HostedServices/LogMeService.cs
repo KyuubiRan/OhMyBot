@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using OhMyLib.Enums;
 using OhMyLib.Services;
 using Telegram.Bot;
 
@@ -12,7 +13,7 @@ public class LogMeService(ITelegramBotClient botClient, IServiceScopeFactory ser
         var me = await botClient.GetMe(cancellationToken: cancellationToken);
         await using var scoped = serviceFactory.CreateAsyncScope();
         var userService = scoped.ServiceProvider.GetRequiredService<TelegramUserService>();
-        await userService.LogUserAsync(me.Id, me.Username, me.FirstName, me.LastName, cancellationToken);
+        await userService.LogUserAsync(me.Id, me.Username, me.FirstName, me.LastName, UserPrivilege.None, cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
