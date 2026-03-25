@@ -93,7 +93,7 @@ public class Application
         await Instance.StartAsync();
     }
 
-    private static async Task OnUpdate(Update update)
+    private static Task OnUpdate(Update update)
     {
         _ = Task.Run(async () =>
         {
@@ -156,5 +156,7 @@ public class Application
                 }
             }
         });
+
+        return Task.CompletedTask;
     }
 }
