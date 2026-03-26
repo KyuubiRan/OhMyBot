@@ -1,4 +1,3 @@
-using Microsoft.EntityFrameworkCore;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Models.Kuro;
@@ -9,15 +8,11 @@ namespace OhMyLib.Services;
 [Component]
 public class KuroUserService(KuroUserRepo repo, BotUserService service)
 {
-    public async Task<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default)
-    {
-        return await repo.Query.FirstOrDefaultAsync(x => x.BbsUserId == bbsId, cancellationToken: cancellationToken);
-    }
+    public async Task<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default) =>
+        await repo.FindByBbsIdAsync(bbsId, cancellationToken: cancellationToken);
 
-    public async Task<KuroUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default)
-    {
-        return await repo.Query.FirstOrDefaultAsync(x => x.Id == id, cancellationToken: cancellationToken);
-    }
+    public async Task<KuroUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default) =>
+        await repo.FindByIdAsync(id, cancellationToken: cancellationToken);
 
     public async Task CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
                                               string? ipAddress, CancellationToken cancellationToken = default)

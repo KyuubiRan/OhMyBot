@@ -20,8 +20,8 @@ public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserSe
     {
         return await cache.GetOrSetObjectAsync(KeyForUserId(userId), async () =>
         {
-            var user = await repo.QueryNoTracking
-                                 .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
+            var user = await repo.FindByUserIdAsync(userId, noTracking: true, cancellationToken: cancellationToken);
+
             if (user == null)
                 return new TelegramUserDto(-1, userId, null, null, null, null, null);
 
@@ -44,8 +44,7 @@ public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserSe
     {
         var userId = await cache.GetOrSetObjectAsync(KeyForUsername(username), async () =>
         {
-            var user = await repo.QueryNoTracking
-                                 .FirstOrDefaultAsync(x => x.Username == username, cancellationToken: cancellationToken);
+            var user = await repo.FindByUsernameAsync(username, noTracking: true, cancellationToken: cancellationToken);
             if (user == null)
                 return -1L;
 
@@ -63,11 +62,8 @@ public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserSe
         return await GetCachedUserByIdAsync(userId, cancellationToken) is { ExistsInDatabase: true };
     }
 
-    public async Task<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default)
-    {
-        return await repo.Query
-                         .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
-    }
+    public async Task<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default) => 
+        await repo.FindByUserIdAsync(userId, cancellationToken: cancellationToken);
 
     public async Task LogUserAsync(
         long userId,
