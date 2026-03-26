@@ -58,15 +58,7 @@ public sealed partial class CommandHandler(
 
         if (!cmd.SupportChatTypes.CanHandle(message))
         {
-            await botClient.SendMessage(
-                chatId,
-                "请在{0}中使用此命令".Fmt(cmd.SupportChatTypes switch
-                {
-                    SupportedChatType.Private => "私聊",
-                    SupportedChatType.Group => "群组",
-                    SupportedChatType.Channel => "频道",
-                    _ => ""
-                }));
+            await botClient.SendMessage(chatId, $"请在{cmd.SupportChatTypes.TypeStrings()}中使用此命令");
             return;
         }
 

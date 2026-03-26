@@ -1,3 +1,4 @@
+using FoxTail.Extensions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
@@ -16,6 +17,13 @@ public enum SupportedChatType
 
 public static class SupportedChatTypeExtensions
 {
+    private static readonly Dictionary<SupportedChatType, string> TypeStringDict = new()
+    {
+        [SupportedChatType.Private] = "私聊",
+        [SupportedChatType.Group] = "群组",
+        [SupportedChatType.Channel] = "频道",
+    };
+    
     extension(SupportedChatType type)
     {
         public bool CanHandle(ChatType chatType)
@@ -36,6 +44,16 @@ public static class SupportedChatTypeExtensions
         public bool CanHandle(Message msg)
         {
             return type.CanHandle(msg.Chat);
+        }
+        
+        public string TypeStrings()
+        {
+            if (type == SupportedChatType.None)
+                return "";
+
+            return TypeStringDict.Where(kv => (type & kv.Key) != 0)
+                                 .Select(kv => kv.Value)
+                                 .JoinToString("或");
         }
     }
 }
