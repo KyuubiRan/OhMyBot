@@ -20,7 +20,7 @@ public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserSe
     {
         return await cache.GetOrSetObjectAsync(KeyForUserId(userId), async () =>
         {
-            var user = await repo.EntitySet.AsNoTracking()
+            var user = await repo.QueryNoTracking
                                  .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
             if (user == null)
                 return new TelegramUserDto(-1, userId, null, null, null, null, null);
@@ -44,7 +44,7 @@ public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserSe
     {
         var userId = await cache.GetOrSetObjectAsync(KeyForUsername(username), async () =>
         {
-            var user = await repo.EntitySet.AsNoTracking()
+            var user = await repo.QueryNoTracking
                                  .FirstOrDefaultAsync(x => x.Username == username, cancellationToken: cancellationToken);
             if (user == null)
                 return -1L;
@@ -65,7 +65,7 @@ public class TelegramUserService(TelegramUserRepo repo, BotUserService botUserSe
 
     public async Task<TelegramUser?> GetUserAsync(long userId, CancellationToken cancellationToken = default)
     {
-        return await repo.EntitySet
+        return await repo.Query
                          .FirstOrDefaultAsync(x => x.UserId == userId, cancellationToken: cancellationToken);
     }
 

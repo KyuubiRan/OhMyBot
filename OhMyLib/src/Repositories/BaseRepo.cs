@@ -3,16 +3,11 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace OhMyLib.Repositories;
 
-public abstract class BaseRepo<TEntity>(OhMyDbContext db) where TEntity : class, new()
+public abstract class BaseRepo<TEntity>(OhMyDbContext db) where TEntity : class
 {
-    public DbSet<TEntity> EntitySet => db.Set<TEntity>();
-
-    public ValueTask<TEntity?> FindByIdAsync(long id, CancellationToken cancellationToken = default) => EntitySet.FindAsync([id], cancellationToken);
-
-    public async Task<List<TEntity>> GetAllAsync(CancellationToken cancellationToken = default) => await EntitySet.ToListAsync(cancellationToken);
-
-    public async Task<List<TEntity>> GetAllAsync(int offset, int size, CancellationToken cancellationToken = default) =>
-        await EntitySet.Skip(offset).Take(size).ToListAsync(cancellationToken);
+    protected DbSet<TEntity> EntitySet => db.Set<TEntity>();
+    public IQueryable<TEntity> Query => EntitySet;
+    public IQueryable<TEntity> QueryNoTracking => EntitySet.AsNoTracking();
 
     public virtual async ValueTask<EntityEntry<TEntity>> AddAsync(TEntity entity, CancellationToken cancellationToken = default) =>
         await EntitySet.AddAsync(entity, cancellationToken);

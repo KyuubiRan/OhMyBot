@@ -5,7 +5,6 @@ using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using OhMyLib.Enums;
 using OhMyLib.Enums.Kuro;
-using OhMyLib.Models.Common;
 using OhMyLib.Requests.Kuro;
 using OhMyLib.Requests.Kuro.Data;
 using OhMyLib.Services;
@@ -20,8 +19,15 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
 
     protected abstract Task SendMessage(long chatId, string message, CancellationToken cancellationToken);
 
-    private async Task ProcessSingle(BotUserService userService, BotUser user, CancellationToken cancellationToken)
+    private async Task ProcessSingle(long userId, CancellationToken cancellationToken)
     {
+        await using var scope = serviceFactory.CreateAsyncScope();
+        var userService = scope.ServiceProvider.GetRequiredService<BotUserService>();
+
+        var user = await userService.GetByIdAsync(userId, cancellationToken);
+        if (user == null)
+            return;
+
         var kUser = user.KuroUser;
         if (kUser == null || kUser.Token.IsWhiteSpaceOrNull)
             return;
@@ -234,39 +240,44 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
         }
     }
 
-    private async Task DoSigninAsync(BotUserService userService, CancellationToken cancellationToken)
+    private async Task DoSigninAsync(CancellationToken cancellationToken)
     {
         try
         {
             var offset = 0;
             const int limit = 20;
 
-            var users = await userService.GetAvailableUsersAsync(Software, offset, limit, cancellationToken);
-            if (users.IsEmpty)
-            {
-                logger.LogInformation("No available users for kuro auto sign.");
-                return;
-            }
+            Dictionary<long, string> userIds;
 
             do
             {
+                {
+                    await using var scope = serviceFactory.CreateAsyncScope();
+                    var userService = scope.ServiceProvider.GetRequiredService<BotUserService>();
+                    userIds = await userService.GetAvailableUsersAsync(Software, offset, limit, cancellationToken);
+                }
+
+                if (userIds.IsEmpty)
+                {
+                    logger.LogInformation("No available users for kuro auto sign.");
+                    return;
+                }
+
                 offset += limit;
 
-                foreach (var user in users)
+                foreach (var (id, ownerId) in userIds)
                 {
                     try
                     {
-                        await ProcessSingle(userService, user, cancellationToken);
+                        await ProcessSingle(id, cancellationToken);
                     }
                     catch (Exception e)
                     {
-                        logger.LogWarning(e, "Failed to process user {UserId} for kuro auto sign", user.Id);
-                        await SendMessage(long.Parse(user.OwnerId), $"自动签到执行失败：{e.Message}", cancellationToken);
+                        logger.LogWarning(e, "Failed to process user {UserId} for kuro auto sign", id);
+                        await SendMessage(long.Parse(ownerId), $"自动签到执行失败：{e.Message}", cancellationToken);
                     }
                 }
-
-                users = await userService.GetAvailableUsersAsync(Software, offset, limit, cancellationToken);
-            } while (users.Count == limit);
+            } while (userIds.Count == limit);
         }
         catch (Exception e)
         {
@@ -289,8 +300,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
                 logger.LogInformation("Next kuro auto sign execution at {ExecuteAt:yyyy/MM/dd HH:mm:ss} (in {Delay:g})", next, delay);
                 await Task.Delay(delay, stoppingToken);
 
-                await using var scope = serviceFactory.CreateAsyncScope();
-                await DoSigninAsync(scope.ServiceProvider.GetRequiredService<BotUserService>(), stoppingToken);
+                await DoSigninAsync(stoppingToken);
                 logger.LogInformation("Kuro auto sign task completed.");
             }
             catch (TaskCanceledException)

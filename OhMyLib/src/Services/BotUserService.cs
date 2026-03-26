@@ -16,9 +16,11 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
     public async Task InvalidateCacheAsync(string id, SoftwareType type) => await cache.RemoveAsync(KeyForUser(id, type));
 
+    public async ValueTask<BotUser?> GetByIdAsync(long id, CancellationToken cancellationToken = default) => await repo.FindByIdAsync(id, cancellationToken);
+
     public async Task<BotUser?> GetUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default)
     {
-        return await repo.EntitySet
+        return await repo.Query
                          .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
     }
 
@@ -43,7 +45,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
     {
         return await cache.GetOrSetObjectAsync(KeyForUser(id, type), async () =>
         {
-            var user = await repo.EntitySet.AsNoTracking()
+            var user = await repo.QueryNoTracking
                                  .FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == type, cancellationToken: cancellationToken);
             if (user == null)
                 return new BotUserDto(-1, id, type, UserPrivilege.None, 0);
@@ -65,7 +67,7 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
     }
 
     public async Task<BotUser?> CreateUserIfNotExistsAsync(string id, SoftwareType type, UserPrivilege privilege = UserPrivilege.User,
-                                                                CancellationToken cancellationToken = default)
+                                                           CancellationToken cancellationToken = default)
     {
         if (await ExistsAsync(id, type, cancellationToken))
             return null;
@@ -85,15 +87,15 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
         return user;
     }
 
-    public async Task<List<BotUser>> GetAvailableUsersAsync(SoftwareType type, int offset = 0, int limit = 20,
-                                                            CancellationToken cancellationToken = default)
+    public async Task<Dictionary<long, string>> GetAvailableUsersAsync(SoftwareType type, int offset = 0, int limit = 20,
+                                                                       CancellationToken cancellationToken = default)
     {
-        return await repo.EntitySet
+        return await repo.QueryNoTracking
                          .Where(x => x.OwnerType == type && x.Privilege > UserPrivilege.None)
                          .Where(x => x.KuroUser != null && x.KuroUser.Token != null)
                          .Skip(offset)
                          .Take(limit)
-                         .ToListAsync(cancellationToken: cancellationToken);
+                         .ToDictionaryAsync(x => x.Id, x => x.OwnerId, cancellationToken: cancellationToken);
     }
 
     public async Task<BotUser> SetPrivilegeAsync(string id, SoftwareType type, UserPrivilege privilege, CancellationToken cancellationToken = default)

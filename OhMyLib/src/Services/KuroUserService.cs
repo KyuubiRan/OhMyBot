@@ -11,12 +11,12 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
 {
     public async Task<KuroUser?> FindByBbsIdAsync(long bbsId, CancellationToken cancellationToken = default)
     {
-        return await repo.EntitySet.FirstOrDefaultAsync(x => x.BbsUserId == bbsId, cancellationToken: cancellationToken);
+        return await repo.Query.FirstOrDefaultAsync(x => x.BbsUserId == bbsId, cancellationToken: cancellationToken);
     }
 
     public async Task<KuroUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default)
     {
-        return await repo.EntitySet.FirstOrDefaultAsync(x => x.Id == id, cancellationToken: cancellationToken);
+        return await repo.Query.FirstOrDefaultAsync(x => x.Id == id, cancellationToken: cancellationToken);
     }
 
     public async Task CreateOrUpdateUserAsync(long fromId, SoftwareType type, long kUid, string? kToken, string? kDevCode, string? kDistinctId,
