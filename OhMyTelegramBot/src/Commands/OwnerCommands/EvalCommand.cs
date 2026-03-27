@@ -1,7 +1,8 @@
 using FoxTail.Extensions;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
+using Microsoft.CodeAnalysis.Scripting;
+using OhMyLib;
 using OhMyLib.Attributes;
-using OhMyTelegramBot.Components;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -12,6 +13,16 @@ namespace OhMyTelegramBot.Commands.OwnerCommands;
 [Component("cmd__eval")]
 public class EvalCommand : ICommand
 {
+    private static readonly ScriptOptions Options = ScriptOptions.Default
+                                                                 .AddImports(
+                                                                     "System",
+                                                                     "System.Linq",
+                                                                     "System.Collections.Generic",
+                                                                     "System.Threading.Tasks"
+                                                                 )
+                                                                 .AddReferences(typeof(OhMyDbContext).Assembly,
+                                                                                typeof(Application).Assembly);
+
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
         try
@@ -26,7 +37,7 @@ public class EvalCommand : ICommand
             if (code.IsWhiteSpaceOrNull)
                 return;
 
-            var result = await CSharpScript.EvaluateAsync(code, EvalDefaults.Options);
+            var result = await CSharpScript.EvaluateAsync(code, Options);
             await botClient.SendMessage(chatId, $"{result}", replyParameters: message);
         }
         catch (Exception e)
