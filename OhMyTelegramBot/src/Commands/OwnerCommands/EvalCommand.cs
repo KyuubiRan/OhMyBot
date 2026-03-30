@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using OhMyLib;
 using OhMyLib.Attributes;
+using OhMyLib.Enums;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -22,6 +23,8 @@ public class EvalCommand : ICommand
                                                                  )
                                                                  .AddReferences(typeof(OhMyDbContext).Assembly,
                                                                                 typeof(Application).Assembly);
+    
+    public UserPrivilege RequirePrivilege => UserPrivilege.Owner;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
     {
