@@ -12,18 +12,21 @@ using Telegram.Bot.Types.Enums;
 namespace OhMyTelegramBot.Commands.OwnerCommands;
 
 [Component("cmd__eval")]
-public class EvalCommand : ICommand
+public class EvalCommand(IServiceProvider sp) : ICommand
 {
     private static readonly ScriptOptions Options = ScriptOptions.Default
                                                                  .AddImports(
                                                                      "System",
                                                                      "System.Linq",
                                                                      "System.Collections.Generic",
-                                                                     "System.Threading.Tasks"
+                                                                     "System.Threading.Tasks",
+                                                                     "Telegram.Bot"
                                                                  )
                                                                  .AddReferences(typeof(OhMyDbContext).Assembly,
                                                                                 typeof(Application).Assembly);
-    
+
+    public record Globals(ITelegramBotClient BotClient, IServiceProvider ServiceProvider);
+
     public UserPrivilege RequirePrivilege => UserPrivilege.Owner;
 
     public async Task OnReceiveCommand(ITelegramBotClient botClient, Message message, long chatId, long senderId, string[] args)
@@ -40,8 +43,8 @@ public class EvalCommand : ICommand
             if (code.IsWhiteSpaceOrNull)
                 return;
 
-            var result = await CSharpScript.EvaluateAsync(code, Options);
-            await botClient.SendMessage(chatId, $"{result}", replyParameters: message);
+            var result = await CSharpScript.EvaluateAsync(code, Options, new Globals(botClient, sp), typeof(Globals));
+            await botClient.SendMessage(chatId, $"{result ?? "()"}", replyParameters: message);
         }
         catch (Exception e)
         {
