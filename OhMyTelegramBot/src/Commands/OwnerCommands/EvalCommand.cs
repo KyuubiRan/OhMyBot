@@ -25,7 +25,7 @@ public class EvalCommand(IServiceProvider sp) : ICommand
                                                                  .AddReferences(typeof(OhMyDbContext).Assembly,
                                                                                 typeof(Application).Assembly);
 
-    public record Globals(ITelegramBotClient BotClient, IServiceProvider ServiceProvider);
+    public record Globals(Chat ThisChat, ITelegramBotClient BotClient, IServiceProvider ServiceProvider);
 
     public UserPrivilege RequirePrivilege => UserPrivilege.Owner;
 
@@ -43,7 +43,7 @@ public class EvalCommand(IServiceProvider sp) : ICommand
             if (code.IsWhiteSpaceOrNull)
                 return;
 
-            var result = await CSharpScript.EvaluateAsync(code, Options, new Globals(botClient, sp), typeof(Globals));
+            var result = await CSharpScript.EvaluateAsync(code, Options, new Globals(message.Chat, botClient, sp), typeof(Globals));
             await botClient.SendMessage(chatId, $"{result ?? "()"}", replyParameters: message);
         }
         catch (Exception e)
