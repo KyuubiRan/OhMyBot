@@ -21,7 +21,8 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
     {
         var sb = new StringBuilder();
         sb.AppendLine($"ID: `{user.Id}`");
-        sb.AppendLine($"昵称: `{Markdown.Escape(user.FirstName)} {Markdown.Escape(user.LastName)}`");
+        var nickname = $"{Markdown.Escape(user.FirstName)} {Markdown.Escape(user.LastName)}".Trim();
+        sb.AppendLine($"昵称: `{nickname}`");
         if (!user.Username.IsWhiteSpaceOrNull)
             sb.AppendLine($"用户名: {Markdown.Escape("@" + user.Username)}");
         sb.AppendLine($"权限: `{botUserDto.Privilege}`");
