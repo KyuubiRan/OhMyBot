@@ -1,9 +1,12 @@
 using FoxTail.Extensions;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.Extensions.DependencyInjection;
 using OhMyLib;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
+using OhMyLib.Repositories;
+using OhMyLib.Services;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;
 using Telegram.Bot.Types;
@@ -20,7 +23,10 @@ public class EvalCommand(IServiceProvider sp) : ICommand
                                                                      "System.Linq",
                                                                      "System.Collections.Generic",
                                                                      "System.Threading.Tasks",
-                                                                     "Telegram.Bot"
+                                                                     "Telegram.Bot",
+                                                                     "Microsoft.Extensions.DependencyInjection",
+                                                                     typeof(BotUserRepo).Namespace!,
+                                                                     typeof(BotUserService).Namespace!
                                                                  )
                                                                  .AddReferences(typeof(OhMyDbContext).Assembly,
                                                                                 typeof(Application).Assembly);
