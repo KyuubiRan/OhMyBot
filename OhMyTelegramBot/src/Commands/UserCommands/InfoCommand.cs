@@ -8,6 +8,7 @@ using OhMyTelegramBot.Extensions;
 using OhMyTelegramBot.Interfaces;
 using OhMyTelegramBot.Services;
 using Telegram.Bot;
+using Telegram.Bot.Extensions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
@@ -20,8 +21,9 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
     {
         var sb = new StringBuilder();
         sb.AppendLine($"ID: `{user.Id}`");
-        sb.AppendLine($"昵称: `{user.FirstName} {user.LastName}`");
-        sb.AppendLine($"用户名: {(string.IsNullOrEmpty(user.Username) ? "无" : "@" + user.Username.Replace("_", "\\_"))}");
+        sb.AppendLine($"昵称: `{Markdown.Escape(user.FirstName)} {Markdown.Escape(user.LastName)}`");
+        if (!user.Username.IsWhiteSpaceOrNull)
+            sb.AppendLine($"用户名: {Markdown.Escape("@" + user.Username)}");
         sb.AppendLine($"权限: `{botUserDto.Privilege}`");
         sb.AppendLine($"哈狐币: {botUserDto.Coin}");
         return sb.ToString();
