@@ -22,7 +22,7 @@ public class RollInlineQuery(ITelegramBotClient botClient) : IInlineChosenQueryH
         {
             var query = chosenInlineResult.Query.IfWhiteSpaceOrNull("d100");
             var result = DiceRoller.Roll(query);
-            
+
             var str = StringUtils.BuildString(sb =>
             {
                 sb.Append('`')

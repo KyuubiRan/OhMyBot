@@ -23,7 +23,7 @@ public static class SupportedChatTypeExtensions
         [SupportedChatType.Group] = "群组",
         [SupportedChatType.Channel] = "频道",
     };
-    
+
     extension(SupportedChatType type)
     {
         public bool CanHandle(ChatType chatType)
@@ -45,7 +45,7 @@ public static class SupportedChatTypeExtensions
         {
             return type.CanHandle(msg.Chat);
         }
-        
+
         public string TypeStrings()
         {
             if (type == SupportedChatType.None)

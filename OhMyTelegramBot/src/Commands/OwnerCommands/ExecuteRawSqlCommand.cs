@@ -25,10 +25,10 @@ public class ExecuteRawSqlCommand(OhMyDbContext dbContext) : ICommand
             var sql = text[text.IndexOf(' ')..].Trim();
             if (sql.IsWhiteSpaceOrNull)
                 return;
-            
+
             if (!sql.EndsWith(';'))
                 sql += ";";
-            
+
             var result = await dbContext.Database.ExecuteSqlRawAsync(sql);
             await botClient.SendMessage(chatId, $"Update {result} row(s)", replyParameters: message);
         }

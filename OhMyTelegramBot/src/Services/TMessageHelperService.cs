@@ -7,9 +7,8 @@ using Telegram.Bot.Types.Enums;
 
 namespace OhMyTelegramBot.Services;
 
-[Component]
-
 // ReSharper disable once InconsistentNaming
+[Component(scope: ComponentAttribute.LifetimeScope.Singleton)]
 public class TMessageHelperService(TelegramUserService userService)
 {
     public async Task<TelegramUserDto?> GetMentionedUserAsync(Message message, int index = 0, CancellationToken cancellationToken = default)
