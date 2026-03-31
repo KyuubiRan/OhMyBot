@@ -1,6 +1,7 @@
 using FoxTail.Extensions;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OhMyLib;
 using OhMyLib.Attributes;
@@ -25,6 +26,8 @@ public class EvalCommand(IServiceProvider sp) : ICommand
                                                                      "System.Threading.Tasks",
                                                                      "Telegram.Bot",
                                                                      "Microsoft.Extensions.DependencyInjection",
+                                                                     "Microsoft.EntityFrameworkCore",
+                                                                     typeof(StringExtensions).Namespace!,
                                                                      typeof(BotUserRepo).Namespace!,
                                                                      typeof(BotUserService).Namespace!
                                                                  )
