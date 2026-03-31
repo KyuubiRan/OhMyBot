@@ -20,13 +20,13 @@ public sealed class InfoCommand(TelegramUserService tUserService, BotUserService
     private static string UserToText(User user, BotUserDto botUserDto)
     {
         var sb = new StringBuilder();
-        sb.AppendLine($"ID: `{user.Id}`");
+        sb.AppendLine($"ID: `{Markdown.Escape(user.Id.ToString())}`");
         var nickname = $"{Markdown.Escape(user.FirstName)} {Markdown.Escape(user.LastName)}".Trim();
         sb.AppendLine($"昵称: `{nickname}`");
         if (!user.Username.IsWhiteSpaceOrNull)
             sb.AppendLine($"用户名: {Markdown.Escape("@" + user.Username)}");
         sb.AppendLine($"权限: `{botUserDto.Privilege}`");
-        sb.AppendLine($"哈狐币: {botUserDto.Coin}");
+        sb.AppendLine($"哈狐币: {Markdown.Escape(botUserDto.Coin.ToString())}");
         return sb.ToString();
     }
 
