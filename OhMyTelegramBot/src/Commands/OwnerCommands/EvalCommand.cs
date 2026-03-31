@@ -27,6 +27,7 @@ public class EvalCommand(IServiceProvider sp) : ICommand
                                                                      "Telegram.Bot",
                                                                      "Microsoft.Extensions.DependencyInjection",
                                                                      "Microsoft.EntityFrameworkCore",
+                                                                     typeof(UserPrivilege).Namespace!,
                                                                      typeof(StringExtensions).Namespace!,
                                                                      typeof(BotUserRepo).Namespace!,
                                                                      typeof(BotUserService).Namespace!
