@@ -18,6 +18,9 @@
 /OhMyTelegramBot/bin
 /OhMyTelegramBot/obj
 
+/OhMyOneBot.V11.Lib/bin
+/OhMyOneBot.V11.Lib/obj
+
 /TestResults
 
 /OhMyTelegramBot/appsettings.json

@@ -10,6 +10,7 @@
     <ItemGroup>
       <ProjectReference Include="..\OhMyLib.SourceGen\OhMyLib.SourceGen\OhMyLib.SourceGen.csproj" />
       <ProjectReference Include="..\OhMyLib\OhMyLib.csproj" />
+      <ProjectReference Include="..\OhMyOneBot.V11.Lib\OhMyOneBot.V11.Lib.csproj" />
     </ItemGroup>
 
     <ItemGroup>
