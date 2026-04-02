@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace OhMyOneBot.V11.Lib.CQ;
+namespace OhMyOneBot.V11.Lib.Messages.CQ;
 
 public static class CQCodeSerializer
 {
@@ -140,7 +140,7 @@ public static class CQCodeSerializer
     {
         if (span.IndexOf('&') < 0)
             return span.ToString();
-        
+
         StringBuilder? sb = null;
 
         for (var i = 0; i < span.Length; i++)

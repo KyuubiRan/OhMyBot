@@ -1,4 +1,4 @@
-using OhMyOneBot.V11.Lib.CQ;
+using OhMyOneBot.V11.Lib.Messages.CQ;
 
 namespace OhMyBot.Tests;
 
