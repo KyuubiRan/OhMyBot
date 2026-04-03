@@ -1,23 +1,57 @@
-﻿namespace OhMyOneBot.V11.Lib;
+﻿using System.Text.Json;
+using OhMyOneBot.V11.Lib.Transport;
 
-public class OneBotClient : IOneBotClient
+namespace OhMyOneBot.V11.Lib;
+
+public sealed class OneBotClient(IOneBotTransport transport) : IOneBotClient, IAsyncDisposable
 {
-    private OneBotClient()
+    public OneBotTransportType TransportType => transport.TransportType;
+    public OneBotConnectionState ConnectionState => transport.ConnectionState;
+
+    public event Func<OneBotConnectionState, ValueTask>? ConnectionStateChanged
     {
+        add => transport.ConnectionStateChanged += value;
+        remove => transport.ConnectionStateChanged -= value;
     }
 
-    public static OneBotClient CreateHttpClient()
+    public event Func<string, ValueTask>? RawEventReceived
     {
-        return new OneBotClient();
+        add => transport.RawEventReceived += value;
+        remove => transport.RawEventReceived -= value;
     }
 
-    public static OneBotClient CreateWebsocketClient()
+    public static OneBotClient CreateHttpClient(OneBotHttpOptions options)
     {
-        return new OneBotClient();
+        return new OneBotClient(new HttpOneBotTransport(options));
     }
 
-    public static OneBotClient CreateReversedWebsocketClient()
+    public static OneBotClient CreateWebsocketClient(OneBotWebSocketOptions options)
     {
-        return new OneBotClient();
+        return new OneBotClient(new WebSocketOneBotTransport(options));
+    }
+
+    public static OneBotClient CreateReversedWebsocketClient(OneBotReverseWebSocketOptions options)
+    {
+        return new OneBotClient(new ReverseWebSocketOneBotTransport(options));
+    }
+
+    public Task StartAsync(CancellationToken cancellationToken = default)
+    {
+        return transport.StartAsync(cancellationToken);
+    }
+
+    public Task StopAsync(CancellationToken cancellationToken = default)
+    {
+        return transport.StopAsync(cancellationToken);
+    }
+
+    public Task<OneBotActionResponse<JsonElement>> SendActionAsync(OneBotActionRequest request, CancellationToken cancellationToken = default)
+    {
+        return transport.SendActionAsync(request, cancellationToken);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return transport.DisposeAsync();
     }
 }

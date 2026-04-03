@@ -1,9 +1,8 @@
 using System.Text.Json;
-using OhMyOneBot.V11.Lib.Transport;
 
-namespace OhMyOneBot.V11.Lib;
+namespace OhMyOneBot.V11.Lib.Transport;
 
-public interface IOneBotClient
+public interface IOneBotTransport : IAsyncDisposable
 {
     OneBotTransportType TransportType { get; }
     OneBotConnectionState ConnectionState { get; }
