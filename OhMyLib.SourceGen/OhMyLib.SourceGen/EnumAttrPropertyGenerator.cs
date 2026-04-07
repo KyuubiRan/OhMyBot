@@ -1,172 +1,132 @@
-﻿using System.Collections.Generic;
+using System;
+using System.Collections.Generic;
 using System.Collections.Immutable;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Text;
 
 namespace OhMyLib.SourceGen;
 
 [Generator]
-public class EnumAttrPropertyGenerator : IIncrementalGenerator
+public sealed class EnumAttrPropertyGenerator : IIncrementalGenerator
 {
-    private const string AutoGenerateAttributeName = "AutoGenerateEnumAttrPropertyAttribute";
+    private const string AutoGenerateAttributeMetadataName = "OhMyLib.Attributes.AutoGenerateEnumAttrPropertyAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
-        // 找到所有标记了 AutoGenerateEnumAttrProperty 的 Attribute 类
-        var attributeDeclarations = context.SyntaxProvider
-                                           .CreateSyntaxProvider(
-                                               predicate: static (node, _) => IsCandidateAttributeClass(node),
-                                               transform: static (ctx, _) => GetAttributeClassInfo(ctx))
-                                           .Where(static info => info != null);
+        var attributeInfos = context.SyntaxProvider
+            .ForAttributeWithMetadataName(
+                AutoGenerateAttributeMetadataName,
+                static (_, _) => true,
+                static (ctx, _) => GetAttributeClassInfo(ctx))
+            .Where(static info => info is not null)
+            .Select(static (info, _) => info!);
 
-        var compilationAndAttributes = context.CompilationProvider
-                                              .Combine(attributeDeclarations.Collect());
-
-        context.RegisterSourceOutput(compilationAndAttributes, GenerateSource);
+        var compilationAndAttributes = context.CompilationProvider.Combine(attributeInfos.Collect());
+        context.RegisterSourceOutput(compilationAndAttributes, static (spc, source) => GenerateSource(spc, source.Left, source.Right));
     }
 
-    private static bool IsCandidateAttributeClass(SyntaxNode node)
+    private static AttributeClassInfo? GetAttributeClassInfo(GeneratorAttributeSyntaxContext context)
     {
-        // 查找类声明，且类名以 Attribute 结尾
-        if (node is ClassDeclarationSyntax classDeclaration)
+        if (context.TargetSymbol is not INamedTypeSymbol classSymbol)
         {
-            return classDeclaration.Identifier.Text.EndsWith("Attribute");
+            return null;
         }
 
-        return false;
-    }
+        var autoGenAttr = context.Attributes.FirstOrDefault(static attr =>
+            attr.AttributeClass?.ToDisplayString() == AutoGenerateAttributeMetadataName);
 
-    private static AttributeClassInfo? GetAttributeClassInfo(GeneratorSyntaxContext context)
-    {
-        var classDeclaration = (ClassDeclarationSyntax)context.Node;
-        var classSymbol = context.SemanticModel.GetDeclaredSymbol(classDeclaration);
-
-        if (classSymbol == null)
-            return null;
-
-        // 检查是否标记了 AutoGenerateEnumAttrPropertyAttribute
-        var autoGenAttr = classSymbol.GetAttributes()
-                                     .FirstOrDefault(attr =>
-                                                         attr.AttributeClass != null &&
-                                                         attr.AttributeClass.Name == AutoGenerateAttributeName);
-
-        if (autoGenAttr == null)
-            return null;
-
-        // 获取 TargetEnumType
-        INamedTypeSymbol? targetEnumType = null;
-
-        // 检查命名参数
-        foreach (var namedArg in autoGenAttr.NamedArguments)
+        if (autoGenAttr?.AttributeClass is null)
         {
-            if (namedArg.Key == "TargetEnumType" && namedArg.Value.Value is INamedTypeSymbol enumType)
-            {
-                targetEnumType = enumType;
-                break;
-            }
+            return null;
         }
 
-        if (targetEnumType == null || targetEnumType.TypeKind != TypeKind.Enum)
-            return null;
+        var targetEnumType = autoGenAttr.NamedArguments
+            .FirstOrDefault(static arg => arg.Key == "TargetEnumType")
+            .Value
+            .Value as INamedTypeSymbol;
 
-        // 获取 Attribute 类的所有 public 属性
-        var properties = new List<PropertyInfo>();
-        foreach (var member in classSymbol.GetMembers())
+        if (targetEnumType is null || targetEnumType.TypeKind != TypeKind.Enum)
         {
-            if (member is IPropertySymbol propertySymbol &&
-                propertySymbol.DeclaredAccessibility == Accessibility.Public &&
-                !propertySymbol.IsStatic &&
-                propertySymbol.GetMethod != null)
-            {
-                properties.Add(new PropertyInfo(
-                                   propertySymbol.Name,
-                                   propertySymbol.Type.ToDisplayString()));
-            }
+            return null;
         }
 
-        if (properties.Count == 0)
+        var properties = classSymbol.GetMembers()
+            .OfType<IPropertySymbol>()
+            .Where(static property =>
+                property.DeclaredAccessibility == Accessibility.Public &&
+                !property.IsStatic &&
+                property.GetMethod is not null)
+            .Select(static property => new PropertyInfo(property.Name, property.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)))
+            .ToImmutableArray();
+
+        if (properties.IsDefaultOrEmpty)
+        {
             return null;
+        }
 
         return new AttributeClassInfo(
-            classSymbol.ToDisplayString(),
-            classSymbol.Name,
-            targetEnumType.ToDisplayString(),
+            classSymbol.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
+            targetEnumType.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
             targetEnumType.Name,
-            GetEnumNamespace(targetEnumType) ?? "",
+            targetEnumType.ContainingNamespace.IsGlobalNamespace ? null : targetEnumType.ContainingNamespace.ToDisplayString(),
             properties);
     }
 
-    private static string? GetEnumNamespace(INamedTypeSymbol enumSymbol)
+    private static void GenerateSource(SourceProductionContext context, Compilation compilation, ImmutableArray<AttributeClassInfo> attributeInfos)
     {
-        var ns = enumSymbol.ContainingNamespace;
-        if (ns == null || ns.IsGlobalNamespace)
-            return null;
-        return ns.ToDisplayString();
-    }
-
-    private static void GenerateSource(
-        SourceProductionContext context,
-        (Compilation Compilation, ImmutableArray<AttributeClassInfo?> Attributes) source)
-    {
-        var compilation = source.Compilation;
-        var attributeInfos = source.Attributes
-                                   .Where(a => a != null)
-                                   .Distinct(new AttributeClassInfoComparer()!)
-                                   .ToList();
-
-        foreach (var attrInfo in attributeInfos)
+        foreach (var attrInfo in attributeInfos.Distinct())
         {
-            if (attrInfo == null)
+            var enumSymbol = compilation.GetTypeByMetadataName(TrimGlobalAlias(attrInfo.TargetEnumFullName));
+            if (enumSymbol is null)
+            {
                 continue;
+            }
 
-            var enumSymbol = compilation.GetTypeByMetadataName(attrInfo.TargetEnumFullName);
-            if (enumSymbol == null)
+            var attributeSymbol = compilation.GetTypeByMetadataName(TrimGlobalAlias(attrInfo.AttributeFullName));
+            if (attributeSymbol is null)
+            {
                 continue;
+            }
 
             var enumMembers = new List<EnumMemberInfo>();
-
-            foreach (var member in enumSymbol.GetMembers())
+            foreach (var member in enumSymbol.GetMembers().OfType<IFieldSymbol>())
             {
-                if (member is IFieldSymbol { HasConstantValue: true } fieldSymbol)
+                if (!member.HasConstantValue)
                 {
-                    // 查找该字段上的 Attribute
-                    var fieldAttr = fieldSymbol.GetAttributes()
-                                               .FirstOrDefault(attr =>
-                                                                   attr.AttributeClass != null &&
-                                                                   attr.AttributeClass.ToDisplayString() == attrInfo.AttributeFullName);
-
-                    if (fieldAttr == null)
-                        continue;
-
-                    var propertyValues = new Dictionary<string, object>();
-
-                    foreach (var namedArg in fieldAttr.NamedArguments)
-                    {
-                        var v = namedArg.Value.Value;
-                        if (v == null)
-                            continue;
-                        propertyValues[namedArg.Key] = v;
-                    }
-
-                    enumMembers.Add(new EnumMemberInfo(fieldSymbol.Name, propertyValues));
+                    continue;
                 }
+
+                var fieldAttr = member.GetAttributes().FirstOrDefault(attr =>
+                    SymbolEqualityComparer.Default.Equals(attr.AttributeClass, attributeSymbol));
+
+                if (fieldAttr?.AttributeClass is null)
+                {
+                    continue;
+                }
+
+                var propertyValues = new Dictionary<string, TypedConstant>(StringComparer.Ordinal);
+                foreach (var namedArg in fieldAttr.NamedArguments)
+                {
+                    propertyValues[namedArg.Key] = namedArg.Value;
+                }
+
+                enumMembers.Add(new EnumMemberInfo(member.Name, propertyValues));
             }
 
             if (enumMembers.Count == 0)
+            {
                 continue;
+            }
 
             var sourceCode = GenerateExtensionCode(attrInfo, enumMembers);
-            var fileName = attrInfo.TargetEnumName + "Extensions.g.cs";
-
-            context.AddSource(fileName, SourceText.From(sourceCode, Encoding.UTF8));
+            context.AddSource(GetHintName(attrInfo), SourceText.From(sourceCode, Encoding.UTF8));
         }
     }
 
-    private static string GenerateExtensionCode(AttributeClassInfo attrInfo, List<EnumMemberInfo> enumMembers)
+    private static string GenerateExtensionCode(AttributeClassInfo attrInfo, IReadOnlyCollection<EnumMemberInfo> enumMembers)
     {
         var sb = new StringBuilder();
 
@@ -176,121 +136,223 @@ public class EnumAttrPropertyGenerator : IIncrementalGenerator
         sb.AppendLine("using System;");
         sb.AppendLine();
 
-        if (!string.IsNullOrEmpty(attrInfo.TargetEnumNamespace))
+        if (!string.IsNullOrWhiteSpace(attrInfo.TargetEnumNamespace))
         {
-            sb.AppendLine("namespace " + attrInfo.TargetEnumNamespace);
-            sb.AppendLine("{");
-        }
-
-        sb.AppendLine("    public static class " + attrInfo.TargetEnumName + "Extensions");
-        sb.AppendLine("    {");
-        sb.AppendLine("        extension(" + attrInfo.TargetEnumName + " " + ToCamelCase(attrInfo.TargetEnumName) + ")");
-        sb.AppendLine("        {");
-
-        foreach (var property in attrInfo.Properties)
-        {
-            sb.AppendLine("            public " + property.TypeName + " " + property.Name + " => " + ToCamelCase(attrInfo.TargetEnumName) + " switch");
-            sb.AppendLine("            {");
-
-            foreach (var member in enumMembers)
-            {
-                if (member.PropertyValues.TryGetValue(property.Name, out var value))
-                {
-                    var valueStr = FormatValue(value);
-                    sb.AppendLine("                " + attrInfo.TargetEnumName + "." + member.Name + " => " + valueStr + ",");
-                }
-            }
-
-            sb.AppendLine("                _ => throw new ArgumentOutOfRangeException(nameof(" + ToCamelCase(attrInfo.TargetEnumName) + "), " +
-                          ToCamelCase(attrInfo.TargetEnumName) + ", null)");
-            sb.AppendLine("            };");
+            sb.Append("namespace ").Append(attrInfo.TargetEnumNamespace).AppendLine(";");
             sb.AppendLine();
         }
 
-        sb.AppendLine("        }");
-        sb.AppendLine("    }");
+        var enumParameterName = ToCamelCase(attrInfo.TargetEnumName);
+        sb.Append("public static class ").Append(attrInfo.TargetEnumName).AppendLine("Extensions");
+        sb.AppendLine("{");
+        sb.Append("    extension(").Append(attrInfo.TargetEnumName).Append(' ').Append(enumParameterName).AppendLine(")");
+        sb.AppendLine("    {");
 
-        if (!string.IsNullOrEmpty(attrInfo.TargetEnumNamespace))
+        foreach (var property in attrInfo.Properties)
         {
-            sb.AppendLine("}");
+            sb.Append("        public ").Append(property.TypeName).Append(' ').Append(property.Name).Append(" => ").Append(enumParameterName).AppendLine(" switch");
+            sb.AppendLine("        {");
+
+            foreach (var member in enumMembers)
+            {
+                if (!member.PropertyValues.TryGetValue(property.Name, out var value))
+                {
+                    continue;
+                }
+
+                sb.Append("            ")
+                    .Append(attrInfo.TargetEnumName)
+                    .Append('.')
+                    .Append(member.Name)
+                    .Append(" => ")
+                    .Append(FormatValue(value, property.TypeName))
+                    .AppendLine(",");
+            }
+
+            sb.Append("            _ => throw new ArgumentOutOfRangeException(nameof(")
+                .Append(enumParameterName)
+                .Append("), ")
+                .Append(enumParameterName)
+                .AppendLine(", null)");
+            sb.AppendLine("        };");
+            sb.AppendLine();
         }
 
+        sb.AppendLine("    }");
+        sb.AppendLine("}");
         return sb.ToString();
+    }
+
+    private static string GetHintName(AttributeClassInfo attrInfo)
+    {
+        return TrimGlobalAlias(attrInfo.TargetEnumFullName)
+            .Replace('.', '_')
+            .Replace('+', '_') + ".EnumAttrExtensions.g.cs";
+    }
+
+    private static string TrimGlobalAlias(string symbolName)
+    {
+        return symbolName.StartsWith("global::", StringComparison.Ordinal)
+            ? symbolName.Substring("global::".Length)
+            : symbolName;
     }
 
     private static string ToCamelCase(string name)
     {
         if (string.IsNullOrEmpty(name))
+        {
             return name;
+        }
 
-        return char.ToLowerInvariant(name[0]) + name[1..];
+        return char.ToLowerInvariant(name[0]) + name.Substring(1);
     }
 
-    private static string FormatValue(object? value)
+    private static string FormatValue(TypedConstant constant, string declaredTypeName)
     {
-        if (value == null)
+        if (constant.IsNull)
+        {
             return "null";
+        }
 
-        if (value is string strValue)
-            return "\"" + strValue.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"";
+        if (constant.Kind == TypedConstantKind.Enum &&
+            constant.Type is INamedTypeSymbol enumType &&
+            constant.Value is not null)
+        {
+            var member = enumType.GetMembers().OfType<IFieldSymbol>()
+                .FirstOrDefault(field => field.HasConstantValue && Equals(field.ConstantValue, constant.Value));
+            if (member is not null)
+            {
+                return "global::" + enumType.ToDisplayString() + "." + member.Name;
+            }
 
-        if (value is bool boolValue)
-            return boolValue ? "true" : "false";
+            return "(global::" + enumType.ToDisplayString() + ")" + Convert.ToString(constant.Value, CultureInfo.InvariantCulture);
+        }
 
-        if (value is char charValue)
-            return "'" + charValue + "'";
+        if (constant.Value is string str)
+        {
+            return QuoteString(str);
+        }
 
-        return value.ToString() ?? "";
+        if (constant.Value is char c)
+        {
+            return QuoteChar(c);
+        }
+
+        if (constant.Value is bool b)
+        {
+            return b ? "true" : "false";
+        }
+
+        if (constant.Value is float f)
+        {
+            return f.ToString("R", CultureInfo.InvariantCulture) + "F";
+        }
+
+        if (constant.Value is double d)
+        {
+            return d.ToString("R", CultureInfo.InvariantCulture) + "D";
+        }
+
+        if (constant.Value is decimal m)
+        {
+            return m.ToString(CultureInfo.InvariantCulture) + "M";
+        }
+
+        if (constant.Value is long or ulong or int or uint or short or ushort or byte or sbyte)
+        {
+            return Convert.ToString(constant.Value, CultureInfo.InvariantCulture) ?? "0";
+        }
+
+        return "((" + declaredTypeName + ")" + FormatPrimitive(constant.Value!) + ")";
+    }
+
+    private static string QuoteString(string value)
+    {
+        return "\"" + value
+            .Replace("\\", "\\\\")
+            .Replace("\"", "\\\"")
+            .Replace("\r", "\\r")
+            .Replace("\n", "\\n")
+            .Replace("\t", "\\t") + "\"";
+    }
+
+    private static string QuoteChar(char value)
+    {
+        return value switch
+        {
+            '\'' => "'\\''",
+            '\\' => "'\\\\'",
+            '\r' => "'\\r'",
+            '\n' => "'\\n'",
+            '\t' => "'\\t'",
+            _ => "'" + value + "'"
+        };
+    }
+
+    private static string FormatPrimitive(object value)
+    {
+        return value switch
+        {
+            string s => QuoteString(s),
+            char c => QuoteChar(c),
+            bool b => b ? "true" : "false",
+            float f => f.ToString("R", CultureInfo.InvariantCulture) + "F",
+            double d => d.ToString("R", CultureInfo.InvariantCulture) + "D",
+            decimal m => m.ToString(CultureInfo.InvariantCulture) + "M",
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "null"
+        };
     }
 }
 
-internal class AttributeClassInfo(
+internal sealed class AttributeClassInfo(
     string attributeFullName,
-    string attributeName,
     string targetEnumFullName,
     string targetEnumName,
-    string targetEnumNamespace,
-    List<PropertyInfo> properties)
+    string? targetEnumNamespace,
+    ImmutableArray<PropertyInfo> properties) : IEquatable<AttributeClassInfo>
 {
     public string AttributeFullName { get; } = attributeFullName;
-    public string AttributeName { get; } = attributeName;
     public string TargetEnumFullName { get; } = targetEnumFullName;
     public string TargetEnumName { get; } = targetEnumName;
-    public string TargetEnumNamespace { get; } = targetEnumNamespace;
-    public List<PropertyInfo> Properties { get; } = properties;
+    public string? TargetEnumNamespace { get; } = targetEnumNamespace;
+    public ImmutableArray<PropertyInfo> Properties { get; } = properties;
+
+    public bool Equals(AttributeClassInfo? other)
+    {
+        if (other is null)
+        {
+            return false;
+        }
+
+        return AttributeFullName == other.AttributeFullName &&
+               TargetEnumFullName == other.TargetEnumFullName;
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return obj is AttributeClassInfo other && Equals(other);
+    }
+
+    public override int GetHashCode()
+    {
+        unchecked
+        {
+            var hash = 17;
+            hash = hash * 23 + AttributeFullName.GetHashCode();
+            hash = hash * 23 + TargetEnumFullName.GetHashCode();
+            return hash;
+        }
+    }
 }
 
-internal class PropertyInfo(string name, string typeName)
+internal sealed class PropertyInfo(string name, string typeName)
 {
     public string Name { get; } = name;
     public string TypeName { get; } = typeName;
 }
 
-internal class EnumMemberInfo(string name, Dictionary<string, object> propertyValues)
+internal sealed class EnumMemberInfo(string name, Dictionary<string, TypedConstant> propertyValues)
 {
     public string Name { get; } = name;
-    public Dictionary<string, object> PropertyValues { get; } = propertyValues;
-}
-
-internal class AttributeClassInfoComparer : IEqualityComparer<AttributeClassInfo>
-{
-    public bool Equals(AttributeClassInfo? x, AttributeClassInfo? y)
-    {
-        if (x == null && y == null) return true;
-        if (x == null || y == null) return false;
-        return x.AttributeFullName == y.AttributeFullName &&
-               x.TargetEnumFullName == y.TargetEnumFullName;
-    }
-
-    public int GetHashCode(AttributeClassInfo? obj)
-    {
-        if (obj == null) return 0;
-        unchecked
-        {
-            var hash = 17;
-            hash = hash * 23 + obj.AttributeFullName.GetHashCode();
-            hash = hash * 23 + obj.TargetEnumFullName.GetHashCode();
-            return hash;
-        }
-    }
+    public Dictionary<string, TypedConstant> PropertyValues { get; } = propertyValues;
 }

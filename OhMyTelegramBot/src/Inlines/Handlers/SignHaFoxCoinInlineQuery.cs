@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Services;
@@ -11,8 +10,7 @@ namespace OhMyTelegramBot.Inlines.Handlers;
 [Component("inline_chosen_query_handler__sign_hafu")]
 public class SignHaFoxCoinInlineQuery(
     ITelegramBotClient botClient,
-    BotUserCheckinService checkinService,
-    ILogger<SignHaFoxCoinInlineQuery> logger
+    BotUserCheckinService checkinService
 ) : IInlineChosenQueryHandler
 {
     public async Task OnReceiveChosenInlineQuery(ChosenInlineResult chosenInlineResult)
