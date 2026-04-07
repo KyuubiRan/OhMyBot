@@ -11,8 +11,8 @@ public class TelegramKuroAutoSignService(ILogger<TelegramKuroAutoSignService> lo
 {
     protected override SoftwareType Software => SoftwareType.Telegram;
 
-    protected override async Task SendMessage(long chatId, string message, CancellationToken cancellationToken)
+    protected override async Task SendMessage(string chatId, string message, CancellationToken cancellationToken)
     {
-        await botClient.SendMessage(chatId, message, cancellationToken: cancellationToken);
+        await botClient.SendMessage(long.Parse(chatId), message, cancellationToken: cancellationToken);
     }
 }

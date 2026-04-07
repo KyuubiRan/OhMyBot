@@ -17,8 +17,18 @@ public class BotUserService(BotUserRepo repo, IDistributedCache cache)
 
     public async ValueTask<BotUser?> GetByIdAsync(long id, CancellationToken cancellationToken = default) => await repo.FindByIdAsync(id, cancellationToken);
 
+    public async Task<BotUser?> GetByIdWithKuroAsync(long id, bool noTracking = false, CancellationToken cancellationToken = default) =>
+        await repo.FindByIdWithKuroAsync(id, noTracking, cancellationToken);
+
     public async Task<BotUser?> GetUserAsync(string id, SoftwareType type, CancellationToken cancellationToken = default) =>
         await repo.FindByOwnerIdAndSoftwareAsync(id, type, cancellationToken: cancellationToken);
+
+    public async Task<BotUser?> GetUserWithKuroAsync(
+        string id,
+        SoftwareType type,
+        bool noTracking = false,
+        CancellationToken cancellationToken = default) =>
+        await repo.FindByOwnerIdAndSoftwareWithKuroAsync(id, type, noTracking, cancellationToken);
 
     public async Task<(int, int)> UpdateCoinAsync(string id, SoftwareType type, int amount, bool isAdd = true, CancellationToken cancellationToken = default)
     {

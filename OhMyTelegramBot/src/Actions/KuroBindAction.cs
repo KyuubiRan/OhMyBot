@@ -1,6 +1,6 @@
 using OhMyLib.Attributes;
 using OhMyLib.Enums;
-using OhMyLib.Services;
+using OhMyLib.Services.Kuro;
 using OhMyTelegramBot.Interfaces.Handlers;
 using OhMyTelegramBot.Models;
 using OhMyTelegramBot.Models.ActionData;
@@ -11,7 +11,7 @@ using Telegram.Bot.Types;
 namespace OhMyTelegramBot.Actions;
 
 [Component(Key = "action__kuro_bind")]
-public sealed class KuroBindAction(BotActionManager actionManager, KuroUserService kuroUserService) : IBotCallbackActionHandler
+public sealed class KuroBindAction(BotActionManager actionManager, KuroAccountService kuroAccountService) : IBotCallbackActionHandler
 {
     public async Task OnReceiveAction(ITelegramBotClient botClient, CallbackQuery query, BotAction action)
     {
@@ -26,15 +26,10 @@ public sealed class KuroBindAction(BotActionManager actionManager, KuroUserServi
 
         if (data.Confirm)
         {
-            await kuroUserService.CreateOrUpdateUserAsync(
+            await kuroAccountService.BindAsync(
                 query.From.Id,
                 SoftwareType.Telegram,
-                data.KuroUserId,
-                data.KuroToken,
-                data.KuroDevCode,
-                data.KuroDistinctId,
-                data.IpAddress
-            );
+                new KuroBindPayload(data.KuroUserId, data.KuroToken ?? string.Empty, data.KuroDevCode, data.KuroDistinctId, data.IpAddress));
 
             await botClient.EditMessageText(
                 message.Chat.Id,

@@ -1,8 +1,6 @@
 using FoxTail.Extensions;
 using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using OhMyLib;
 using OhMyLib.Attributes;
 using OhMyLib.Enums;

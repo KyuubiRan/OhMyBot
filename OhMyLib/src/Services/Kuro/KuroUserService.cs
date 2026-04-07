@@ -3,7 +3,7 @@ using OhMyLib.Enums;
 using OhMyLib.Models.Kuro;
 using OhMyLib.Repositories;
 
-namespace OhMyLib.Services;
+namespace OhMyLib.Services.Kuro;
 
 [Component]
 public class KuroUserService(KuroUserRepo repo, BotUserService service)
@@ -53,5 +53,15 @@ public class KuroUserService(KuroUserRepo repo, BotUserService service)
     public async Task<int> SaveAsync(CancellationToken cancellationToken = default)
     {
         return await repo.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task InvalidateAsync(long kuroUserId, CancellationToken cancellationToken = default)
+    {
+        var user = await repo.FindByIdAsync(kuroUserId, cancellationToken);
+        if (user == null)
+            return;
+
+        user.Invalidate();
+        await repo.SaveChangesAsync(cancellationToken);
     }
 }

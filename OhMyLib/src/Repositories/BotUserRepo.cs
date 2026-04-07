@@ -10,10 +10,18 @@ public class BotUserRepo(OhMyDbContext db) : BaseRepo<BotUser>(db)
 {
     public ValueTask<BotUser?> FindByIdAsync(long id, CancellationToken cancellationToken = default) => EntitySet.FindAsync([id], cancellationToken);
 
+    public Task<BotUser?> FindByIdWithKuroAsync(long id, bool noTracking = false, CancellationToken cancellationToken = default)
+        => BuildUserWithKuroQuery(noTracking).FirstOrDefaultAsync(x => x.Id == id, cancellationToken);
+
     public Task<BotUser?> FindByOwnerIdAndSoftwareAsync(
         string id, SoftwareType softwareType, bool noTracking = false,
         CancellationToken cancellationToken = default)
         => (noTracking ? QueryNoTracking : Query).FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == softwareType, cancellationToken);
+
+    public Task<BotUser?> FindByOwnerIdAndSoftwareWithKuroAsync(
+        string id, SoftwareType softwareType, bool noTracking = false,
+        CancellationToken cancellationToken = default)
+        => BuildUserWithKuroQuery(noTracking).FirstOrDefaultAsync(x => x.OwnerId == id && x.OwnerType == softwareType, cancellationToken);
 
     public Task<Dictionary<long, string>> QueryIdAndOwnerIdBySoftwareAsync(
         SoftwareType softwareType, int offset = 0, int limit = 20,
@@ -23,4 +31,11 @@ public class BotUserRepo(OhMyDbContext db) : BaseRepo<BotUser>(db)
                           .Skip(offset)
                           .Take(limit)
                           .ToDictionaryAsync(x => x.Id, x => x.OwnerId, cancellationToken: cancellationToken);
+
+    private IQueryable<BotUser> BuildUserWithKuroQuery(bool noTracking)
+    {
+        var query = noTracking ? QueryNoTracking : Query;
+        return query.Include(x => x.KuroUser)
+                    .ThenInclude(x => x!.GameConfigs);
+    }
 }

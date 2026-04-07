@@ -4,6 +4,7 @@ using OhMyLib.Attributes;
 using OhMyLib.Enums;
 using OhMyLib.Enums.Kuro;
 using OhMyLib.Services;
+using OhMyLib.Services.Kuro;
 using OhMyLib.Utils;
 using OhMyTelegramBot.Interfaces;
 using Telegram.Bot;

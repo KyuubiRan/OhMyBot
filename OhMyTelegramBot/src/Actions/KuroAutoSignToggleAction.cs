@@ -2,7 +2,7 @@ using System.Text;
 using FoxTail.Extensions;
 using OhMyLib.Attributes;
 using OhMyLib.Enums.Kuro;
-using OhMyLib.Services;
+using OhMyLib.Services.Kuro;
 using OhMyTelegramBot.Interfaces.Handlers;
 using OhMyTelegramBot.Models;
 using OhMyTelegramBot.Models.ActionData;
