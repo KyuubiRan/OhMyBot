@@ -1,24 +1,30 @@
-﻿using System.Text.Json;
+using System.Text.Json;
+using OhMyOneBot.V11.Lib.Events;
 using OhMyOneBot.V11.Lib.Transport;
 
 namespace OhMyOneBot.V11.Lib;
 
-public sealed class OneBotClient(IOneBotTransport transport) : IOneBotClient, IAsyncDisposable
+public sealed class OneBotClient : IOneBotClient, IAsyncDisposable
 {
-    public OneBotTransportType TransportType => transport.TransportType;
-    public OneBotConnectionState ConnectionState => transport.ConnectionState;
+    private readonly IOneBotTransport _transport;
+
+    public OneBotClient(IOneBotTransport transport)
+    {
+        _transport = transport;
+        _transport.RawEventReceived += HandleRawEventReceivedAsync;
+    }
+
+    public OneBotTransportType TransportType => _transport.TransportType;
+    public OneBotConnectionState ConnectionState => _transport.ConnectionState;
 
     public event Func<OneBotConnectionState, ValueTask>? ConnectionStateChanged
     {
-        add => transport.ConnectionStateChanged += value;
-        remove => transport.ConnectionStateChanged -= value;
+        add => _transport.ConnectionStateChanged += value;
+        remove => _transport.ConnectionStateChanged -= value;
     }
 
-    public event Func<string, ValueTask>? RawEventReceived
-    {
-        add => transport.RawEventReceived += value;
-        remove => transport.RawEventReceived -= value;
-    }
+    public event Action<EventBase>? OnEvent;
+    public event Action<Exception>? OnException;
 
     public static OneBotClient CreateHttpClient(OneBotHttpOptions options)
     {
@@ -37,21 +43,90 @@ public sealed class OneBotClient(IOneBotTransport transport) : IOneBotClient, IA
 
     public Task StartAsync(CancellationToken cancellationToken = default)
     {
-        return transport.StartAsync(cancellationToken);
+        return _transport.StartAsync(cancellationToken);
     }
 
     public Task StopAsync(CancellationToken cancellationToken = default)
     {
-        return transport.StopAsync(cancellationToken);
+        return _transport.StopAsync(cancellationToken);
     }
 
     public Task<OneBotActionResponse<JsonElement>> SendActionAsync(OneBotActionRequest request, CancellationToken cancellationToken = default)
     {
-        return transport.SendActionAsync(request, cancellationToken);
+        return _transport.SendActionAsync(request, cancellationToken);
     }
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return transport.DisposeAsync();
+        _transport.RawEventReceived -= HandleRawEventReceivedAsync;
+        await _transport.DisposeAsync();
+    }
+
+    private ValueTask HandleRawEventReceivedAsync(string rawEvent)
+    {
+        try
+        {
+            var evt = EventParser.Parse(rawEvent);
+            if (evt is not null)
+            {
+                PublishEvent(evt);
+            }
+        }
+        catch (Exception ex)
+        {
+            PublishException(ex);
+        }
+
+        return ValueTask.CompletedTask;
+    }
+
+    private void PublishEvent(EventBase evt)
+    {
+        if (OnEvent is null)
+        {
+            return;
+        }
+
+        foreach (var handler in OnEvent.GetInvocationList())
+        {
+            if (handler is not Action<EventBase> action)
+            {
+                continue;
+            }
+
+            try
+            {
+                action(evt);
+            }
+            catch (Exception ex)
+            {
+                PublishException(ex);
+            }
+        }
+    }
+
+    private void PublishException(Exception exception)
+    {
+        if (OnException is null)
+        {
+            return;
+        }
+
+        foreach (var handler in OnException.GetInvocationList())
+        {
+            if (handler is not Action<Exception> action)
+            {
+                continue;
+            }
+
+            try
+            {
+                action(exception);
+            }
+            catch
+            {
+                // Never let exception callbacks break the receive loop.
+            }
+        }
     }
 }
