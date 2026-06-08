@@ -20,7 +20,7 @@ public sealed class HelpCommand(CommandContext context) : ICommand
         """
         *\[帮助菜单\]*
         `<尖括号>` 内为 *必填* 参数，`[方括号]` 内为 _选填_ 参数。
-        /help \[类型\] \- 显示帮助菜单，支持的类型：`kuro`
+        /help \[类型\] \- 显示帮助菜单，支持的类型：`kuro`、`ai_router`
         /info \[uid/@/回复\] \- 查找记录的用户信息
         /ping \- 测试机器人响应时间
         /imgcvt \- 图片格式转换，支持 jpg、png、webp 互转及生成贴纸
@@ -59,6 +59,16 @@ public sealed class HelpCommand(CommandContext context) : ICommand
                     /kuro\_game\_signin \[类型1\] \[类型2\] \.\.\. \- 执行库街区游戏签到任务，类型可选：wuwa、pgr，留空为执行全部
                     /kuro\_game\_auto\_signin \<on/off\> \[类型\]  \- 开关库街区游戏自动签到功能，类型可选：wuwa、pgr，留空为全部
                     """
+        },
+        {
+            "ai_router", """
+                         *\[AI Router\]*
+                         /ai\_router\_bind \<account\> \<password\> \- 绑定或更新 AI Router 账号
+                         /ai\_router\_list \- 查看已绑定账号
+                         /ai\_router\_signin \- 执行 AI Router 签到
+                         /ai\_router\_auto\_signin \- 设置 AI Router 自动签到功能
+                         /ai\_router\_del \- 删除指定账号绑定
+                         """
         }
     }.ToFrozenDictionary();
 

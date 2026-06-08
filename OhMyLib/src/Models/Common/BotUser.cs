@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
 using OhMyLib.Enums;
+using OhMyLib.Models.AiRouter;
 using OhMyLib.Models.Kuro;
 
 namespace OhMyLib.Models.Common;
@@ -21,6 +22,8 @@ public class BotUser
     public DateTimeOffset CreateAt { get; set; } = DateTimeOffset.UtcNow;
 
     public virtual KuroUser? KuroUser { get; set; } = null;
+
+    public virtual List<AiRouterAccount> AiRouterAccounts { get; set; } = [];
 
     public virtual BotUserCheckin? UserCheckin { get; set; }
 

@@ -36,6 +36,7 @@ public class Application
 
                 services.AddHostedService<AutoConfigOwnerService>();
                 services.AddHostedService<TelegramKuroAutoSignService>();
+                services.AddHostedService<TelegramAiRouterAutoSignService>();
                 services.AddHostedService<LogMeService>();
                 services.AddHostedService<AutoCleanCacheFileService>();
 
