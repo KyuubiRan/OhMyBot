@@ -50,7 +50,7 @@ public sealed class KuroBbsSignInCommand(BotUserService userService, KuroSignSer
                                  await botClient.EditMessageText(chatId, msg.MessageId, progressText.ToString(), cancellationToken: cancellationToken);
                              });
 
-            var resultMessage = new StringBuilder("签到结果：\n");
+            var resultMessage = new StringBuilder("[库洛-手动签到]\n");
             if (result.HasResult)
             {
                 foreach (var line in result.Lines)
@@ -66,7 +66,10 @@ public sealed class KuroBbsSignInCommand(BotUserService userService, KuroSignSer
         }
         catch (Exception e)
         {
-            await botClient.EditMessageText(chatId, msg.MessageId, "签到过程中出现错误：" + e.GetBaseException().Message);
+            await botClient.EditMessageText(
+                chatId,
+                msg.MessageId,
+                "[库洛-手动签到]\n手动签到执行失败：" + e.GetBaseException().Message);
         }
     }
 }

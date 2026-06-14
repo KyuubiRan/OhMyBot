@@ -34,7 +34,7 @@ public abstract class KuroAutoSignService(ILogger logger, IServiceScopeFactory s
         var result = await kuroSignService.ExecuteAutoSignAsync(kUser, cancellationToken);
         if (result.HasResult)
         {
-            var message = new StringBuilder("[库洛]\n自动签到结果：\n");
+            var message = new StringBuilder("[库洛-自动签到]\n");
             foreach (var line in result.Lines)
                 message.AppendLine(line);
             message.AppendLine("时间：" + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"));

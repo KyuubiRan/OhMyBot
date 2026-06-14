@@ -46,7 +46,7 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroSig
         try
         {
             var signResult = await kuroSignService.ExecuteGameSignAsync(ku, trueTypes, includeMissingConfigMessage: notify);
-            var result = new StringBuilder();
+            var result = new StringBuilder("[库洛-手动签到]\n");
 
             if (signResult.HasResult)
             {
@@ -58,11 +58,15 @@ public sealed class KuroGameSignInCommand(BotUserService botUserService, KuroSig
                 result.AppendLine("没有可执行的游戏签到任务");
             }
 
+            result.AppendLine($"时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             await botClient.EditMessageText(chatId, msg.MessageId, result.ToString().Trim());
         }
         catch (Exception e)
         {
-            await botClient.EditMessageText(chatId, msg.MessageId, "签到过程中出现错误：" + e.GetBaseException().Message);
+            await botClient.EditMessageText(
+                chatId,
+                msg.MessageId,
+                "[库洛-手动签到]\n手动签到执行失败：" + e.GetBaseException().Message);
         }
     }
 }

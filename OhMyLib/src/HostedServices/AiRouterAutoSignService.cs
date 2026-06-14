@@ -12,6 +12,17 @@ public abstract class AiRouterAutoSignService(ILogger logger, IServiceScopeFacto
 
     protected abstract Task SendMessage(string chatId, string message, CancellationToken cancellationToken);
 
+    protected virtual string BuildSignMessage(AiRouterSignResult result, DateTimeOffset time)
+    {
+        var message = new StringBuilder("[AI Router-自动签到]\n");
+        message.AppendLine(result.ToMessage());
+        message.AppendLine("时间：" + time.ToString("yyyy-MM-dd HH:mm:ss"));
+        return message.ToString();
+    }
+
+    protected virtual string BuildFailureMessage(Exception exception) =>
+        $"[AI Router-自动签到]\n自动签到执行失败：{exception.GetBaseException().Message}";
+
     private async Task ProcessSingle(long accountId, CancellationToken cancellationToken)
     {
         await using var scope = serviceFactory.CreateAsyncScope();
@@ -23,10 +34,7 @@ public abstract class AiRouterAutoSignService(ILogger logger, IServiceScopeFacto
             return;
 
         var result = await signService.SignInAsync(account, cancellationToken);
-        var message = new StringBuilder("[AI Router]\n自动签到结果：\n");
-        message.AppendLine(result.ToMessage());
-        message.AppendLine("时间：" + DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"));
-        await SendMessage(account.OwnerBotUser.OwnerId, message.ToString(), cancellationToken);
+        await SendMessage(account.OwnerBotUser.OwnerId, BuildSignMessage(result, DateTimeOffset.Now), cancellationToken);
     }
 
     private async Task DoSignInAsync(CancellationToken cancellationToken)
@@ -63,7 +71,7 @@ public abstract class AiRouterAutoSignService(ILogger logger, IServiceScopeFacto
                     catch (Exception e)
                     {
                         logger.LogWarning(e, "Failed to process AI Router account {AccountId} for auto sign", accountId);
-                        await SendMessage(ownerId, $"[AI Router]\n自动签到执行失败：{e.GetBaseException().Message}", cancellationToken);
+                        await SendMessage(ownerId, BuildFailureMessage(e), cancellationToken);
                     }
                 }
             } while (targets.Count == limit);

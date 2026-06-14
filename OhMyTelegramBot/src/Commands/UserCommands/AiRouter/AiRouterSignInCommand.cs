@@ -7,6 +7,7 @@ using OhMyTelegramBot.Interfaces;
 using OhMyTelegramBot.Models.ActionData;
 using OhMyTelegramBot.Services;
 using Telegram.Bot;
+using Telegram.Bot.Extensions;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
@@ -66,12 +67,21 @@ public sealed class AiRouterSignInCommand(
             await botClient.EditMessageText(
                 chatId,
                 msg.Id,
-                "\\[AI Router\\]\n签到结果：\n" + result.ToMarkdownV2Message(),
+                string.Join('\n',
+                    Markdown.Escape("[AI Router-手动签到]"),
+                    result.ToMarkdownV2Message(),
+                    $"时间：{Markdown.Escape(DateTimeOffset.Now.ToString("yyyy-MM-dd HH:mm:ss"))}"),
                 ParseMode.MarkdownV2);
         }
         catch (Exception e)
         {
-            await botClient.EditMessageText(chatId, msg.Id, "签到过程中出现错误：" + e.GetBaseException().Message);
+            await botClient.EditMessageText(
+                chatId,
+                msg.Id,
+                string.Join('\n',
+                    Markdown.Escape("[AI Router-手动签到]"),
+                    $"手动签到执行失败：{Markdown.Escape(e.GetBaseException().Message)}"),
+                ParseMode.MarkdownV2);
         }
     }
 }
