@@ -3,26 +3,13 @@
 /.vscode
 .DS_Store
 
-/OhMyLib/bin
-/OhMyLib/obj
-
-/OhMyBot.Tests/bin
-/OhMyBot.Tests/obj
-
-/OhMyLib.SourceGen/OhMyLib.SourceGen/bin
-/OhMyLib.SourceGen/OhMyLib.SourceGen/obj
-
-/OhMyLib.SourceGen/OhMyLib.SourceGen.Tests/bin
-/OhMyLib.SourceGen/OhMyLib.SourceGen.Tests/obj
-
-/OhMyTelegramBot/bin
-/OhMyTelegramBot/obj
-
-/OhMyOneBot.V11.Lib/bin
-/OhMyOneBot.V11.Lib/obj
+[Bb]in/
+[Oo]bj/
 
 /TestResults
 
-/OhMyTelegramBot/appsettings.json
+/OhMyBot.Core/appsettings.json
+/OhMyBot.TelegramGateway/appsettings.json
+/OhMyBot.QQGateway/appsettings.json
 /OhMyBot.Tests/appsettings.Test.json
 OhMyBot.sln.DotSettings.user

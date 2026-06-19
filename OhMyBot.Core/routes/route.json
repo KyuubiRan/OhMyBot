@@ -1,0 +1,29 @@
+{
+  "version": 1,
+  "routes": [
+    {
+      "command": "link",
+      "coreCommand": "link",
+      "description": "Link identities across platforms.",
+      "usage": "/link [token]",
+      "requiredPrivilege": "User",
+      "supportPlatforms": [
+        "Telegram",
+        "QQ"
+      ],
+      "enabled": true
+    },
+    {
+      "command": "ping",
+      "coreCommand": "ping",
+      "description": "Check Core connectivity.",
+      "usage": "/ping",
+      "requiredPrivilege": "User",
+      "supportPlatforms": [
+        "Telegram",
+        "QQ"
+      ],
+      "enabled": true
+    }
+  ]
+}

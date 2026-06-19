@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+option csharp_namespace = "OhMyBot.Contracts.Grpc";
+
+package ohmybot.v2;
+
+service CommandRouter {
+  rpc ExecuteCommand (CommandRequest) returns (CommandResponse);
+  rpc GetRoutes (GetRoutesRequest) returns (GetRoutesResponse);
+}
+
+enum BotPlatform {
+  BOT_PLATFORM_UNSPECIFIED = 0;
+  BOT_PLATFORM_TELEGRAM = 1;
+  BOT_PLATFORM_QQ = 2;
+}
+
+enum UserPrivilege {
+  USER_PRIVILEGE_USER = 0;
+  USER_PRIVILEGE_ADMIN = 10;
+  USER_PRIVILEGE_OWNER = 100;
+}
+
+message CommandRequest {
+  BotPlatform platform = 1;
+  string bot_instance_id = 2;
+  string chat_id = 3;
+  string user_id = 4;
+  string message_id = 5;
+  string command = 6;
+  repeated string args = 7;
+  string display_name = 8;
+  string username = 9;
+}
+
+message GetRoutesRequest {
+  BotPlatform platform = 1;
+  string bot_instance_id = 2;
+  int64 current_version = 3;
+}
+
+message RouteDescriptor {
+  string command = 1;
+  string core_command = 2;
+  string description = 3;
+  string usage = 4;
+  UserPrivilege required_privilege = 5;
+  int32 support_platforms = 6;
+  bool enabled = 7;
+}
+
+message GetRoutesResponse {
+  repeated RouteDescriptor routes = 1;
+  int64 version = 2;
+  bool not_modified = 3;
+}
+
+message ResponseMessage {
+  string text = 1;
+}
+
+message ResponseButton {
+  string text = 1;
+  string payload = 2;
+}
+
+message CommandError {
+  string code = 1;
+  string message = 2;
+}
+
+message CommandResponse {
+  repeated ResponseMessage messages = 1;
+  repeated ResponseButton buttons = 2;
+  CommandError error = 3;
+  string reply_to_message_id = 4;
+  optional string edit_message_id = 5;
+}
+
+message NotificationEvent {
+  BotPlatform platform = 1;
+  string bot_instance_id = 2;
+  string chat_id = 3;
+  repeated ResponseMessage messages = 4;
+  repeated ResponseButton buttons = 5;
+}

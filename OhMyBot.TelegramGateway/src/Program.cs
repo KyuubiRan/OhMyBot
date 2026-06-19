@@ -1,0 +1,40 @@
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using OhMyBot.Contracts.Messaging;
+using OhMyBot.TelegramGateway;
+using Telegram.Bot;
+
+var builder = Host.CreateApplicationBuilder(args);
+
+builder.Services.Configure<TelegramGatewayOptions>(options =>
+{
+    options.BotInstanceId = builder.Configuration["BotInstanceId"] ?? options.BotInstanceId;
+    options.BotToken = builder.Configuration["Telegram:BotToken"] ?? options.BotToken;
+    options.CoreGrpcAddress = builder.Configuration["Core:GrpcAddress"] ?? options.CoreGrpcAddress;
+    options.DropPendingUpdates = builder.Configuration.GetValue("Telegram:DropPendingUpdates", options.DropPendingUpdates);
+});
+builder.Services.AddOptions<RabbitMqOptions>().BindConfiguration("RabbitMQ");
+
+builder.Services.AddSingleton<ICommandRouterClient>(_ =>
+{
+    var coreAddress = builder.Configuration["Core:GrpcAddress"] ?? "http://localhost:5100";
+    return CommandRouterClientFactory.Create(coreAddress);
+});
+builder.Services.AddSingleton<ITelegramBotClient>(_ =>
+{
+    var token = builder.Configuration["Telegram:BotToken"];
+    if (string.IsNullOrWhiteSpace(token))
+    {
+        throw new InvalidOperationException("Telegram:BotToken is required.");
+    }
+
+    return new TelegramBotClient(token);
+});
+builder.Services.AddSingleton<TelegramCommandGateway>();
+builder.Services.AddSingleton<TelegramResponseRenderer>();
+builder.Services.AddSingleton<TelegramUpdateHandler>();
+builder.Services.AddHostedService<GatewayWorker>();
+builder.Services.AddHostedService<RouteRefreshConsumerService>();
+
+await builder.Build().RunAsync();
