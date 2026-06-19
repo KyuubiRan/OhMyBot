@@ -6,6 +6,7 @@
       "coreCommand": "link",
       "description": "Link identities across platforms.",
       "usage": "/link [token]",
+      "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [
         "Telegram",
@@ -18,6 +19,20 @@
       "coreCommand": "ping",
       "description": "Check Core connectivity.",
       "usage": "/ping",
+      "aliases": [],
+      "requiredPrivilege": "User",
+      "supportPlatforms": [
+        "Telegram",
+        "QQ"
+      ],
+      "enabled": true
+    },
+    {
+      "command": "info",
+      "coreCommand": "info",
+      "description": "Show user information.",
+      "usage": "/info [uid]",
+      "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [
         "Telegram",

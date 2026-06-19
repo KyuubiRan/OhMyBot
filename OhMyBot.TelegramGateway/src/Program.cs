@@ -3,6 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OhMyBot.Contracts.Messaging;
 using OhMyBot.TelegramGateway;
+using OhMyBot.TelegramGateway.Rendering;
 using Telegram.Bot;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -32,6 +33,10 @@ builder.Services.AddSingleton<ITelegramBotClient>(_ =>
     return new TelegramBotClient(token);
 });
 builder.Services.AddSingleton<TelegramCommandGateway>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, PingTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, UserInfoTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, LinkTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, FallbackTelegramRenderer>();
 builder.Services.AddSingleton<TelegramResponseRenderer>();
 builder.Services.AddSingleton<TelegramUpdateHandler>();
 builder.Services.AddHostedService<GatewayWorker>();

@@ -8,6 +8,7 @@ public sealed record RouteEntry(
     string CoreCommand,
     string Description,
     string Usage,
+    IReadOnlyList<string> Aliases,
     UserPrivilege RequiredPrivilege,
     SupportedPlatforms SupportPlatforms,
     bool Enabled,
@@ -20,6 +21,7 @@ public sealed record RouteEntry(
         CoreCommand = CoreCommand,
         Description = Description,
         Usage = Usage,
+        Aliases = { Aliases },
         RequiredPrivilege = RequiredPrivilege,
         SupportPlatforms = (int)SupportPlatforms,
         Enabled = Enabled

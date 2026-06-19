@@ -3,12 +3,14 @@ namespace OhMyBot.Core.Terminal;
 public sealed class InteractiveConsoleState
 {
     private const int MaxHistoryCount = 100;
+    private const string Prompt = ">> ";
 
     private readonly Lock _gate = new();
     private readonly bool _enabled;
     private readonly List<string> _history = [];
     private InteractiveConsoleOutputQueue? _outputQueue;
     private string _currentInput = string.Empty;
+    private int _cursorIndex;
     private int? _historyIndex;
 
     public InteractiveConsoleState()
@@ -136,24 +138,54 @@ public sealed class InteractiveConsoleState
 
         lock (_gate)
         {
-            _currentInput += character;
+            _currentInput = _currentInput.Insert(_cursorIndex, character.ToString());
+            _cursorIndex++;
             _historyIndex = null;
-            Console.Write(character);
+            RenderPromptDirect();
         }
     }
 
     public void Backspace()
     {
-        if (!_enabled || _currentInput.Length == 0)
+        if (!_enabled || _currentInput.Length == 0 || _cursorIndex == 0)
         {
             return;
         }
 
         lock (_gate)
         {
-            _currentInput = _currentInput[..^1];
+            _currentInput = _currentInput.Remove(_cursorIndex - 1, 1);
+            _cursorIndex--;
             _historyIndex = null;
-            Console.Write("\b \b");
+            RenderPromptDirect();
+        }
+    }
+
+    public void MoveCursorLeft()
+    {
+        if (!_enabled || _cursorIndex == 0)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _cursorIndex--;
+            RenderPromptDirect();
+        }
+    }
+
+    public void MoveCursorRight()
+    {
+        if (!_enabled || _cursorIndex >= _currentInput.Length)
+        {
+            return;
+        }
+
+        lock (_gate)
+        {
+            _cursorIndex++;
+            RenderPromptDirect();
         }
     }
 
@@ -169,6 +201,7 @@ public sealed class InteractiveConsoleState
             var input = _currentInput;
             AddHistory(input);
             _currentInput = string.Empty;
+            _cursorIndex = 0;
             _historyIndex = null;
             Console.WriteLine();
             return input;
@@ -239,13 +272,27 @@ public sealed class InteractiveConsoleState
     private void ReplaceCurrentInput(string input)
     {
         _currentInput = input;
+        _cursorIndex = _currentInput.Length;
         ClearPromptLine();
         RenderPromptDirect();
     }
 
     private void RenderPromptDirect()
     {
-        Console.Write($"\r>> {_currentInput}");
+        ClearPromptLine();
+        Console.Write($"{Prompt}{_currentInput}");
+        RestoreCursorPosition();
+    }
+
+    private void RestoreCursorPosition()
+    {
+        if (Console.IsOutputRedirected)
+        {
+            return;
+        }
+
+        var cursorLeft = Math.Min(Prompt.Length + _cursorIndex, Math.Max(0, Console.WindowWidth - 1));
+        Console.SetCursorPosition(cursorLeft, Console.CursorTop);
     }
 
     private static void ClearPromptLine()

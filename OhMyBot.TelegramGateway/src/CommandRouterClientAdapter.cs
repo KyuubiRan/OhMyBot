@@ -1,5 +1,4 @@
 using Grpc.Net.Client;
-using System.Net.Http;
 using OhMyBot.Contracts.Grpc;
 
 namespace OhMyBot.TelegramGateway;

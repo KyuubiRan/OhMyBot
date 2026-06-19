@@ -1,7 +1,7 @@
+using Microsoft.AspNetCore.Server.Kestrel.Core;
 using OhMyBot.Core;
 using OhMyBot.Core.Grpc;
 using OhMyBot.Core.Terminal;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
 
 var builder = WebApplication.CreateBuilder(args);
 var consoleState = new InteractiveConsoleState();

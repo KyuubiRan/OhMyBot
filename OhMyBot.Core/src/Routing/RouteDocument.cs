@@ -17,6 +17,8 @@ public sealed class RouteDefinition
 
     public string Usage { get; set; } = string.Empty;
 
+    public string[] Aliases { get; set; } = [];
+
     public string RequiredPrivilege { get; set; } = "User";
 
     public string[] SupportPlatforms { get; set; } = [];

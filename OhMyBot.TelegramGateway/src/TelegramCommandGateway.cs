@@ -1,5 +1,5 @@
-using OhMyBot.Contracts.Grpc;
 using Grpc.Core;
+using OhMyBot.Contracts.Grpc;
 
 namespace OhMyBot.TelegramGateway;
 
@@ -16,7 +16,9 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
         {
             lock (_cacheLock)
             {
-                return _routes.Values.ToArray();
+                return _routes.Values
+                    .DistinctBy(route => route.Command, StringComparer.OrdinalIgnoreCase)
+                    .ToArray();
             }
         }
     }
@@ -54,7 +56,7 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
 
         lock (_cacheLock)
         {
-            _routes = routes.ToDictionary(route => route.Command, StringComparer.OrdinalIgnoreCase);
+            _routes = BuildRouteLookup(routes);
             _version = response.Version;
         }
 
@@ -82,7 +84,7 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
 
         if (!TryGetRoute(command, out var route))
         {
-            return ResponseError("RouteNotFound", "Unknown route.");
+            return EmptyResponse();
         }
 
         if (!route.Enabled)
@@ -119,6 +121,21 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
         }
     }
 
+    private static IReadOnlyDictionary<string, RouteDescriptor> BuildRouteLookup(IEnumerable<RouteDescriptor> routes)
+    {
+        var lookup = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
+        foreach (var route in routes)
+        {
+            lookup[route.Command] = route;
+            foreach (var alias in route.Aliases.Where(alias => !string.IsNullOrWhiteSpace(alias)))
+            {
+                lookup[alias.Trim().TrimStart('/').ToLowerInvariant()] = route;
+            }
+        }
+
+        return lookup;
+    }
+
     private static (string Command, string[] Args) Parse(string text)
     {
         var parts = text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -133,20 +150,27 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
 
     private static CommandResponse ResponseText(string text)
     {
-        var response = new CommandResponse();
-        response.Messages.Add(new ResponseMessage { Text = text });
-        return response;
+        return new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.Text,
+            Message = text,
+            Text = new TextData { Text = text }
+        };
+    }
+
+    private static CommandResponse EmptyResponse()
+    {
+        return new CommandResponse();
     }
 
     private static CommandResponse ResponseError(string code, string message)
     {
         return new CommandResponse
         {
-            Error = new CommandError
-            {
-                Code = code,
-                Message = message
-            }
+            Code = 1,
+            ErrorCode = code,
+            Message = message
         };
     }
 }

@@ -25,6 +25,7 @@ public sealed class GatewayWorker(
 
         var me = await botClient.GetMe(stoppingToken);
         logger.LogInformation("Telegram gateway connected as @{Username} ({BotId}).", me.Username, me.Id);
+        logger.LogInformation("Telegram drop pending updates: {DropPendingUpdates}.", _options.DropPendingUpdates);
 
         await botClient.DeleteWebhook(dropPendingUpdates: _options.DropPendingUpdates, cancellationToken: stoppingToken);
 

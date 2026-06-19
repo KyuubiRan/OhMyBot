@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Hosting;
-
 namespace OhMyBot.Core.Terminal;
 
 public sealed class InteractiveConsoleRendererHostedService(

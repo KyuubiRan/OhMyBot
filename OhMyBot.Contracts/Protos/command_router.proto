@@ -21,6 +21,15 @@ enum UserPrivilege {
   USER_PRIVILEGE_OWNER = 100;
 }
 
+enum CommandResponseDataKind {
+  COMMAND_RESPONSE_DATA_KIND_UNSPECIFIED = 0;
+  COMMAND_RESPONSE_DATA_KIND_TEXT = 1;
+  COMMAND_RESPONSE_DATA_KIND_PING = 2;
+  COMMAND_RESPONSE_DATA_KIND_LINK_TOKEN = 3;
+  COMMAND_RESPONSE_DATA_KIND_LINK_RESULT = 4;
+  COMMAND_RESPONSE_DATA_KIND_USER_INFO = 5;
+}
+
 message CommandRequest {
   BotPlatform platform = 1;
   string bot_instance_id = 2;
@@ -47,6 +56,7 @@ message RouteDescriptor {
   UserPrivilege required_privilege = 5;
   int32 support_platforms = 6;
   bool enabled = 7;
+  repeated string aliases = 8;
 }
 
 message GetRoutesResponse {
@@ -69,12 +79,60 @@ message CommandError {
   string message = 2;
 }
 
+message CommandResponseContext {
+  int64 caller_core_user_id = 1;
+  UserPrivilege caller_privilege = 2;
+  BotPlatform platform = 3;
+}
+
+message TextData {
+  string text = 1;
+}
+
+message PingData {
+  int64 elapsed_ms = 1;
+}
+
+message LinkTokenData {
+  string token = 1;
+  int32 ttl_seconds = 2;
+}
+
+message LinkResultData {
+  string status = 1;
+  int64 core_user_id = 2;
+}
+
+message PlatformIdentityData {
+  BotPlatform platform = 1;
+  string uid = 2;
+  string display_name = 3;
+  string username = 4;
+}
+
+message UserInfoData {
+  bool self = 1;
+  UserPrivilege privilege = 2;
+  optional int64 core_user_id = 3;
+  repeated PlatformIdentityData identities = 4;
+}
+
 message CommandResponse {
-  repeated ResponseMessage messages = 1;
-  repeated ResponseButton buttons = 2;
-  CommandError error = 3;
-  string reply_to_message_id = 4;
-  optional string edit_message_id = 5;
+  int32 code = 1;
+  string error_code = 2;
+  string message = 3;
+  CommandResponseDataKind data_kind = 4;
+  CommandResponseContext context = 5;
+  repeated ResponseButton buttons = 6;
+  string reply_to_message_id = 7;
+  optional string edit_message_id = 8;
+  oneof data {
+    TextData text = 20;
+    PingData ping = 21;
+    LinkTokenData link_token = 22;
+    LinkResultData link_result = 23;
+    UserInfoData user_info = 24;
+  }
 }
 
 message NotificationEvent {

@@ -1,5 +1,3 @@
-using Microsoft.Extensions.Logging;
-
 namespace OhMyBot.Core.Terminal;
 
 public sealed class InteractiveConsoleLoggerProvider(InteractiveConsoleState consoleState) : ILoggerProvider

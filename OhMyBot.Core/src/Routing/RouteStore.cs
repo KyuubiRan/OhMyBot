@@ -17,9 +17,10 @@ public sealed class RouteStore(
         WriteIndented = true
     };
     private IReadOnlyDictionary<string, RouteEntry> _routes = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, RouteEntry> _routeLookup = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
     private long _version;
 
-    public string RouteFilePath => System.IO.Path.GetFullPath(_options.Path);
+    public string RouteFilePath => Path.GetFullPath(_options.Path);
 
     public long Version
     {
@@ -45,6 +46,7 @@ public sealed class RouteStore(
             var document = await LoadOrCreateDocumentAsync(routeFilePath, cancellationToken);
             var merged = MergeDefaults(document);
             var routes = BuildRoutes(document);
+            var routeLookup = BuildRouteLookup(routes);
 
             if (writeMergedFile && merged)
             {
@@ -54,6 +56,7 @@ public sealed class RouteStore(
             lock (_lock)
             {
                 _routes = routes;
+                _routeLookup = routeLookup;
                 _version++;
             }
 
@@ -83,7 +86,7 @@ public sealed class RouteStore(
     {
         lock (_lock)
         {
-            return _routes.TryGetValue(CommandRegistration.Normalize(command), out route!);
+            return _routeLookup.TryGetValue(CommandRegistration.Normalize(command), out route!);
         }
     }
 
@@ -122,6 +125,7 @@ public sealed class RouteStore(
                 CoreCommand = command.Name,
                 Description = command.Description,
                 Usage = command.Usage,
+                Aliases = command.Aliases.ToArray(),
                 RequiredPrivilege = command.RequiredPrivilege.ToString(),
                 SupportPlatforms = ToPlatformNames(command.SupportPlatforms),
                 Enabled = command.Enabled
@@ -150,12 +154,14 @@ public sealed class RouteStore(
             var targetExists = commandRegistry.TryGet(coreCommand, out var commandRegistration);
             var routePrivilege = ParsePrivilege(definition.RequiredPrivilege);
             var corePrivilege = commandRegistration?.RequiredPrivilege ?? routePrivilege;
+            var aliases = NormalizeAliases(commandName, definition.Aliases);
 
             routes[commandName] = new RouteEntry(
                 commandName,
                 coreCommand,
                 definition.Description,
                 definition.Usage,
+                aliases,
                 routePrivilege,
                 ParsePlatforms(definition.SupportPlatforms),
                 definition.Enabled,
@@ -166,9 +172,24 @@ public sealed class RouteStore(
         return routes;
     }
 
+    private static IReadOnlyDictionary<string, RouteEntry> BuildRouteLookup(IReadOnlyDictionary<string, RouteEntry> routes)
+    {
+        var lookup = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
+        foreach (var route in routes.Values)
+        {
+            lookup[route.Command] = route;
+            foreach (var alias in route.Aliases)
+            {
+                lookup[alias] = route;
+            }
+        }
+
+        return lookup;
+    }
+
     private async Task WriteDocumentAsync(string routeFilePath, RouteDocument document, CancellationToken cancellationToken)
     {
-        var directory = System.IO.Path.GetDirectoryName(routeFilePath);
+        var directory = Path.GetDirectoryName(routeFilePath);
         if (!string.IsNullOrWhiteSpace(directory))
         {
             Directory.CreateDirectory(directory);
@@ -224,5 +245,15 @@ public sealed class RouteStore(
         }
 
         return names.ToArray();
+    }
+
+    private static string[] NormalizeAliases(string commandName, IEnumerable<string> aliases)
+    {
+        return aliases
+            .Where(alias => !string.IsNullOrWhiteSpace(alias))
+            .Select(CommandRegistration.Normalize)
+            .Where(alias => alias.Length > 0 && !string.Equals(alias, commandName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

@@ -1,7 +1,8 @@
+using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
-using System.Text.Json;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Admin;
 using OhMyBot.Core.Commands;
@@ -44,7 +45,8 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "link"));
 
-        Assert.IsNull(response.Error);
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(CommandResponseDataKind.LinkToken, response.DataKind);
         Assert.AreEqual(TimeSpan.FromMinutes(5), tokenStore.LastTtl);
         Assert.HasCount(1, tokenStore.Tokens);
         Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
@@ -63,7 +65,7 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-current", "link", token));
 
-        Assert.IsNull(response.Error);
+        Assert.AreEqual(0, response.Code);
         Assert.IsFalse(tokenStore.Tokens.ContainsKey(token));
         Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
         Assert.AreEqual(2, await dbContext.PlatformIdentities.CountAsync());
@@ -77,8 +79,8 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-current", "link", "missing"));
 
-        Assert.IsNotNull(response.Error);
-        Assert.AreEqual("LinkTokenInvalid", response.Error.Code);
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("LinkTokenInvalid", response.ErrorCode);
     }
 
     [TestMethod]
@@ -103,7 +105,7 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-admin", "link", token));
 
-        Assert.IsNull(response.Error);
+        Assert.AreEqual(0, response.Code);
         var mergedUser = await dbContext.CoreUsers.SingleAsync();
         Assert.AreEqual(UserPrivilege.Admin, mergedUser.Privilege);
 
@@ -146,7 +148,7 @@ public class V2CoreTests
         var token = tokenStore.LastToken!;
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-old", "link", token));
 
-        Assert.IsNull(response.Error);
+        Assert.AreEqual(0, response.Code);
         var retainedUser = await dbContext.CoreUsers.SingleAsync();
         Assert.AreEqual(Math.Min(firstUser.Id, secondUser.Id), retainedUser.Id);
         Assert.AreEqual(2, await dbContext.PlatformIdentities.CountAsync(identity => identity.CoreUserId == retainedUser.Id));
@@ -155,7 +157,7 @@ public class V2CoreTests
     [TestMethod]
     public void CommandListIsFilteredBySupportedPlatforms()
     {
-        var registry = new CommandRegistry(CommandExecutionService.CreateBuiltInCommands());
+        var registry = CreateBuiltInCommandRegistry();
         registry.Add(new CommandRegistration(
             "qqonly",
             "QQ only command.",
@@ -178,7 +180,7 @@ public class V2CoreTests
     public async Task InsufficientPrivilegeReturnsStructuredError()
     {
         await using var dbContext = CreateDbContext();
-        var registry = new CommandRegistry(CommandExecutionService.CreateBuiltInCommands());
+        var registry = CreateBuiltInCommandRegistry();
         registry.Add(new CommandRegistration(
             "owner",
             "Owner command.",
@@ -191,8 +193,8 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "owner"));
 
-        Assert.IsNotNull(response.Error);
-        Assert.AreEqual("PrivilegeDenied", response.Error.Code);
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("PrivilegeDenied", response.ErrorCode);
     }
 
     [TestMethod]
@@ -205,7 +207,7 @@ public class V2CoreTests
             "tg-owner",
             new CachedIdentity(999, UserPrivilege.Owner));
 
-        var registry = new CommandRegistry(CommandExecutionService.CreateBuiltInCommands());
+        var registry = CreateBuiltInCommandRegistry();
         registry.Add(new CommandRegistration(
             "owner",
             "Owner command.",
@@ -235,8 +237,8 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "owner"));
 
-        Assert.IsNull(response.Error);
-        Assert.AreEqual("secret", response.Messages.Single().Text);
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual("secret", response.Text.Text);
         Assert.AreEqual(0, await dbContext.PlatformIdentities.CountAsync());
     }
 
@@ -250,10 +252,11 @@ public class V2CoreTests
             [
                 new RouteDefinition
                 {
-                    Command = "p",
+                    Command = "ping",
                     CoreCommand = "ping",
                     Description = "Ping alias.",
                     Usage = "/p",
+                    Aliases = ["p"],
                     RequiredPrivilege = "User",
                     SupportPlatforms = ["Telegram"],
                     Enabled = true
@@ -264,8 +267,8 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "p"));
 
-        Assert.IsNull(response.Error);
-        Assert.IsTrue(response.Messages.Single().Text.StartsWith("Pong"));
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(CommandResponseDataKind.Ping, response.DataKind);
     }
 
     [TestMethod]
@@ -292,15 +295,15 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "broken"));
 
-        Assert.IsNotNull(response.Error);
-        Assert.AreEqual("RouteTargetMissing", response.Error.Code);
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("RouteTargetMissing", response.ErrorCode);
     }
 
     [TestMethod]
     public async Task RouteCannotLowerCorePrivilege()
     {
         await using var dbContext = CreateDbContext();
-        var registry = new CommandRegistry(CommandExecutionService.CreateBuiltInCommands());
+        var registry = CreateBuiltInCommandRegistry();
         registry.Add(new CommandRegistration(
             "owner",
             "Owner command.",
@@ -329,14 +332,74 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "owner"));
 
-        Assert.IsNotNull(response.Error);
-        Assert.AreEqual("PrivilegeDenied", response.Error.Code);
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("PrivilegeDenied", response.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task InfoCommandIgnoresUidForNonAdminAndHidesCoreUserId()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore());
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "self", "ping"));
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "other", "ping"));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "self", "info", "other"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
+        Assert.IsFalse(response.UserInfo.HasCoreUserId);
+        Assert.AreEqual("self", response.UserInfo.Identities.Single().Uid);
+    }
+
+    [TestMethod]
+    public async Task InfoCommandAdminCanQueryOtherUserAndSeeCoreUserId()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "target", "ping"));
+        var adminIdentity = await dbContext.PlatformIdentities
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.PlatformUserId == "admin");
+        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "target"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
+        Assert.IsTrue(response.UserInfo.HasCoreUserId);
+        Assert.IsTrue(response.UserInfo.CoreUserId > 0);
+        Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+    }
+
+    [TestMethod]
+    public async Task InfoCommandAdminQueryMissingUserReturnsStructuredError()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        var adminIdentity = await dbContext.PlatformIdentities
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.PlatformUserId == "admin");
+        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "missing"));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("UserNotFound", response.ErrorCode);
     }
 
     [TestMethod]
     public async Task InvalidRouteJsonKeepsPreviousSnapshot()
     {
-        var registry = new CommandRegistry(CommandExecutionService.CreateBuiltInCommands());
+        var registry = CreateBuiltInCommandRegistry();
         var routeStore = CreateRouteStore(registry);
         await routeStore.InitializeAsync();
         var before = routeStore.GetRoutes(BotPlatform.Telegram);
@@ -351,11 +414,56 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task RouteFileIsGeneratedAndMergedWithoutOverwritingExistingRoutes()
+    {
+        var registry = CreateBuiltInCommandRegistry();
+        registry.Add(new CommandRegistration(
+            "owner",
+            "Owner command.",
+            "/owner",
+            UserPrivilege.Owner,
+            SupportedPlatforms.All,
+            _ => Task.FromResult(CommandResponses.Text("secret"))));
+
+        var routeDocument = new RouteDocument
+        {
+            Routes =
+            [
+                new RouteDefinition
+                {
+                    Command = "ping",
+                    CoreCommand = "ping",
+                    Description = "Custom ping.",
+                    Usage = "/custom-ping",
+                    RequiredPrivilege = "Owner",
+                    SupportPlatforms = ["Telegram"],
+                    Enabled = false
+                }
+            ]
+        };
+
+        var routeStore = CreateRouteStore(registry, routeDocument);
+        await routeStore.InitializeAsync();
+
+        var json = await File.ReadAllTextAsync(routeStore.RouteFilePath);
+        var generated = JsonSerializer.Deserialize<RouteDocument>(json, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+
+        Assert.IsNotNull(generated);
+        var pingRoute = generated.Routes.Single(route => route.Command == "ping");
+        Assert.AreEqual("Custom ping.", pingRoute.Description);
+        Assert.AreEqual("/custom-ping", pingRoute.Usage);
+        Assert.AreEqual("Owner", pingRoute.RequiredPrivilege);
+        Assert.IsFalse(pingRoute.Enabled);
+        Assert.IsTrue(generated.Routes.Any(route => route.Command == "link"));
+        Assert.IsTrue(generated.Routes.Any(route => route.Command == "owner"));
+    }
+
+    [TestMethod]
     public async Task AdminUserPrivilegeCommandCreatesIdentityAndRefreshesCache()
     {
         await using var dbContext = CreateDbContext();
         var identityCache = new FakeIdentityCache();
-        var executor = new AdminCommandExecutor(dbContext, identityCache, TimeProvider.System);
+        var executor = CreateAdminCommandExecutor(dbContext, identityCache);
 
         var result = await executor.ExecuteAsync("user -p telegram -uid 123456 -sp owner");
 
@@ -382,7 +490,7 @@ public class V2CoreTests
             Platform = BotPlatform.Telegram,
             UserId = "123456"
         });
-        var executor = new AdminCommandExecutor(dbContext, identityCache, TimeProvider.System);
+        var executor = CreateAdminCommandExecutor(dbContext, identityCache);
 
         var result = await executor.ExecuteAsync("user -p telegram -uid 123456 -sp admin");
 
@@ -401,7 +509,7 @@ public class V2CoreTests
     public async Task AdminUserQueryReadsDatabaseIdentity()
     {
         await using var dbContext = CreateDbContext();
-        var executor = new AdminCommandExecutor(dbContext, new FakeIdentityCache(), TimeProvider.System);
+        var executor = CreateAdminCommandExecutor(dbContext, new FakeIdentityCache());
         await executor.ExecuteAsync("user -p qq -uid 998877 -sp admin");
 
         var result = await executor.ExecuteAsync("user -p qq -uid 998877");
@@ -417,7 +525,7 @@ public class V2CoreTests
     {
         await using var dbContext = CreateDbContext();
         var identityCache = new FakeIdentityCache();
-        var executor = new AdminCommandExecutor(dbContext, identityCache, TimeProvider.System);
+        var executor = CreateAdminCommandExecutor(dbContext, identityCache);
         await executor.ExecuteAsync("user --platform=telegram --uid=123456 --set-priv=admin");
         await executor.ExecuteAsync("user -p qq -uid 998877 -sp user");
         var user = await dbContext.CoreUsers.SingleAsync(user => user.Privilege == UserPrivilege.Admin);
@@ -440,7 +548,7 @@ public class V2CoreTests
     public async Task AdminHelpShowsStructuredUserUsage()
     {
         await using var dbContext = CreateDbContext();
-        var executor = new AdminCommandExecutor(dbContext, new FakeIdentityCache(), TimeProvider.System);
+        var executor = CreateAdminCommandExecutor(dbContext, new FakeIdentityCache());
 
         var help = await executor.ExecuteAsync("help");
         var userHelp = await executor.ExecuteAsync("help user");
@@ -457,10 +565,23 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task AdminCommandAliasDispatchesToCommand()
+    {
+        var executor = new AdminCommandExecutor(new AdminCommandCatalog([
+            new FakeAdminCommand("echo", ["say"])
+        ]));
+
+        var result = await executor.ExecuteAsync("say hello");
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("echo: hello", result.Message);
+    }
+
+    [TestMethod]
     public async Task AdminUserCommandReturnsErrorsForInvalidInput()
     {
         await using var dbContext = CreateDbContext();
-        var executor = new AdminCommandExecutor(dbContext, new FakeIdentityCache(), TimeProvider.System);
+        var executor = CreateAdminCommandExecutor(dbContext, new FakeIdentityCache());
 
         var missingUid = await executor.ExecuteAsync("user -p telegram");
         var invalidPlatform = await executor.ExecuteAsync("user -p discord -uid 1");
@@ -505,19 +626,53 @@ public class V2CoreTests
         RouteDocument? routeDocument = null,
         FakeIdentityCache? identityCache = null)
     {
-        registry ??= new CommandRegistry(CommandExecutionService.CreateBuiltInCommands());
         identityCache ??= new FakeIdentityCache();
+        registry ??= CreateBuiltInCommandRegistry(dbContext, tokenStore, identityCache);
         var routeStore = CreateRouteStore(registry, routeDocument);
         routeStore.InitializeAsync().GetAwaiter().GetResult();
 
         return new CommandExecutionService(
-            dbContext,
             new CoreIdentityService(dbContext, identityCache, TimeProvider.System),
             registry,
             routeStore,
-            tokenStore,
-            Options.Create(new LinkTokenOptions()),
             TimeProvider.System);
+    }
+
+    private static CommandRegistry CreateBuiltInCommandRegistry(
+        OhMyBotV2DbContext? dbContext = null,
+        FakeLinkTokenStore? tokenStore = null,
+        FakeIdentityCache? identityCache = null)
+    {
+        dbContext ??= CreateDbContext();
+        tokenStore ??= new FakeLinkTokenStore();
+        identityCache ??= new FakeIdentityCache();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddSingleton<ILinkTokenStore>(tokenStore);
+        services.AddSingleton<IIdentityCache>(identityCache);
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Options.Create(new LinkTokenOptions()));
+        services.AddSingleton<CoreIdentityService>();
+        services.AddSingleton<ICoreCommand, PingCommand>();
+        services.AddSingleton<ICoreCommand, LinkCommand>();
+        services.AddSingleton<ICoreCommand, InfoCommand>();
+
+        var serviceProvider = services.BuildServiceProvider();
+        var catalog = new CoreCommandCatalog(serviceProvider.GetRequiredService<IEnumerable<ICoreCommand>>());
+        return new CommandRegistry(catalog.CreateRegistrations());
+    }
+
+    private static AdminCommandExecutor CreateAdminCommandExecutor(
+        OhMyBotV2DbContext dbContext,
+        FakeIdentityCache identityCache)
+    {
+        var commands = new IAdminCommand[]
+        {
+            new UserAdminCommand(dbContext, identityCache, TimeProvider.System)
+        };
+
+        return new AdminCommandExecutor(new AdminCommandCatalog(commands));
     }
 
     private static RouteStore CreateRouteStore(CommandRegistry registry, RouteDocument? routeDocument = null)
@@ -610,6 +765,22 @@ public class V2CoreTests
         private static string GetKey(BotPlatform platform, string platformUserId)
         {
             return $"{platform}:{platformUserId}";
+        }
+    }
+
+    private sealed class FakeAdminCommand(string name, IReadOnlyList<string> aliases) : IAdminCommand
+    {
+        public AdminCommandDefinition Definition { get; } = new(
+            name,
+            $"{name} [args]",
+            "Fake admin command.",
+            aliases,
+            [],
+            []);
+
+        public Task<AdminCommandResult> ExecuteAsync(IReadOnlyList<string> args, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(AdminCommandResult.Ok($"{name}: {string.Join(' ', args)}"));
         }
     }
 }

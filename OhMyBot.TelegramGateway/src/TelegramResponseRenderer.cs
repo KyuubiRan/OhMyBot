@@ -1,11 +1,15 @@
 using OhMyBot.Contracts.Grpc;
+using OhMyBot.TelegramGateway.Rendering;
 using Telegram.Bot;
 using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.ReplyMarkups;
 
 namespace OhMyBot.TelegramGateway;
 
-public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
+public sealed class TelegramResponseRenderer(
+    ITelegramBotClient botClient,
+    IEnumerable<ITelegramCommandResultRenderer> renderers)
 {
     public async Task RenderAsync(
         ChatId chatId,
@@ -13,16 +17,13 @@ public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
         int? fallbackReplyToMessageId,
         CancellationToken cancellationToken = default)
     {
-        var textMessages = response.Messages.Select(message => message.Text)
-            .Where(text => !string.IsNullOrWhiteSpace(text))
+        var outgoingMessages = renderers
+            .First(renderer => renderer.CanRender(response))
+            .Render(response)
+            .Where(message => message is not TelegramTextMessage textMessage || !string.IsNullOrWhiteSpace(textMessage.Text))
             .ToArray();
 
-        if (response.Error is not null)
-        {
-            textMessages = [$"{response.Error.Code}: {response.Error.Message}"];
-        }
-
-        if (textMessages.Length == 0)
+        if (outgoingMessages.Length == 0)
         {
             return;
         }
@@ -30,14 +31,39 @@ public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
         var replyParameters = CreateReplyParameters(response.ReplyToMessageId, fallbackReplyToMessageId);
         var replyMarkup = CreateReplyMarkup(response.Buttons);
 
-        for (var i = 0; i < textMessages.Length; i++)
+        for (var i = 0; i < outgoingMessages.Length; i++)
         {
-            await botClient.SendMessage(
+            await RenderMessageAsync(
+                botClient,
                 chatId,
-                textMessages[i],
-                replyParameters: i == 0 ? replyParameters : null,
-                replyMarkup: i == 0 ? replyMarkup : null,
-                cancellationToken: cancellationToken);
+                outgoingMessages[i],
+                i == 0 ? replyParameters : null,
+                i == 0 ? replyMarkup : null,
+                cancellationToken);
+        }
+    }
+
+    private static async Task RenderMessageAsync(
+        ITelegramBotClient botClient,
+        ChatId chatId,
+        TelegramOutgoingMessage message,
+        ReplyParameters? replyParameters,
+        InlineKeyboardMarkup? replyMarkup,
+        CancellationToken cancellationToken)
+    {
+        switch (message)
+        {
+            case TelegramTextMessage textMessage:
+                await botClient.SendMessage(
+                    chatId,
+                    textMessage.Text,
+                    parseMode: textMessage.ParseMode,
+                    replyParameters: replyParameters,
+                    replyMarkup: replyMarkup,
+                    cancellationToken: cancellationToken);
+                return;
+            default:
+                throw new NotSupportedException($"Telegram outgoing message type is not supported yet: {message.GetType().Name}.");
         }
     }
 

@@ -1,6 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using OhMyBot.Core.Admin;
 
 namespace OhMyBot.Core.Terminal;
@@ -68,6 +65,18 @@ public sealed class InteractiveConsoleHostedService(
             if (key.Key is ConsoleKey.DownArrow)
             {
                 consoleState.NextHistory();
+                continue;
+            }
+
+            if (key.Key is ConsoleKey.LeftArrow)
+            {
+                consoleState.MoveCursorLeft();
+                continue;
+            }
+
+            if (key.Key is ConsoleKey.RightArrow)
+            {
+                consoleState.MoveCursorRight();
                 continue;
             }
 

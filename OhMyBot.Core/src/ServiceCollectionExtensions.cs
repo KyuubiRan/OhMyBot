@@ -9,6 +9,7 @@ using OhMyBot.Core.Linking;
 using OhMyBot.Core.Messaging;
 using OhMyBot.Core.Routing;
 using OhMyBot.Core.Terminal;
+using RouteOptions = OhMyBot.Core.Routing.RouteOptions;
 
 namespace OhMyBot.Core;
 
@@ -19,15 +20,22 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.Configure<LinkTokenOptions>(options => { });
         services.AddOptions<IdentityCacheOptions>().BindConfiguration("IdentityCache");
-        services.AddOptions<OhMyBot.Core.Routing.RouteOptions>().BindConfiguration("Routes");
+        services.AddOptions<RouteOptions>().BindConfiguration("Routes");
         services.AddOptions<RabbitMqOptions>().BindConfiguration("RabbitMQ");
         services.TryAddSingleton<InteractiveConsoleState>();
+        services.AddScoped<IAdminCommand, UserAdminCommand>();
+        services.AddScoped<AdminCommandCatalog>();
         services.AddScoped<AdminCommandExecutor>();
         services.AddScoped<CoreIdentityService>();
         services.AddScoped<CommandExecutionService>();
+        services.AddSingleton<ICoreCommand, PingCommand>();
+        services.AddSingleton<ICoreCommand, LinkCommand>();
+        services.AddSingleton<ICoreCommand, InfoCommand>();
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
-        services.AddSingleton(new CommandRegistry(CommandExecutionService.CreateBuiltInCommands()));
+        services.AddSingleton<CoreCommandCatalog>();
+        services.AddSingleton(provider => new CommandRegistry(
+            provider.GetRequiredService<CoreCommandCatalog>().CreateRegistrations()));
         services.AddSingleton<RouteStore>();
         services.AddSingleton<IRouteChangePublisher, RabbitMqRouteChangePublisher>();
         services.AddHostedService<DatabaseMigrationHostedService>();

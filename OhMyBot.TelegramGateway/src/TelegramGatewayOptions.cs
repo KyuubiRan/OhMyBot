@@ -8,5 +8,5 @@ public sealed class TelegramGatewayOptions
 
     public string CoreGrpcAddress { get; set; } = "http://localhost:5100";
 
-    public bool DropPendingUpdates { get; set; }
+    public bool DropPendingUpdates { get; set; } = true;
 }

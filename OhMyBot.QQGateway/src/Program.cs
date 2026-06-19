@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using OhMyBot.Contracts.Messaging;
@@ -13,6 +12,7 @@ builder.Services.AddSingleton<ICommandRouterClient>(_ =>
     return CommandRouterClientFactory.Create(coreAddress);
 });
 builder.Services.AddSingleton<QQCommandGateway>();
+builder.Services.AddSingleton<QQResponseRenderer>();
 builder.Services.AddHostedService<GatewayWorker>();
 builder.Services.AddHostedService<RouteRefreshConsumerService>();
 
