@@ -1,10 +1,13 @@
 using Grpc.Core;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commands;
+using OhMyBot.Core.UserProfiles;
 
 namespace OhMyBot.Core.Grpc;
 
-public sealed class CommandRouterGrpcService(CommandExecutionService commandExecutionService) : CommandRouter.CommandRouterBase
+public sealed class CommandRouterGrpcService(
+    CommandExecutionService commandExecutionService,
+    PlatformUserProfileService userProfileService) : CommandRouter.CommandRouterBase
 {
     public override Task<CommandResponse> ExecuteCommand(CommandRequest request, ServerCallContext context)
     {
@@ -14,5 +17,11 @@ public sealed class CommandRouterGrpcService(CommandExecutionService commandExec
     public override Task<GetRoutesResponse> GetRoutes(GetRoutesRequest request, ServerCallContext context)
     {
         return commandExecutionService.GetRoutesAsync(request, context.CancellationToken);
+    }
+
+    public override async Task<UserProfileResponse> RecordUserProfile(UserProfileRequest request, ServerCallContext context)
+    {
+        await userProfileService.RecordAsync(request, context.CancellationToken);
+        return new UserProfileResponse { Recorded = true };
     }
 }

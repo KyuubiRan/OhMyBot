@@ -8,6 +8,8 @@ public interface ICommandRouterClient
     Task<CommandResponse> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken = default);
 
     Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default);
+
+    Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class CommandRouterClientAdapter(CommandRouter.CommandRouterClient client) : ICommandRouterClient
@@ -20,6 +22,11 @@ public sealed class CommandRouterClientAdapter(CommandRouter.CommandRouterClient
     public async Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default)
     {
         return await client.GetRoutesAsync(request, cancellationToken: cancellationToken);
+    }
+
+    public async Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default)
+    {
+        return await client.RecordUserProfileAsync(request, cancellationToken: cancellationToken);
     }
 }
 

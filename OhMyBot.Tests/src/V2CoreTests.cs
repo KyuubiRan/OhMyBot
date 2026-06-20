@@ -10,6 +10,7 @@ using OhMyBot.Core.Data;
 using OhMyBot.Core.Identity;
 using OhMyBot.Core.Linking;
 using OhMyBot.Core.Routing;
+using OhMyBot.Core.UserProfiles;
 
 namespace OhMyBot.Tests;
 
@@ -34,6 +35,84 @@ public class V2CoreTests
         Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
         Assert.AreEqual(1, await dbContext.PlatformIdentities.CountAsync());
         Assert.AreEqual("Tester", identity.DisplayName);
+    }
+
+    [TestMethod]
+    public async Task UserProfileRecordCreatesProfileWithoutCoreUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System);
+
+        await service.RecordAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Telegram,
+            UserId = "10001",
+            Username = "tester",
+            FirstName = "Test",
+            LastName = "User"
+        });
+
+        Assert.AreEqual(0, await dbContext.CoreUsers.CountAsync());
+        Assert.AreEqual(0, await dbContext.PlatformIdentities.CountAsync());
+
+        var profile = await dbContext.PlatformUserProfiles.SingleAsync();
+        Assert.AreEqual(BotPlatform.Telegram, profile.Platform);
+        Assert.AreEqual("10001", profile.Uid);
+        Assert.AreEqual("tester", profile.Username);
+        Assert.AreEqual("Test", profile.FirstName);
+        Assert.AreEqual("User", profile.LastName);
+        Assert.IsNull(profile.Nickname);
+    }
+
+    [TestMethod]
+    public async Task UserProfileRecordUpdatesDatabaseWhenProfileChanges()
+    {
+        await using var dbContext = CreateDbContext();
+        var cache = new FakeUserProfileCache();
+        var service = new PlatformUserProfileService(dbContext, cache, TimeProvider.System);
+
+        await service.RecordAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Qq,
+            UserId = "10001",
+            Nickname = "old"
+        });
+        await service.RecordAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Qq,
+            UserId = "10001",
+            Nickname = "new"
+        });
+
+        Assert.AreEqual(1, await dbContext.PlatformUserProfiles.CountAsync());
+        var profile = await dbContext.PlatformUserProfiles.SingleAsync();
+        Assert.AreEqual("new", profile.Nickname);
+    }
+
+    [TestMethod]
+    public async Task UserProfileRecordSkipsDatabaseWhenCachedProfileMatches()
+    {
+        await using var dbContext = CreateDbContext();
+        var cache = new FakeUserProfileCache();
+        await cache.SetAsync(new UserProfileUpdate(
+            BotPlatform.Telegram,
+            "10001",
+            "tester",
+            "Test",
+            "User",
+            null));
+        var service = new PlatformUserProfileService(dbContext, cache, TimeProvider.System);
+
+        await service.RecordAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Telegram,
+            UserId = "10001",
+            Username = "tester",
+            FirstName = "Test",
+            LastName = "User"
+        });
+
+        Assert.AreEqual(0, await dbContext.PlatformUserProfiles.CountAsync());
     }
 
     [TestMethod]
@@ -174,6 +253,52 @@ public class V2CoreTests
 
         Assert.IsFalse(telegramRoutes.Any(route => route.Command == "qqonly"));
         Assert.IsTrue(qqRoutes.Any(route => route.Command == "qqonly"));
+    }
+
+    [TestMethod]
+    public async Task UnsupportedChatTypeReturnsStructuredError()
+    {
+        await using var dbContext = CreateDbContext();
+        var registry = CreateBuiltInCommandRegistry();
+        registry.Add(new CommandRegistration(
+            "group",
+            "Group only command.",
+            "/group",
+            UserPrivilege.User,
+            SupportedPlatforms.All,
+            _ => Task.FromResult(CommandResponses.Text("ok")),
+            supportChatTypes: SupportedChatTypes.Group));
+
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "group"));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("UnsupportedChatType", response.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task SupportedGroupChatTypeExecutesCommand()
+    {
+        await using var dbContext = CreateDbContext();
+        var registry = CreateBuiltInCommandRegistry();
+        registry.Add(new CommandRegistration(
+            "group",
+            "Group only command.",
+            "/group",
+            UserPrivilege.User,
+            SupportedPlatforms.All,
+            _ => Task.FromResult(CommandResponses.Text("ok")),
+            supportChatTypes: SupportedChatTypes.Group));
+
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
+        var request = CreateRequest(BotPlatform.Telegram, "tg-1", "group");
+        request.ChatType = BotChatType.Group;
+
+        var response = await service.ExecuteAsync(request);
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual("ok", response.Text.Text);
     }
 
     [TestMethod]
@@ -506,6 +631,28 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task AdminUserPrivilegeCommandSupportsVerifiedUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var executor = CreateAdminCommandExecutor(dbContext, identityCache);
+
+        var result = await executor.ExecuteAsync("user -p telegram -uid 123456 -sp verified-user");
+
+        Assert.IsTrue(result.Success);
+        Assert.Contains("privilege=verified-user", result.Message);
+
+        var identity = await dbContext.PlatformIdentities
+            .Include(item => item.CoreUser)
+            .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.PlatformUserId == "123456");
+        Assert.AreEqual(UserPrivilege.VerifiedUser, identity.CoreUser.Privilege);
+
+        var cached = await identityCache.GetAsync(BotPlatform.Telegram, "123456");
+        Assert.IsNotNull(cached);
+        Assert.AreEqual(UserPrivilege.VerifiedUser, cached.Privilege);
+    }
+
+    [TestMethod]
     public async Task AdminUserQueryReadsDatabaseIdentity()
     {
         await using var dbContext = CreateDbContext();
@@ -595,7 +742,7 @@ public class V2CoreTests
         Assert.IsFalse(invalidPlatform.Success);
         Assert.Contains("Invalid platform. Supported values: telegram, qq.", invalidPlatform.Message);
         Assert.IsFalse(invalidPrivilege.Success);
-        Assert.Contains("Invalid privilege. Supported values: user, admin, owner.", invalidPrivilege.Message);
+        Assert.Contains("Invalid privilege. Supported values: user, verified-user, admin, owner.", invalidPrivilege.Message);
         Assert.IsFalse(mutuallyExclusive.Success);
         Assert.Contains("Options '-id' and '-p/-uid' are mutually exclusive.", mutuallyExclusive.Message);
         Assert.IsFalse(unknownOption.Success);
@@ -633,6 +780,7 @@ public class V2CoreTests
 
         return new CommandExecutionService(
             new CoreIdentityService(dbContext, identityCache, TimeProvider.System),
+            new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
             registry,
             routeStore,
             TimeProvider.System);
@@ -700,6 +848,7 @@ public class V2CoreTests
             UserId = userId,
             MessageId = Guid.NewGuid().ToString("N"),
             Command = command,
+            ChatType = BotChatType.Private,
             Args = { args }
         };
     }
@@ -765,6 +914,31 @@ public class V2CoreTests
         private static string GetKey(BotPlatform platform, string platformUserId)
         {
             return $"{platform}:{platformUserId}";
+        }
+    }
+
+    private sealed class FakeUserProfileCache : IUserProfileCache
+    {
+        private readonly Dictionary<string, UserProfileUpdate> _profiles = new(StringComparer.Ordinal);
+
+        public Task<UserProfileUpdate?> GetAsync(
+            BotPlatform platform,
+            string uid,
+            CancellationToken cancellationToken = default)
+        {
+            _profiles.TryGetValue(GetKey(platform, uid), out var profile);
+            return Task.FromResult(profile);
+        }
+
+        public Task SetAsync(UserProfileUpdate profile, CancellationToken cancellationToken = default)
+        {
+            _profiles[GetKey(profile.Platform, profile.Uid)] = profile;
+            return Task.CompletedTask;
+        }
+
+        private static string GetKey(BotPlatform platform, string uid)
+        {
+            return $"{platform}:{uid}";
         }
     }
 

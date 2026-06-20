@@ -7,6 +7,7 @@ package ohmybot.v2;
 service CommandRouter {
   rpc ExecuteCommand (CommandRequest) returns (CommandResponse);
   rpc GetRoutes (GetRoutesRequest) returns (GetRoutesResponse);
+  rpc RecordUserProfile (UserProfileRequest) returns (UserProfileResponse);
 }
 
 enum BotPlatform {
@@ -15,8 +16,15 @@ enum BotPlatform {
   BOT_PLATFORM_QQ = 2;
 }
 
+enum BotChatType {
+  BOT_CHAT_TYPE_UNSPECIFIED = 0;
+  BOT_CHAT_TYPE_PRIVATE = 1;
+  BOT_CHAT_TYPE_GROUP = 2;
+}
+
 enum UserPrivilege {
   USER_PRIVILEGE_USER = 0;
+  USER_PRIVILEGE_VERIFIED_USER = 1;
   USER_PRIVILEGE_ADMIN = 10;
   USER_PRIVILEGE_OWNER = 100;
 }
@@ -40,12 +48,30 @@ message CommandRequest {
   repeated string args = 7;
   string display_name = 8;
   string username = 9;
+  BotChatType chat_type = 10;
+  string first_name = 11;
+  string last_name = 12;
+  string nickname = 13;
 }
 
 message GetRoutesRequest {
   BotPlatform platform = 1;
   string bot_instance_id = 2;
   int64 current_version = 3;
+}
+
+message UserProfileRequest {
+  BotPlatform platform = 1;
+  string bot_instance_id = 2;
+  string uid = 3;
+  string username = 4;
+  string first_name = 5;
+  string last_name = 6;
+  string nickname = 7;
+}
+
+message UserProfileResponse {
+  bool recorded = 1;
 }
 
 message RouteDescriptor {
@@ -57,6 +83,7 @@ message RouteDescriptor {
   int32 support_platforms = 6;
   bool enabled = 7;
   repeated string aliases = 8;
+  int32 support_chat_types = 9;
 }
 
 message GetRoutesResponse {

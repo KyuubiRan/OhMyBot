@@ -92,10 +92,32 @@ public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
             UserId = gatewayRequest.UserId,
             MessageId = gatewayRequest.MessageId,
             Command = route.Command,
+            ChatType = gatewayRequest.ChatType,
             DisplayName = gatewayRequest.DisplayName ?? string.Empty,
             Username = gatewayRequest.Username ?? string.Empty,
+            FirstName = gatewayRequest.FirstName ?? string.Empty,
+            LastName = gatewayRequest.LastName ?? string.Empty,
+            Nickname = gatewayRequest.Nickname ?? string.Empty,
             Args = { args }
         }, cancellationToken);
+    }
+
+    public async Task<bool> RecordUserProfileAsync(
+        GatewayCommandRequest gatewayRequest,
+        string botInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        await commandRouterClient.RecordUserProfileAsync(new UserProfileRequest
+        {
+            Platform = BotPlatform.Qq,
+            BotInstanceId = botInstanceId,
+            Uid = gatewayRequest.UserId,
+            Username = gatewayRequest.Username ?? string.Empty,
+            FirstName = gatewayRequest.FirstName ?? string.Empty,
+            LastName = gatewayRequest.LastName ?? string.Empty,
+            Nickname = gatewayRequest.Nickname ?? gatewayRequest.DisplayName ?? string.Empty
+        }, cancellationToken);
+        return true;
     }
 
     private bool TryGetRoute(string command, out RouteDescriptor route)

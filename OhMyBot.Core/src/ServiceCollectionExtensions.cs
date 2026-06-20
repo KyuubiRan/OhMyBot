@@ -9,6 +9,7 @@ using OhMyBot.Core.Linking;
 using OhMyBot.Core.Messaging;
 using OhMyBot.Core.Routing;
 using OhMyBot.Core.Terminal;
+using OhMyBot.Core.UserProfiles;
 using RouteOptions = OhMyBot.Core.Routing.RouteOptions;
 
 namespace OhMyBot.Core;
@@ -20,6 +21,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton(TimeProvider.System);
         services.Configure<LinkTokenOptions>(options => { });
         services.AddOptions<IdentityCacheOptions>().BindConfiguration("IdentityCache");
+        services.AddOptions<UserProfileCacheOptions>().BindConfiguration("UserProfileCache");
         services.AddOptions<RouteOptions>().BindConfiguration("Routes");
         services.AddOptions<RabbitMqOptions>().BindConfiguration("RabbitMQ");
         services.TryAddSingleton<InteractiveConsoleState>();
@@ -27,12 +29,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AdminCommandCatalog>();
         services.AddScoped<AdminCommandExecutor>();
         services.AddScoped<CoreIdentityService>();
+        services.AddScoped<PlatformUserProfileService>();
         services.AddScoped<CommandExecutionService>();
         services.AddSingleton<ICoreCommand, PingCommand>();
         services.AddSingleton<ICoreCommand, LinkCommand>();
         services.AddSingleton<ICoreCommand, InfoCommand>();
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
+        services.AddScoped<IUserProfileCache, DistributedUserProfileCache>();
         services.AddSingleton<CoreCommandCatalog>();
         services.AddSingleton(provider => new CommandRegistry(
             provider.GetRequiredService<CoreCommandCatalog>().CreateRegistrations()));

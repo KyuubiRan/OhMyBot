@@ -10,7 +10,8 @@ public sealed class CommandRegistration(
     SupportedPlatforms supportPlatforms,
     Func<CommandContext, Task<CommandResponse>> executeAsync,
     bool enabled = true,
-    IReadOnlyList<string>? aliases = null)
+    IReadOnlyList<string>? aliases = null,
+    SupportedChatTypes supportChatTypes = SupportedChatTypes.All)
 {
     public string Name { get; } = Normalize(name);
 
@@ -21,6 +22,8 @@ public sealed class CommandRegistration(
     public UserPrivilege RequiredPrivilege { get; } = requiredPrivilege;
 
     public SupportedPlatforms SupportPlatforms { get; } = supportPlatforms;
+
+    public SupportedChatTypes SupportChatTypes { get; } = supportChatTypes;
 
     public bool Enabled { get; } = enabled;
 

@@ -35,4 +35,14 @@ public sealed class CommandRegistry
             _ => SupportedPlatforms.None
         };
     }
+
+    public static SupportedChatTypes ToSupportedChatType(BotChatType chatType)
+    {
+        return chatType switch
+        {
+            BotChatType.Private => SupportedChatTypes.Private,
+            BotChatType.Group => SupportedChatTypes.Group,
+            _ => SupportedChatTypes.None
+        };
+    }
 }

@@ -9,6 +9,8 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
 
     public DbSet<PlatformIdentity> PlatformIdentities => Set<PlatformIdentity>();
 
+    public DbSet<PlatformUserProfile> PlatformUserProfiles => Set<PlatformUserProfile>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<CoreUser>(builder =>
@@ -34,6 +36,21 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
                    .WithMany(user => user.Identities)
                    .HasForeignKey(identity => identity.CoreUserId)
                    .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PlatformUserProfile>(builder =>
+        {
+            builder.HasKey(profile => profile.Id);
+            builder.Property(profile => profile.Platform).HasConversion<string>().HasMaxLength(64);
+            builder.Property(profile => profile.Uid).HasMaxLength(128).IsRequired();
+            builder.Property(profile => profile.Username).HasMaxLength(256);
+            builder.Property(profile => profile.FirstName).HasMaxLength(256);
+            builder.Property(profile => profile.LastName).HasMaxLength(256);
+            builder.Property(profile => profile.Nickname).HasMaxLength(256);
+            builder.Property(profile => profile.CreatedAt).IsRequired();
+            builder.Property(profile => profile.UpdatedAt).IsRequired();
+
+            builder.HasIndex(profile => new { profile.Platform, profile.Uid }).IsUnique();
         });
     }
 }

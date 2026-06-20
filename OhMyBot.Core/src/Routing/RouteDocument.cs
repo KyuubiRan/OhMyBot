@@ -23,5 +23,7 @@ public sealed class RouteDefinition
 
     public string[] SupportPlatforms { get; set; } = [];
 
+    public string[] SupportChatTypes { get; set; } = [];
+
     public bool Enabled { get; set; } = true;
 }

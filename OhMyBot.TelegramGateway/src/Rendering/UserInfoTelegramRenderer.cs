@@ -1,3 +1,4 @@
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 
 namespace OhMyBot.TelegramGateway.Rendering;
@@ -12,41 +13,43 @@ public sealed class UserInfoTelegramRenderer : ITelegramCommandResultRenderer
     public IReadOnlyList<TelegramOutgoingMessage> Render(CommandResponse response)
     {
         var userInfo = response.UserInfo;
-        var lines = new List<string> { "用户信息" };
-        if (userInfo.HasCoreUserId)
+        var identity = userInfo.Identities.FirstOrDefault(identity => identity.Platform == BotPlatform.Telegram)
+            ?? userInfo.Identities.FirstOrDefault();
+
+        var lines = new List<string>();
+        if (identity is not null && !string.IsNullOrWhiteSpace(identity.Uid))
         {
-            lines.Add($"ID: {userInfo.CoreUserId}");
+            lines.Add($"UID: `{EscapeMarkdownCode(identity.Uid)}`");
         }
 
-        lines.Add($"权限：{FormatPrivilege(userInfo.Privilege)}");
-
-        if (userInfo.Identities.Count > 0)
+        if (identity is not null && !string.IsNullOrWhiteSpace(identity.Username))
         {
-            lines.AddRange(userInfo.Identities.Select(identity =>
-            {
-                var platform = FormatPlatform(identity.Platform);
-                var label = string.IsNullOrWhiteSpace(identity.DisplayName) ? identity.Username : identity.DisplayName;
-                return string.IsNullOrWhiteSpace(label)
-                    ? $"- {platform}:{identity.Uid}"
-                    : $"- {platform}:{identity.Uid} ({label})";
-            }));
+            lines.Add($"用户名: `{EscapeMarkdownCode(FormatUsername(identity.Username))}`");
         }
 
-        return [TelegramTextMessage.PlainText(string.Join(Environment.NewLine, lines))];
-    }
-
-    private static string FormatPlatform(BotPlatform platform)
-    {
-        return platform switch
+        if (identity is not null && !string.IsNullOrWhiteSpace(identity.DisplayName))
         {
-            BotPlatform.Telegram => "telegram",
-            BotPlatform.Qq => "qq",
-            _ => "unspecified"
-        };
+            lines.Add($"昵称: `{EscapeMarkdownCode(identity.DisplayName)}`");
+        }
+
+        lines.Add($"权限: `{EscapeMarkdownCode(FormatPrivilege(userInfo.Privilege))}`");
+        return [TelegramTextMessage.Markdown(string.Join(Environment.NewLine, lines))];
     }
 
     private static string FormatPrivilege(UserPrivilege privilege)
     {
-        return privilege.ToString().ToLowerInvariant();
+        return UserPrivilegeNames.Format(privilege);
+    }
+
+    private static string FormatUsername(string username)
+    {
+        var normalized = username.Trim();
+        return normalized.StartsWith('@') ? normalized : $"@{normalized}";
+    }
+
+    private static string EscapeMarkdownCode(string value)
+    {
+        return value.Replace(@"\", @"\\", StringComparison.Ordinal)
+            .Replace("`", @"\`", StringComparison.Ordinal);
     }
 }

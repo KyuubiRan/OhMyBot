@@ -49,10 +49,43 @@ public class V2GatewayTests
             "chat",
             "user",
             "message",
-            "/p"), "tg");
+            "/p",
+            Username: "tester",
+            ChatType: BotChatType.Group,
+            FirstName: "Test",
+            LastName: "User"), "tg");
 
         Assert.IsNotNull(client.LastRequest);
         Assert.AreEqual("ping", client.LastRequest.Command);
+        Assert.AreEqual(BotChatType.Group, client.LastRequest.ChatType);
+        Assert.AreEqual("tester", client.LastRequest.Username);
+        Assert.AreEqual("Test", client.LastRequest.FirstName);
+        Assert.AreEqual("User", client.LastRequest.LastName);
+    }
+
+    [TestMethod]
+    public async Task TelegramGatewayRecordsUserProfile()
+    {
+        var client = new FakeTelegramClient();
+        var gateway = new TelegramCommandGateway(client);
+
+        var recorded = await gateway.RecordUserProfileAsync(new GatewayCommandRequest(
+            "chat",
+            "user",
+            "message",
+            "hello",
+            Username: "tester",
+            ChatType: BotChatType.Private,
+            FirstName: "Test",
+            LastName: "User"), "tg");
+
+        Assert.IsTrue(recorded);
+        Assert.IsNotNull(client.LastProfileRequest);
+        Assert.AreEqual(BotPlatform.Telegram, client.LastProfileRequest.Platform);
+        Assert.AreEqual("user", client.LastProfileRequest.Uid);
+        Assert.AreEqual("tester", client.LastProfileRequest.Username);
+        Assert.AreEqual("Test", client.LastProfileRequest.FirstName);
+        Assert.AreEqual("User", client.LastProfileRequest.LastName);
     }
 
     [TestMethod]
@@ -93,19 +126,45 @@ public class V2GatewayTests
     }
 
     [TestMethod]
-    public void TelegramUserInfoRendererShowsCoreIdOnlyWhenCoreReturnsIt()
+    public void TelegramUserInfoRendererFormatsTelegramUserInfo()
     {
         var renderer = new UserInfoTelegramRenderer();
         var userResponse = CreateUserInfoResponse(includeCoreUserId: false);
         var adminResponse = CreateUserInfoResponse(includeCoreUserId: true);
 
         var userMessage = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(userResponse).Single()).Text;
-        var adminMessage = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(adminResponse).Single()).Text;
+        var adminTextMessage = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(adminResponse).Single());
 
-        Assert.IsFalse(userMessage.Contains("ID:", StringComparison.Ordinal));
-        Assert.Contains("ID: 42", adminMessage);
-        Assert.Contains("用户信息", adminMessage);
-        Assert.Contains("telegram:123456", adminMessage);
+        Assert.IsFalse(userMessage.Contains("ID: 42", StringComparison.Ordinal));
+        Assert.IsFalse(adminTextMessage.Text.Contains("ID: 42", StringComparison.Ordinal));
+        Assert.AreEqual(ParseMode.MarkdownV2, adminTextMessage.ParseMode);
+        Assert.Contains("UID: `123456`", adminTextMessage.Text);
+        Assert.Contains("用户名: `@tester`", adminTextMessage.Text);
+        Assert.Contains("昵称: `User Test`", adminTextMessage.Text);
+    }
+
+    [TestMethod]
+    public void TelegramUserInfoRendererFormatsVerifiedUserPrivilege()
+    {
+        var renderer = new UserInfoTelegramRenderer();
+        var response = CreateUserInfoResponse(includeCoreUserId: false);
+        response.UserInfo.Privilege = UserPrivilege.VerifiedUser;
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single()).Text;
+
+        Assert.Contains("权限: `verified-user`", message);
+    }
+
+    [TestMethod]
+    public void TelegramUserInfoRendererOmitsUsernameWhenMissing()
+    {
+        var renderer = new UserInfoTelegramRenderer();
+        var response = CreateUserInfoResponse(includeCoreUserId: false);
+        response.UserInfo.Identities.Single().Username = string.Empty;
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single()).Text;
+
+        Assert.IsFalse(message.Contains("用户名:", StringComparison.Ordinal));
     }
 
     private static GetRoutesResponse CreateMixedRoutes()
@@ -145,7 +204,7 @@ public class V2GatewayTests
         {
             Platform = BotPlatform.Telegram,
             Uid = "123456",
-            DisplayName = "Tester",
+            DisplayName = "User Test",
             Username = "tester"
         });
 
@@ -166,6 +225,8 @@ public class V2GatewayTests
     {
         public CommandRequest? LastRequest { get; private set; }
 
+        public UserProfileRequest? LastProfileRequest { get; private set; }
+
         public Task<CommandResponse> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
@@ -175,6 +236,12 @@ public class V2GatewayTests
         public Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(CreateMixedRoutes());
+        }
+
+        public Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default)
+        {
+            LastProfileRequest = request;
+            return Task.FromResult(new UserProfileResponse { Recorded = true });
         }
     }
 
@@ -188,6 +255,11 @@ public class V2GatewayTests
         public Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(CreateMixedRoutes());
+        }
+
+        public Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new UserProfileResponse { Recorded = true });
         }
     }
 }

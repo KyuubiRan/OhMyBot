@@ -1,3 +1,4 @@
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 
 namespace OhMyBot.QQGateway;
@@ -30,7 +31,7 @@ public sealed class QQResponseRenderer
             lines.Add($"Core ID: {data.CoreUserId}");
         }
 
-        lines.Add($"Privilege: {data.Privilege.ToString().ToLowerInvariant()}");
+        lines.Add($"Privilege: {UserPrivilegeNames.Format(data.Privilege)}");
 
         if (data.Identities.Count > 0)
         {

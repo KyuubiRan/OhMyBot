@@ -12,6 +12,10 @@
         "Telegram",
         "QQ"
       ],
+      "supportChatTypes": [
+        "Private",
+        "Group"
+      ],
       "enabled": true
     },
     {
@@ -25,6 +29,10 @@
         "Telegram",
         "QQ"
       ],
+      "supportChatTypes": [
+        "Private",
+        "Group"
+      ],
       "enabled": true
     },
     {
@@ -37,6 +45,10 @@
       "supportPlatforms": [
         "Telegram",
         "QQ"
+      ],
+      "supportChatTypes": [
+        "Private",
+        "Group"
       ],
       "enabled": true
     }

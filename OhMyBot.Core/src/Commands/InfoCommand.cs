@@ -20,6 +20,8 @@ public sealed class InfoCommand(IServiceScopeFactory scopeFactory) : ICoreComman
 
     public SupportedPlatforms SupportPlatforms => SupportedPlatforms.All;
 
+    public SupportedChatTypes SupportChatTypes => SupportedChatTypes.All;
+
     public bool Enabled => true;
 
     public async Task<CommandResponse> ExecuteAsync(CommandContext context)
@@ -36,8 +38,6 @@ public sealed class InfoCommand(IServiceScopeFactory scopeFactory) : ICoreComman
         {
             var targetIdentity = await dbContext.PlatformIdentities
                 .AsNoTracking()
-                .Include(identity => identity.CoreUser)
-                .ThenInclude(user => user.Identities)
                 .FirstOrDefaultAsync(
                     identity => identity.Platform == context.Request.Platform
                         && identity.PlatformUserId == requestedPlatformUserId,
@@ -51,14 +51,11 @@ public sealed class InfoCommand(IServiceScopeFactory scopeFactory) : ICoreComman
                     context);
             }
 
-            targetUser = targetIdentity.CoreUser;
+            targetUser = await LoadUserAsync(dbContext, targetIdentity.CoreUserId, context.CancellationToken);
         }
         else
         {
-            targetUser = await dbContext.CoreUsers
-                .AsNoTracking()
-                .Include(user => user.Identities)
-                .FirstOrDefaultAsync(user => user.Id == context.Identity.CoreUserId, context.CancellationToken);
+            targetUser = await LoadUserAsync(dbContext, context.Identity.CoreUserId, context.CancellationToken);
         }
 
         if (targetUser is null)
@@ -96,5 +93,16 @@ public sealed class InfoCommand(IServiceScopeFactory scopeFactory) : ICoreComman
             DisplayName = identity.DisplayName ?? string.Empty,
             Username = identity.Username ?? string.Empty
         };
+    }
+
+    private static Task<CoreUser?> LoadUserAsync(
+        OhMyBotV2DbContext dbContext,
+        long coreUserId,
+        CancellationToken cancellationToken)
+    {
+        return dbContext.CoreUsers
+            .AsNoTracking()
+            .Include(user => user.Identities)
+            .FirstOrDefaultAsync(user => user.Id == coreUserId, cancellationToken);
     }
 }

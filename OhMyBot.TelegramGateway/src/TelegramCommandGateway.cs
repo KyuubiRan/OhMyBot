@@ -102,14 +102,43 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
                 UserId = gatewayRequest.UserId,
                 MessageId = gatewayRequest.MessageId,
                 Command = route.Command,
+                ChatType = gatewayRequest.ChatType,
                 DisplayName = gatewayRequest.DisplayName ?? string.Empty,
                 Username = gatewayRequest.Username ?? string.Empty,
+                FirstName = gatewayRequest.FirstName ?? string.Empty,
+                LastName = gatewayRequest.LastName ?? string.Empty,
+                Nickname = gatewayRequest.Nickname ?? string.Empty,
                 Args = { args }
             }, cancellationToken);
         }
         catch (RpcException exception)
         {
             return ResponseError("CoreUnavailable", exception.Status.Detail);
+        }
+    }
+
+    public async Task<bool> RecordUserProfileAsync(
+        GatewayCommandRequest gatewayRequest,
+        string botInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await commandRouterClient.RecordUserProfileAsync(new UserProfileRequest
+            {
+                Platform = BotPlatform.Telegram,
+                BotInstanceId = botInstanceId,
+                Uid = gatewayRequest.UserId,
+                Username = gatewayRequest.Username ?? string.Empty,
+                FirstName = gatewayRequest.FirstName ?? string.Empty,
+                LastName = gatewayRequest.LastName ?? string.Empty,
+                Nickname = gatewayRequest.Nickname ?? string.Empty
+            }, cancellationToken);
+            return true;
+        }
+        catch (RpcException)
+        {
+            return false;
         }
     }
 

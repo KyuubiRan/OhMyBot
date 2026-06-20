@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Data;
 using OhMyBot.Core.Data.Entities;
@@ -20,7 +21,7 @@ public sealed class UserAdminCommand(
             new AdminCommandOptionDefinition("-id, --id", "specify core user id"),
             new AdminCommandOptionDefinition("-p, --platform", "specify platform: telegram, qq"),
             new AdminCommandOptionDefinition("-uid, --uid", "specify platform user id, required with platform"),
-            new AdminCommandOptionDefinition("-sp, --set-priv", "set privileges: user, admin, owner"),
+            new AdminCommandOptionDefinition("-sp, --set-priv", $"set privileges: {UserPrivilegeNames.SupportedValues}"),
             new AdminCommandOptionDefinition("-gp, --get-priv", "get privileges")
         ],
         [
@@ -67,7 +68,7 @@ public sealed class UserAdminCommand(
         {
             if (!TryParsePrivilege(privilegeValue, out var privilege))
             {
-                return UsageError("Invalid privilege. Supported values: user, admin, owner.");
+                return UsageError($"Invalid privilege. Supported values: {UserPrivilegeNames.SupportedValues}.");
             }
 
             return selector.CoreUserId.HasValue
@@ -255,8 +256,7 @@ public sealed class UserAdminCommand(
 
     private static bool TryParsePrivilege(string value, out UserPrivilege privilege)
     {
-        return Enum.TryParse(value, ignoreCase: true, out privilege)
-            && Enum.IsDefined(privilege);
+        return UserPrivilegeNames.TryParse(value, out privilege);
     }
 
     private static string FormatUser(CoreUser user)
@@ -291,7 +291,7 @@ public sealed class UserAdminCommand(
 
     private static string FormatPrivilege(UserPrivilege privilege)
     {
-        return privilege.ToString().ToLowerInvariant();
+        return UserPrivilegeNames.Format(privilege);
     }
 
     private sealed record UserSelector(

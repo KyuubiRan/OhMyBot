@@ -1,10 +1,12 @@
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Routing;
+using OhMyBot.Core.UserProfiles;
 
 namespace OhMyBot.Core.Commands;
 
 public sealed class CommandExecutionService(
     CoreIdentityService identityService,
+    PlatformUserProfileService userProfileService,
     CommandRegistry commandRegistry,
     RouteStore routeStore,
     TimeProvider timeProvider)
@@ -12,6 +14,7 @@ public sealed class CommandExecutionService(
     public async Task<CommandResponse> ExecuteAsync(CommandRequest request, CancellationToken cancellationToken = default)
     {
         var started = timeProvider.GetTimestamp();
+        await userProfileService.RecordAsync(request, cancellationToken);
         var identity = await identityService.ResolveIdentityAsync(request, cancellationToken);
 
         if (!routeStore.TryGet(request.Command, out var route))
@@ -33,6 +36,12 @@ public sealed class CommandExecutionService(
         if (platformFlag is SupportedPlatforms.None || !route.SupportPlatforms.HasFlag(platformFlag) || !command.SupportPlatforms.HasFlag(platformFlag))
         {
             return CommandResponses.Error("UnsupportedPlatform", "This command is not available on this platform.", identity, request.MessageId);
+        }
+
+        var chatTypeFlag = CommandRegistry.ToSupportedChatType(request.ChatType);
+        if (chatTypeFlag is SupportedChatTypes.None || !route.EffectiveSupportChatTypes.HasFlag(chatTypeFlag))
+        {
+            return CommandResponses.Error("UnsupportedChatType", "This command is not available in this chat type.", identity, request.MessageId);
         }
 
         if ((int)identity.Privilege < (int)route.EffectiveRequiredPrivilege)

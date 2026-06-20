@@ -16,6 +16,8 @@ public sealed class PingCommand(TimeProvider timeProvider) : ICoreCommand
 
     public SupportedPlatforms SupportPlatforms => SupportedPlatforms.All;
 
+    public SupportedChatTypes SupportChatTypes => SupportedChatTypes.All;
+
     public bool Enabled => true;
 
     public Task<CommandResponse> ExecuteAsync(CommandContext context)

@@ -11,9 +11,11 @@ public sealed record RouteEntry(
     IReadOnlyList<string> Aliases,
     UserPrivilege RequiredPrivilege,
     SupportedPlatforms SupportPlatforms,
+    SupportedChatTypes SupportChatTypes,
     bool Enabled,
     bool TargetExists,
-    UserPrivilege EffectiveRequiredPrivilege)
+    UserPrivilege EffectiveRequiredPrivilege,
+    SupportedChatTypes EffectiveSupportChatTypes)
 {
     public RouteDescriptor ToDescriptor() => new()
     {
@@ -24,6 +26,7 @@ public sealed record RouteEntry(
         Aliases = { Aliases },
         RequiredPrivilege = RequiredPrivilege,
         SupportPlatforms = (int)SupportPlatforms,
+        SupportChatTypes = (int)SupportChatTypes,
         Enabled = Enabled
     };
 }

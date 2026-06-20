@@ -12,6 +12,7 @@ public sealed class CoreCommandCatalog(IEnumerable<ICoreCommand> commands)
             command.SupportPlatforms,
             command.ExecuteAsync,
             command.Enabled,
-            command.Aliases));
+            command.Aliases,
+            command.SupportChatTypes));
     }
 }

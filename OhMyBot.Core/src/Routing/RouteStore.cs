@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commands;
 
@@ -128,6 +129,7 @@ public sealed class RouteStore(
                 Aliases = command.Aliases.ToArray(),
                 RequiredPrivilege = command.RequiredPrivilege.ToString(),
                 SupportPlatforms = ToPlatformNames(command.SupportPlatforms),
+                SupportChatTypes = ToChatTypeNames(command.SupportChatTypes),
                 Enabled = command.Enabled
             });
             changed = true;
@@ -154,6 +156,8 @@ public sealed class RouteStore(
             var targetExists = commandRegistry.TryGet(coreCommand, out var commandRegistration);
             var routePrivilege = ParsePrivilege(definition.RequiredPrivilege);
             var corePrivilege = commandRegistration?.RequiredPrivilege ?? routePrivilege;
+            var routeChatTypes = ParseChatTypes(definition.SupportChatTypes);
+            var coreChatTypes = commandRegistration?.SupportChatTypes ?? routeChatTypes;
             var aliases = NormalizeAliases(commandName, definition.Aliases);
 
             routes[commandName] = new RouteEntry(
@@ -164,9 +168,11 @@ public sealed class RouteStore(
                 aliases,
                 routePrivilege,
                 ParsePlatforms(definition.SupportPlatforms),
+                routeChatTypes,
                 definition.Enabled,
                 targetExists,
-                (UserPrivilege)Math.Max((int)routePrivilege, (int)corePrivilege));
+                (UserPrivilege)Math.Max((int)routePrivilege, (int)corePrivilege),
+                routeChatTypes & coreChatTypes);
         }
 
         return routes;
@@ -207,7 +213,8 @@ public sealed class RouteStore(
 
     private static UserPrivilege ParsePrivilege(string value)
     {
-        return Enum.TryParse<UserPrivilege>(value, ignoreCase: true, out var privilege)
+        return UserPrivilegeNames.TryParse(value, out var privilege)
+            || Enum.TryParse<UserPrivilege>(value, ignoreCase: true, out privilege)
             ? privilege
             : UserPrivilege.User;
     }
@@ -242,6 +249,41 @@ public sealed class RouteStore(
         if (platforms.HasFlag(SupportedPlatforms.QQ))
         {
             names.Add("QQ");
+        }
+
+        return names.ToArray();
+    }
+
+    private static SupportedChatTypes ParseChatTypes(IEnumerable<string> values)
+    {
+        var result = SupportedChatTypes.None;
+        foreach (var value in values)
+        {
+            if (Enum.TryParse<SupportedChatTypes>(value, ignoreCase: true, out var chatType))
+            {
+                result |= chatType;
+            }
+        }
+
+        return result is SupportedChatTypes.None ? SupportedChatTypes.All : result;
+    }
+
+    private static string[] ToChatTypeNames(SupportedChatTypes chatTypes)
+    {
+        if (chatTypes is SupportedChatTypes.All)
+        {
+            return ["Private", "Group"];
+        }
+
+        var names = new List<string>();
+        if (chatTypes.HasFlag(SupportedChatTypes.Private))
+        {
+            names.Add("Private");
+        }
+
+        if (chatTypes.HasFlag(SupportedChatTypes.Group))
+        {
+            names.Add("Group");
         }
 
         return names.ToArray();

@@ -27,6 +27,8 @@ public sealed class LinkCommand(
 
     public SupportedPlatforms SupportPlatforms => SupportedPlatforms.All;
 
+    public SupportedChatTypes SupportChatTypes => SupportedChatTypes.All;
+
     public bool Enabled => true;
 
     public async Task<CommandResponse> ExecuteAsync(CommandContext context)

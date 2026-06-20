@@ -16,6 +16,8 @@ public interface ICoreCommand
 
     SupportedPlatforms SupportPlatforms { get; }
 
+    SupportedChatTypes SupportChatTypes { get; }
+
     bool Enabled { get; }
 
     Task<CommandResponse> ExecuteAsync(CommandContext context);
