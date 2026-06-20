@@ -14,7 +14,7 @@ public sealed class RabbitMqRouteChangePublisher(
     private readonly RabbitMqOptions _options = options.Value;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
-    public Task PublishRoutesChangedAsync(long version, CancellationToken cancellationToken = default)
+    public async Task PublishRoutesChangedAsync(long version, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -27,24 +27,32 @@ public sealed class RabbitMqRouteChangePublisher(
                 VirtualHost = _options.VirtualHost
             };
 
-            using var connection = factory.CreateConnection();
-            using var channel = connection.CreateModel();
-            channel.ExchangeDeclare(_options.NotificationExchange, ExchangeType.Topic, durable: true, autoDelete: false);
+            await using var connection = await factory.CreateConnectionAsync(cancellationToken);
+            await using var channel = await connection.CreateChannelAsync(cancellationToken: cancellationToken);
+            await channel.ExchangeDeclareAsync(
+                _options.NotificationExchange,
+                ExchangeType.Topic,
+                durable: true,
+                autoDelete: false,
+                cancellationToken: cancellationToken);
 
             var payload = JsonSerializer.SerializeToUtf8Bytes(
                 RouteChangedEvent.Create(version, timeProvider.GetUtcNow()),
                 JsonOptions);
 
-            var properties = channel.CreateBasicProperties();
-            properties.ContentType = "application/json";
-            properties.DeliveryMode = 2;
+            var properties = new BasicProperties
+            {
+                ContentType = "application/json",
+                Persistent = true
+            };
 
-            channel.BasicPublish(
+            await channel.BasicPublishAsync(
                 _options.NotificationExchange,
                 RouteChangedEvent.EventType,
                 mandatory: false,
                 basicProperties: properties,
-                body: payload);
+                body: payload,
+                cancellationToken: cancellationToken);
 
             logger.LogInformation("Published route change event version {Version}.", version);
         }
@@ -52,7 +60,5 @@ public sealed class RabbitMqRouteChangePublisher(
         {
             logger.LogError(exception, "Failed to publish route change event.");
         }
-
-        return Task.CompletedTask;
     }
 }

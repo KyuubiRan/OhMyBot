@@ -87,6 +87,11 @@ public sealed class TelegramCommandGateway(
                 command);
         }
 
+        if (command == "info" && !string.IsNullOrWhiteSpace(gatewayRequest.TextMentionUserId))
+        {
+            args = [gatewayRequest.TextMentionUserId];
+        }
+
         if (command == "reload")
         {
             try

@@ -92,6 +92,43 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public async Task TelegramInfoUsesTextMentionUserIdAsArgument()
+    {
+        var client = new FakeTelegramClient(CreateTelegramInfoRoutes());
+        var gateway = new TelegramCommandGateway(client);
+        await gateway.ReloadAsync("tg");
+
+        await gateway.ExecuteAsync(new GatewayCommandRequest(
+            "chat",
+            "admin",
+            "message",
+            "/info @display",
+            TextMentionUserId: "mentioned-user"), "tg");
+
+        Assert.IsNotNull(client.LastRequest);
+        Assert.AreEqual("info", client.LastRequest.Command);
+        CollectionAssert.AreEqual(new[] { "mentioned-user" }, client.LastRequest.Args.ToArray());
+    }
+
+    [TestMethod]
+    public async Task TelegramInfoKeepsUsernameMentionArgument()
+    {
+        var client = new FakeTelegramClient(CreateTelegramInfoRoutes());
+        var gateway = new TelegramCommandGateway(client);
+        await gateway.ReloadAsync("tg");
+
+        await gateway.ExecuteAsync(new GatewayCommandRequest(
+            "chat",
+            "admin",
+            "message",
+            "/info @target_user"), "tg");
+
+        Assert.IsNotNull(client.LastRequest);
+        Assert.AreEqual("info", client.LastRequest.Command);
+        CollectionAssert.AreEqual(new[] { "@target_user" }, client.LastRequest.Args.ToArray());
+    }
+
+    [TestMethod]
     public async Task QQGatewayUsesDefaultCommandPrefixes()
     {
         var client = new FakeQQClient();
@@ -239,6 +276,22 @@ public class V2GatewayTests
         return response;
     }
 
+    private static GetRoutesResponse CreateTelegramInfoRoutes()
+    {
+        var response = new GetRoutesResponse { Version = 1 };
+        response.Routes.Add(new RouteDescriptor
+        {
+            Command = "info",
+            CoreCommand = "info",
+            Description = "Info.",
+            Usage = "/info [uid]",
+            RequiredPrivilege = UserPrivilege.User,
+            SupportPlatforms = 1,
+            Enabled = true
+        });
+        return response;
+    }
+
     private static CommandResponse CreateUserInfoResponse(bool includeCoreUserId)
     {
         var data = new UserInfoData
@@ -268,6 +321,13 @@ public class V2GatewayTests
 
     private sealed class FakeTelegramClient : ICommandRouterClient
     {
+        private readonly GetRoutesResponse _routes;
+
+        public FakeTelegramClient(GetRoutesResponse? routes = null)
+        {
+            _routes = routes ?? CreateMixedRoutes();
+        }
+
         public CommandRequest? LastRequest { get; private set; }
 
         public UserProfileRequest? LastProfileRequest { get; private set; }
@@ -280,7 +340,7 @@ public class V2GatewayTests
 
         public Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default)
         {
-            return Task.FromResult(CreateMixedRoutes());
+            return Task.FromResult(_routes);
         }
 
         public Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default)

@@ -40,7 +40,8 @@ public sealed class TelegramUpdateHandler(
                 ToChatType(message.Chat.Type),
                 from.FirstName,
                 from.LastName,
-                ReplyToUserId: message.ReplyToMessage?.From?.Id.ToString());
+                ReplyToUserId: message.ReplyToMessage?.From?.Id.ToString(),
+                TextMentionUserId: message.GetFirstCommandArgumentTextMentionUserId());
 
             await commandGateway.RecordUserProfileAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
 

@@ -52,27 +52,33 @@ public sealed class RouteRefreshConsumerService(
             Port = _rabbitMqOptions.Port,
             UserName = _rabbitMqOptions.UserName,
             Password = _rabbitMqOptions.Password,
-            VirtualHost = _rabbitMqOptions.VirtualHost,
-            DispatchConsumersAsync = false
+            VirtualHost = _rabbitMqOptions.VirtualHost
         };
 
-        using var connection = factory.CreateConnection();
-        using var channel = connection.CreateModel();
-        channel.ExchangeDeclare(_rabbitMqOptions.NotificationExchange, ExchangeType.Topic, durable: true, autoDelete: false);
-        channel.QueueDeclare(queueName, durable: true, exclusive: false, autoDelete: false);
-        channel.QueueBind(queueName, _rabbitMqOptions.NotificationExchange, RouteChangedEvent.EventType);
+        await using var connection = await factory.CreateConnectionAsync(stoppingToken);
+        await using var channel = await connection.CreateChannelAsync(cancellationToken: stoppingToken);
+        await channel.ExchangeDeclareAsync(
+            _rabbitMqOptions.NotificationExchange,
+            ExchangeType.Topic,
+            durable: true,
+            autoDelete: false,
+            cancellationToken: stoppingToken);
+        await channel.QueueDeclareAsync(queueName, durable: true, exclusive: false, autoDelete: false, cancellationToken: stoppingToken);
+        await channel.QueueBindAsync(
+            queueName,
+            _rabbitMqOptions.NotificationExchange,
+            RouteChangedEvent.EventType,
+            cancellationToken: stoppingToken);
 
-        var consumer = new EventingBasicConsumer(channel);
-        consumer.Received += (_, args) =>
+        var consumer = new AsyncEventingBasicConsumer(channel);
+        consumer.ReceivedAsync += async (_, args) =>
         {
             try
             {
                 var routeEvent = JsonSerializer.Deserialize<RouteChangedEvent>(args.Body.Span, JsonOptions);
                 if (routeEvent?.Type == RouteChangedEvent.EventType)
                 {
-                    var routes = gateway.ReloadAsync(botInstanceId, stoppingToken)
-                        .GetAwaiter()
-                        .GetResult();
+                    var routes = await gateway.ReloadAsync(botInstanceId, stoppingToken);
                     logger.LogInformation("Reloaded {Count} QQ routes from route change event version {Version}.",
                         routes.Count, routeEvent.Version);
                 }
@@ -83,11 +89,11 @@ public sealed class RouteRefreshConsumerService(
             }
             finally
             {
-                channel.BasicAck(args.DeliveryTag, multiple: false);
+                await channel.BasicAckAsync(args.DeliveryTag, multiple: false, cancellationToken: stoppingToken);
             }
         };
 
-        channel.BasicConsume(queueName, autoAck: false, consumer);
+        await channel.BasicConsumeAsync(queueName, autoAck: false, consumer, stoppingToken);
         await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
     }
 }
