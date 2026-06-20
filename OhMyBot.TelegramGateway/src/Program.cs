@@ -14,6 +14,9 @@ builder.Services.Configure<TelegramGatewayOptions>(options =>
     options.BotToken = builder.Configuration["Telegram:BotToken"] ?? options.BotToken;
     options.CoreGrpcAddress = builder.Configuration["Core:GrpcAddress"] ?? options.CoreGrpcAddress;
     options.DropPendingUpdates = builder.Configuration.GetValue("Telegram:DropPendingUpdates", options.DropPendingUpdates);
+    options.CommandPrefixes = builder.Configuration.GetSection("Telegram:CommandPrefixes").Get<string[]>()
+        ?? builder.Configuration.GetSection("CommandPrefixes").Get<string[]>()
+        ?? options.CommandPrefixes;
 });
 builder.Services.AddOptions<RabbitMqOptions>().BindConfiguration("RabbitMQ");
 

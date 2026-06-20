@@ -29,25 +29,24 @@ public sealed class InfoCommand(IServiceScopeFactory scopeFactory) : ICoreComman
         await using var scope = scopeFactory.CreateAsyncScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<OhMyBotV2DbContext>();
         var callerIsAdmin = (int)context.Identity.Privilege >= (int)UserPrivilege.Admin;
-        var requestedPlatformUserId = context.Request.Args.Count > 0
+        var requestedUser = context.Request.Args.Count > 0
             ? context.Request.Args[0].Trim()
-            : string.Empty;
+            : context.Request.ReplyToUserId.Trim();
 
         CoreUser? targetUser;
-        if (callerIsAdmin && !string.IsNullOrWhiteSpace(requestedPlatformUserId))
+        if (callerIsAdmin && !string.IsNullOrWhiteSpace(requestedUser))
         {
-            var targetIdentity = await dbContext.PlatformIdentities
-                .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    identity => identity.Platform == context.Request.Platform
-                        && identity.PlatformUserId == requestedPlatformUserId,
-                    context.CancellationToken);
+            var targetIdentity = await FindIdentityAsync(
+                dbContext,
+                context.Request.Platform,
+                requestedUser,
+                context.CancellationToken);
 
             if (targetIdentity is null)
             {
                 return CommandResponses.Error(
                     "UserNotFound",
-                    $"User identity not found: uid={requestedPlatformUserId}.",
+                    $"User identity not found: {requestedUser}.",
                     context);
             }
 
@@ -104,5 +103,27 @@ public sealed class InfoCommand(IServiceScopeFactory scopeFactory) : ICoreComman
             .AsNoTracking()
             .Include(user => user.Identities)
             .FirstOrDefaultAsync(user => user.Id == coreUserId, cancellationToken);
+    }
+
+    private static Task<PlatformIdentity?> FindIdentityAsync(
+        OhMyBotV2DbContext dbContext,
+        BotPlatform platform,
+        string requestedUser,
+        CancellationToken cancellationToken)
+    {
+        var normalized = requestedUser.Trim();
+        var username = normalized.TrimStart('@');
+        var normalizedUsername = username.ToLowerInvariant();
+        var searchByUsernameOnly = normalized.StartsWith('@');
+
+        return dbContext.PlatformIdentities
+            .AsNoTracking()
+            .FirstOrDefaultAsync(
+                identity => identity.Platform == platform
+                    && (searchByUsernameOnly
+                        ? identity.Username != null && identity.Username.ToLower() == normalizedUsername
+                        : identity.PlatformUserId == normalized
+                            || identity.Username != null && identity.Username.ToLower() == normalizedUsername),
+                cancellationToken);
     }
 }

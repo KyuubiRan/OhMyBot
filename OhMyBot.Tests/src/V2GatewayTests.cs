@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.QQGateway;
 using OhMyBot.TelegramGateway;
@@ -53,7 +54,8 @@ public class V2GatewayTests
             Username: "tester",
             ChatType: BotChatType.Group,
             FirstName: "Test",
-            LastName: "User"), "tg");
+            LastName: "User",
+            ReplyToUserId: "reply-user"), "tg");
 
         Assert.IsNotNull(client.LastRequest);
         Assert.AreEqual("ping", client.LastRequest.Command);
@@ -61,6 +63,49 @@ public class V2GatewayTests
         Assert.AreEqual("tester", client.LastRequest.Username);
         Assert.AreEqual("Test", client.LastRequest.FirstName);
         Assert.AreEqual("User", client.LastRequest.LastName);
+        Assert.AreEqual("reply-user", client.LastRequest.ReplyToUserId);
+    }
+
+    [TestMethod]
+    public async Task TelegramGatewayUsesConfiguredCommandPrefixes()
+    {
+        var client = new FakeTelegramClient();
+        var gateway = new TelegramCommandGateway(
+            client,
+            Options.Create(new TelegramGatewayOptions { CommandPrefixes = ["!"] }));
+        await gateway.ReloadAsync("tg");
+
+        var ignored = await gateway.ExecuteAsync(new GatewayCommandRequest(
+            "chat",
+            "user",
+            "message",
+            "/p"), "tg");
+        await gateway.ExecuteAsync(new GatewayCommandRequest(
+            "chat",
+            "user",
+            "message",
+            "!p"), "tg");
+
+        Assert.AreEqual(CommandResponseDataKind.Unspecified, ignored.DataKind);
+        Assert.IsNotNull(client.LastRequest);
+        Assert.AreEqual("ping", client.LastRequest.Command);
+    }
+
+    [TestMethod]
+    public async Task QQGatewayUsesDefaultCommandPrefixes()
+    {
+        var client = new FakeQQClient();
+        var gateway = new QQCommandGateway(client);
+        await gateway.ReloadAsync("qq");
+
+        await gateway.ExecuteAsync(new OhMyBot.QQGateway.GatewayCommandRequest(
+            "chat",
+            "user",
+            "message",
+            "!qqonly"), "qq");
+
+        Assert.IsNotNull(client.LastRequest);
+        Assert.AreEqual("qqonly", client.LastRequest.Command);
     }
 
     [TestMethod]
@@ -247,8 +292,11 @@ public class V2GatewayTests
 
     private sealed class FakeQQClient : QQGateway.ICommandRouterClient
     {
+        public CommandRequest? LastRequest { get; private set; }
+
         public Task<CommandResponse> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken = default)
         {
+            LastRequest = request;
             return Task.FromResult(new CommandResponse());
         }
 

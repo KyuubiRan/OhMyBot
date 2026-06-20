@@ -9,4 +9,6 @@ public sealed class TelegramGatewayOptions
     public string CoreGrpcAddress { get; set; } = "http://localhost:5100";
 
     public bool DropPendingUpdates { get; set; } = true;
+
+    public string[] CommandPrefixes { get; set; } = ["/", "!", "."];
 }

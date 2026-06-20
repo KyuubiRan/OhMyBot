@@ -52,6 +52,7 @@ message CommandRequest {
   string first_name = 11;
   string last_name = 12;
   string nickname = 13;
+  string reply_to_user_id = 14;
 }
 
 message GetRoutesRequest {

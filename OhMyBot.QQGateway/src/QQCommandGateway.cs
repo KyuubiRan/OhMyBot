@@ -1,10 +1,16 @@
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
 
 namespace OhMyBot.QQGateway;
 
-public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
+public sealed class QQCommandGateway(
+    ICommandRouterClient commandRouterClient,
+    IOptions<QQGatewayOptions>? options = null,
+    ILogger<QQCommandGateway>? logger = null)
 {
     private const int QQPlatformFlag = 2;
+    private readonly string[] _commandPrefixes = GatewayCommandParser.NormalizePrefixes(options?.Value.CommandPrefixes);
     private readonly Lock _cacheLock = new();
     private IReadOnlyDictionary<string, RouteDescriptor> _routes = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
     private long _version;
@@ -55,7 +61,7 @@ public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
 
         lock (_cacheLock)
         {
-            _routes = BuildRouteLookup(routes);
+            _routes = BuildRouteLookup(routes, _commandPrefixes);
             _version = response.Version;
         }
 
@@ -67,7 +73,16 @@ public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
         string botInstanceId,
         CancellationToken cancellationToken = default)
     {
-        var (command, args) = Parse(gatewayRequest.Text);
+        var (command, args) = GatewayCommandParser.Parse(gatewayRequest.Text, _commandPrefixes);
+        if (!string.IsNullOrWhiteSpace(command))
+        {
+            logger?.LogInformation(
+                "Received command senderId={SenderId} chatId={ChatId} command={Command}.",
+                gatewayRequest.UserId,
+                gatewayRequest.ChatId,
+                command);
+        }
+
         if (command == "reload")
         {
             var routes = await ReloadAsync(botInstanceId, cancellationToken);
@@ -98,6 +113,7 @@ public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
             FirstName = gatewayRequest.FirstName ?? string.Empty,
             LastName = gatewayRequest.LastName ?? string.Empty,
             Nickname = gatewayRequest.Nickname ?? string.Empty,
+            ReplyToUserId = gatewayRequest.ReplyToUserId ?? string.Empty,
             Args = { args }
         }, cancellationToken);
     }
@@ -128,7 +144,9 @@ public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
         }
     }
 
-    private static IReadOnlyDictionary<string, RouteDescriptor> BuildRouteLookup(IEnumerable<RouteDescriptor> routes)
+    private static IReadOnlyDictionary<string, RouteDescriptor> BuildRouteLookup(
+        IEnumerable<RouteDescriptor> routes,
+        IReadOnlyCollection<string> commandPrefixes)
     {
         var lookup = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
         foreach (var route in routes)
@@ -136,23 +154,11 @@ public sealed class QQCommandGateway(ICommandRouterClient commandRouterClient)
             lookup[route.Command] = route;
             foreach (var alias in route.Aliases.Where(alias => !string.IsNullOrWhiteSpace(alias)))
             {
-                lookup[alias.Trim().TrimStart('/').ToLowerInvariant()] = route;
+                lookup[GatewayCommandParser.NormalizeRouteKey(alias, commandPrefixes)] = route;
             }
         }
 
         return lookup;
-    }
-
-    private static (string Command, string[] Args) Parse(string text)
-    {
-        var parts = text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0)
-        {
-            return (string.Empty, []);
-        }
-
-        var command = parts[0].TrimStart('/').ToLowerInvariant();
-        return (command, parts.Skip(1).ToArray());
     }
 
     private static CommandResponse ResponseText(string text)

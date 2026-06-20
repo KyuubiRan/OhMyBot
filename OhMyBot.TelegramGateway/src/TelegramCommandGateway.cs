@@ -1,11 +1,17 @@
 using Grpc.Core;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
 
 namespace OhMyBot.TelegramGateway;
 
-public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterClient)
+public sealed class TelegramCommandGateway(
+    ICommandRouterClient commandRouterClient,
+    IOptions<TelegramGatewayOptions>? options = null,
+    ILogger<TelegramCommandGateway>? logger = null)
 {
     private const int TelegramPlatformFlag = 1;
+    private readonly string[] _commandPrefixes = GatewayCommandParser.NormalizePrefixes(options?.Value.CommandPrefixes);
     private readonly Lock _cacheLock = new();
     private IReadOnlyDictionary<string, RouteDescriptor> _routes = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
     private long _version;
@@ -56,7 +62,7 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
 
         lock (_cacheLock)
         {
-            _routes = BuildRouteLookup(routes);
+            _routes = BuildRouteLookup(routes, _commandPrefixes);
             _version = response.Version;
         }
 
@@ -68,7 +74,19 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
         string botInstanceId,
         CancellationToken cancellationToken = default)
     {
-        var (command, args) = Parse(gatewayRequest.Text);
+        var (command, args) = GatewayCommandParser.Parse(
+            gatewayRequest.Text,
+            _commandPrefixes,
+            stripBotMention: true);
+        if (!string.IsNullOrWhiteSpace(command))
+        {
+            logger?.LogInformation(
+                "Received command senderId={SenderId} chatId={ChatId} command={Command}.",
+                gatewayRequest.UserId,
+                gatewayRequest.ChatId,
+                command);
+        }
+
         if (command == "reload")
         {
             try
@@ -108,6 +126,7 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
                 FirstName = gatewayRequest.FirstName ?? string.Empty,
                 LastName = gatewayRequest.LastName ?? string.Empty,
                 Nickname = gatewayRequest.Nickname ?? string.Empty,
+                ReplyToUserId = gatewayRequest.ReplyToUserId ?? string.Empty,
                 Args = { args }
             }, cancellationToken);
         }
@@ -150,7 +169,9 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
         }
     }
 
-    private static IReadOnlyDictionary<string, RouteDescriptor> BuildRouteLookup(IEnumerable<RouteDescriptor> routes)
+    private static IReadOnlyDictionary<string, RouteDescriptor> BuildRouteLookup(
+        IEnumerable<RouteDescriptor> routes,
+        IReadOnlyCollection<string> commandPrefixes)
     {
         var lookup = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
         foreach (var route in routes)
@@ -158,23 +179,11 @@ public sealed class TelegramCommandGateway(ICommandRouterClient commandRouterCli
             lookup[route.Command] = route;
             foreach (var alias in route.Aliases.Where(alias => !string.IsNullOrWhiteSpace(alias)))
             {
-                lookup[alias.Trim().TrimStart('/').ToLowerInvariant()] = route;
+                lookup[GatewayCommandParser.NormalizeRouteKey(alias, commandPrefixes)] = route;
             }
         }
 
         return lookup;
-    }
-
-    private static (string Command, string[] Args) Parse(string text)
-    {
-        var parts = text.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0)
-        {
-            return (string.Empty, []);
-        }
-
-        var command = parts[0].TrimStart('/').Split('@', 2)[0].ToLowerInvariant();
-        return (command, parts.Skip(1).ToArray());
     }
 
     private static CommandResponse ResponseText(string text)

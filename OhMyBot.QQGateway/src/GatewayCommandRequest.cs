@@ -12,4 +12,5 @@ public sealed record GatewayCommandRequest(
     BotChatType ChatType = BotChatType.Unspecified,
     string? FirstName = null,
     string? LastName = null,
-    string? Nickname = null);
+    string? Nickname = null,
+    string? ReplyToUserId = null);

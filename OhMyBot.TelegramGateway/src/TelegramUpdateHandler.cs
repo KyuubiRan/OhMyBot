@@ -39,11 +39,12 @@ public sealed class TelegramUpdateHandler(
                 from.Username,
                 ToChatType(message.Chat.Type),
                 from.FirstName,
-                from.LastName);
+                from.LastName,
+                ReplyToUserId: message.ReplyToMessage?.From?.Id.ToString());
 
             await commandGateway.RecordUserProfileAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
 
-            if (!text.StartsWith('/'))
+            if (!GatewayCommandParser.IsCommand(text, _options.CommandPrefixes))
             {
                 return;
             }
@@ -77,6 +78,11 @@ public sealed class TelegramUpdateHandler(
         HandleErrorSource source,
         CancellationToken cancellationToken)
     {
+        if (source == HandleErrorSource.PollingError)
+        {
+            return Task.CompletedTask;
+        }
+
         logger.LogError(exception, "Telegram polling error from {Source}.", source);
         return Task.CompletedTask;
     }

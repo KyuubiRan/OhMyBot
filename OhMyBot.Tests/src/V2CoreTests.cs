@@ -502,6 +502,54 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task InfoCommandAdminCanQueryOtherUserByUsername()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        var targetRequest = CreateRequest(BotPlatform.Telegram, "target", "ping");
+        targetRequest.Username = "target_user";
+        await service.ExecuteAsync(targetRequest);
+        var adminIdentity = await dbContext.PlatformIdentities
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.PlatformUserId == "admin");
+        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "@target_user"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
+        Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+    }
+
+    [TestMethod]
+    public async Task InfoCommandAdminCanQueryReplyTarget()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "target", "ping"));
+        var adminIdentity = await dbContext.PlatformIdentities
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.PlatformUserId == "admin");
+        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+        var infoRequest = CreateRequest(BotPlatform.Telegram, "admin", "info");
+        infoRequest.ReplyToUserId = "target";
+
+        var response = await service.ExecuteAsync(infoRequest);
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
+        Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+    }
+
+    [TestMethod]
     public async Task InfoCommandAdminQueryMissingUserReturnsStructuredError()
     {
         await using var dbContext = CreateDbContext();
