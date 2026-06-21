@@ -9,6 +9,7 @@ public sealed class CommandExecutionService(
     PlatformUserProfileService userProfileService,
     RouteStore routeStore,
     PlatformCommandDslExecutor dslExecutor,
+    ILogger<CommandExecutionService> logger,
     TimeProvider timeProvider)
 {
     public async Task<CommandResponse> ExecuteAsync(CommandRequest request, CancellationToken cancellationToken = default)
@@ -51,7 +52,25 @@ public sealed class CommandExecutionService(
 
         var canonicalRequest = request.Clone();
         canonicalRequest.Command = route.Command;
-        return await dslExecutor.ExecuteAsync(new CommandContext(canonicalRequest, identity, started, cancellationToken));
+        try
+        {
+            return await dslExecutor.ExecuteAsync(new CommandContext(canonicalRequest, identity, started, cancellationToken));
+        }
+        catch (Exception exception)
+        {
+            logger.LogError(
+                exception,
+                "Command handler failed. command={Command}, user={UserId}, platform={Platform}, chat={ChatId}.",
+                canonicalRequest.Command,
+                canonicalRequest.UserId,
+                canonicalRequest.Platform,
+                canonicalRequest.ChatId);
+            return CommandResponses.Error(
+                "CommandHandlerFailed",
+                $"命令执行失败：{exception.GetBaseException().Message}",
+                identity,
+                canonicalRequest.MessageId);
+        }
     }
 
     public Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default)

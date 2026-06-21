@@ -398,6 +398,29 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task CommandHandlerExceptionReturnsStructuredError()
+    {
+        await using var dbContext = CreateDbContext();
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            new CommandDslNode
+            {
+                Name = "broken",
+                Description = "Broken command.",
+                Usage = "/broken",
+                Handler = _ => throw new InvalidOperationException("redis offline")
+            }
+        ]);
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "broken"));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("CommandHandlerFailed", response.ErrorCode);
+        Assert.Contains("redis offline", response.Message);
+    }
+
+    [TestMethod]
     public async Task RouteCannotLowerCorePrivilege()
     {
         await using var dbContext = CreateDbContext();
@@ -1014,6 +1037,7 @@ public class V2CoreTests
             new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
             routeStore,
             new PlatformCommandDslExecutor(routeStore),
+            NullLogger<CommandExecutionService>.Instance,
             TimeProvider.System);
     }
 
@@ -1081,6 +1105,7 @@ public class V2CoreTests
             new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
             provider.GetRequiredService<RouteStore>(),
             provider.GetRequiredService<PlatformCommandDslExecutor>(),
+            NullLogger<CommandExecutionService>.Instance,
             TimeProvider.System);
     }
 
