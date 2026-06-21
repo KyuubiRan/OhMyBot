@@ -1,5 +1,6 @@
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commands;
+using OhMyBot.Core.Notifications;
 
 namespace OhMyBot.Core.AiRouter;
 
@@ -90,10 +91,19 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
         await using var scope = scopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
         var builder = scope.ServiceProvider.GetRequiredService<AiRouterResponseBuilder>();
+        var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
         var result = await service.BindAsync(
             context.Identity.CoreUserId,
             context.Request.Args[0],
             string.Join(' ', context.Request.Args.Skip(1)),
+            context.CancellationToken);
+        await subscriptionService.EnableAsync(
+            context.Identity.CoreUserId,
+            context.Request.Platform,
+            context.Request.BotInstanceId,
+            context.Request.ChatId,
+            NotificationTypes.AiRouterAutoSign,
+            result.Id,
             context.CancellationToken);
         return builder.BuildBindResult(context, result);
     }
@@ -156,4 +166,3 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
         return await builder.BuildDeletePanelAsync(context, accounts, context.CancellationToken);
     }
 }
-

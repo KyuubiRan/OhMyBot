@@ -676,6 +676,45 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task NotificationSubscriptionEnableTurnsOnCurrentPlatformAndStoresEndpoint()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CoreUsers.Add(new Core.Data.Entities.CoreUser { Id = 1 });
+        await dbContext.SaveChangesAsync();
+        var service = new NotificationSubscriptionService(dbContext, TimeProvider.System);
+
+        await service.ToggleAsync(
+            1,
+            BotPlatform.Telegram,
+            "tg-old",
+            "chat-old",
+            NotificationTypes.AiRouterAutoSign,
+            100,
+            CancellationToken.None);
+        await service.EnableAsync(
+            1,
+            BotPlatform.Telegram,
+            "tg-new",
+            "chat-new",
+            NotificationTypes.AiRouterAutoSign,
+            100,
+            CancellationToken.None);
+
+        var enabled = await service.GetEnabledTargetIdsAsync(
+            1,
+            BotPlatform.Telegram,
+            NotificationTypes.AiRouterAutoSign,
+            [100],
+            CancellationToken.None);
+        var subscription = await dbContext.NotificationSubscriptions.SingleAsync();
+
+        Assert.IsTrue(enabled.Contains(100));
+        Assert.AreEqual((int)NotificationPlatformFlags.All, subscription.EnabledPlatforms);
+        Assert.AreEqual("tg-new", subscription.TelegramBotInstanceId);
+        Assert.AreEqual("chat-new", subscription.TelegramChatId);
+    }
+
+    [TestMethod]
     public async Task NotifyAccountPanelAddsBackButtonBesideToggleAll()
     {
         await using var dbContext = CreateDbContext();
@@ -709,6 +748,7 @@ public class V2CoreTests
         CollectionAssert.AreEqual(
             new[] { "开启/关闭全部", "返回" },
             lastRow.Buttons.Select(button => button.Text).ToArray());
+        Assert.StartsWith("[开] ", response.ButtonRows[0].Buttons[0].Text);
     }
 
     [TestMethod]

@@ -616,25 +616,31 @@ public sealed class KuroResponseBuilder(
             response.ReplyToMessageId = string.Empty;
         }
 
+        var row = new ResponseButtonRow();
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(new ResponseButtonRow
+            row.Buttons.Add(new ResponseButton
             {
-                Buttons =
-                {
-                    new ResponseButton
-                    {
-                        Text = $"{(enabled.Contains(account.Id) ? "[开]" : "[关]")} {account.DisplayName}",
-                        Payload = await callbackStore.PutAsync(
-                            "notify-account-toggle",
-                            context.Identity.CoreUserId,
-                            context.Request.ChatId,
-                            context.Request.UserId,
-                            new NotifyAccountCallbackData(NotificationTypes.KuroAutoSign, account.Id, ToggleAll: false),
-                            cancellationToken: cancellationToken)
-                    }
-                }
+                Text = $"{(enabled.Contains(account.Id) ? "[开]" : "[关]")} {account.DisplayName}",
+                Payload = await callbackStore.PutAsync(
+                    "notify-account-toggle",
+                    context.Identity.CoreUserId,
+                    context.Request.ChatId,
+                    context.Request.UserId,
+                    new NotifyAccountCallbackData(NotificationTypes.KuroAutoSign, account.Id, ToggleAll: false),
+                    cancellationToken: cancellationToken)
             });
+
+            if (row.Buttons.Count == 2)
+            {
+                response.ButtonRows.Add(row);
+                row = new ResponseButtonRow();
+            }
+        }
+
+        if (row.Buttons.Count > 0)
+        {
+            response.ButtonRows.Add(row);
         }
 
         response.ButtonRows.Add(new ResponseButtonRow

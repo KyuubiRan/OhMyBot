@@ -1,6 +1,7 @@
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commands;
 using OhMyBot.Core.Data.Entities;
+using OhMyBot.Core.Notifications;
 
 namespace OhMyBot.Core.Kuro;
 
@@ -76,10 +77,19 @@ public sealed class KuroCommandDslProvider(IServiceScopeFactory scopeFactory) : 
         await using var scope = scopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<KuroAccountService>();
         var builder = scope.ServiceProvider.GetRequiredService<KuroResponseBuilder>();
+        var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
         var token = context.Request.Args[0];
         var devCode = context.Request.Args.Count > 1 ? context.Request.Args[1] : null;
         var distinctId = context.Request.Args.Count > 2 ? context.Request.Args[2] : null;
         var result = await service.BindAsync(context.Identity.CoreUserId, token, devCode, distinctId, context.CancellationToken);
+        await subscriptionService.EnableAsync(
+            context.Identity.CoreUserId,
+            context.Request.Platform,
+            context.Request.BotInstanceId,
+            context.Request.ChatId,
+            NotificationTypes.KuroAutoSign,
+            result.Account.Id,
+            context.CancellationToken);
         return builder.BuildBindResult(context, result);
     }
 

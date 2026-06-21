@@ -91,6 +91,51 @@ public sealed class NotificationSubscriptionService(
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
+    public async Task EnableAsync(
+        long coreUserId,
+        BotPlatform platform,
+        string botInstanceId,
+        string chatId,
+        string notificationType,
+        long targetId,
+        CancellationToken cancellationToken = default)
+    {
+        var subscription = await dbContext.NotificationSubscriptions
+            .FirstOrDefaultAsync(item => item.CoreUserId == coreUserId
+                && item.NotificationType == notificationType
+                && item.TargetId == targetId,
+                cancellationToken);
+        var platformFlag = ToFlag(platform);
+        if (platformFlag is NotificationPlatformFlags.None)
+        {
+            return;
+        }
+
+        var now = timeProvider.GetUtcNow();
+        if (subscription is null)
+        {
+            subscription = new NotificationSubscription
+            {
+                CoreUserId = coreUserId,
+                NotificationType = notificationType,
+                TargetId = targetId,
+                EnabledPlatforms = (int)platformFlag,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            SetEndpoint(subscription, platform, botInstanceId, chatId);
+            dbContext.NotificationSubscriptions.Add(subscription);
+        }
+        else
+        {
+            SetEndpoint(subscription, platform, botInstanceId, chatId);
+            subscription.EnabledPlatforms = SetPlatform(subscription.EnabledPlatforms, platformFlag, enabled: true);
+            subscription.UpdatedAt = now;
+        }
+
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
     public async Task ToggleAllAsync(
         long coreUserId,
         BotPlatform platform,

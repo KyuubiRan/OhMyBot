@@ -210,7 +210,7 @@ public sealed class AiRouterResponseBuilder(
             "notify-account-toggle",
             includeAll: true,
             cancellationToken,
-            accountText: account => account.DisplayName,
+            accountText: account => $"{(enabled.Contains(account.Id) ? "[开]" : "[关]")} {account.DisplayName}",
             dataFactory: account => new NotifyAccountCallbackData(NotificationTypes.AiRouterAutoSign, account.Id, ToggleAll: false),
             extraAllRowButtons:
             [

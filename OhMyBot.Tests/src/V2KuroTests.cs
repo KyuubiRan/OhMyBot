@@ -178,6 +178,34 @@ public class V2KuroTests
         CollectionAssert.Contains(buttons, "返回");
     }
 
+    [TestMethod]
+    public async Task KuroNotifyAccountPanelUsesTwoColumns()
+    {
+        await using var dbContext = CreateDbContext();
+        var builder = new KuroResponseBuilder(
+            new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions())),
+            new NotificationSubscriptionService(dbContext, TimeProvider.System),
+            TimeProvider.System);
+
+        var response = await builder.BuildNotifyAccountPanelAsync(
+            CreateContext(),
+            [
+                new KuroAccount { Id = 1, CoreUserId = 1, BbsUserId = 1001, DisplayName = "Kuro1" },
+                new KuroAccount { Id = 2, CoreUserId = 1, BbsUserId = 1002, DisplayName = "Kuro2" },
+                new KuroAccount { Id = 3, CoreUserId = 1, BbsUserId = 1003, DisplayName = "Kuro3" }
+            ]);
+
+        CollectionAssert.AreEqual(
+            new[] { "Kuro1", "Kuro2" },
+            response.ButtonRows[0].Buttons.Select(button => button.Text.Replace("[开] ", string.Empty, StringComparison.Ordinal).Replace("[关] ", string.Empty, StringComparison.Ordinal)).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "Kuro3" },
+            response.ButtonRows[1].Buttons.Select(button => button.Text.Replace("[开] ", string.Empty, StringComparison.Ordinal).Replace("[关] ", string.Empty, StringComparison.Ordinal)).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "开启/关闭全部", "返回" },
+            response.ButtonRows[^1].Buttons.Select(button => button.Text).ToArray());
+    }
+
     private static OhMyBotV2DbContext CreateDbContext()
     {
         var options = new DbContextOptionsBuilder<OhMyBotV2DbContext>()
