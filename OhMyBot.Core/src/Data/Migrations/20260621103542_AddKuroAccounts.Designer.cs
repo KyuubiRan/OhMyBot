@@ -2,18 +2,21 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OhMyBot.Core.Data;
 
 #nullable disable
 
-namespace OhMyBot.Core.Data.Migrations
+namespace OhMyBot.Core.src.Data.Migrations
 {
     [DbContext(typeof(OhMyBotV2DbContext))]
-    partial class OhMyBotV2DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260621103542_AddKuroAccounts")]
+    partial class AddKuroAccounts
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

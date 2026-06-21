@@ -18,9 +18,29 @@ public sealed class FallbackTelegramRenderer : ITelegramCommandResultRenderer
 
         if (response.DataKind == CommandResponseDataKind.Text)
         {
-            return string.IsNullOrWhiteSpace(response.Text.Text) ? [] : [TelegramTextMessage.PlainText(response.Text.Text)];
+            if (string.IsNullOrWhiteSpace(response.Text.Text))
+            {
+                return [];
+            }
+
+            return response.ButtonRows.Count > 0
+                ? [TelegramTextMessage.Markdown(RenderMarkdownText(response.Text.Text))]
+                : [TelegramTextMessage.PlainText(response.Text.Text)];
         }
 
         return string.IsNullOrWhiteSpace(response.Message) ? [] : [TelegramTextMessage.PlainText(response.Message)];
+    }
+
+    private static string RenderMarkdownText(string text)
+    {
+        var parts = text.Split('`');
+        for (var index = 0; index < parts.Length; index++)
+        {
+            parts[index] = index % 2 == 0
+                ? AiRouterTelegramRenderer.Escape(parts[index])
+                : $"`{AiRouterTelegramRenderer.Code(parts[index])}`";
+        }
+
+        return string.Concat(parts);
     }
 }

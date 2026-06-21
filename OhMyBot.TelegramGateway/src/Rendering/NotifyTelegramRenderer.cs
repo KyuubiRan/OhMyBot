@@ -26,17 +26,22 @@ public sealed class NotifyTelegramRenderer : ITelegramCommandResultRenderer
         var enabled = data.Items.Where(type => type.Enabled).Select(type => $"`{AiRouterTelegramRenderer.Code(type.DisplayName)}`").ToArray();
         return string.Join('\n',
             AiRouterTelegramRenderer.Escape("[消息订阅管理]"),
-            "当前已启用: " + (enabled.Length == 0 ? "无" : string.Join(", ", enabled)));
+            AiRouterTelegramRenderer.Escape("当前已启用：") + (enabled.Length == 0 ? AiRouterTelegramRenderer.Escape("无") : string.Join(AiRouterTelegramRenderer.Escape("、"), enabled)));
     }
 
     private static string RenderAccountPanel(NotifyAccountPanelData data)
     {
-        var enabled = data.Accounts
-            .Where(account => account.NotificationEnabled)
-            .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
-            .ToArray();
+        var enabled = data.KuroAccounts.Count > 0
+            ? data.KuroAccounts
+                .Where(account => account.NotificationEnabled)
+                .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
+                .ToArray()
+            : data.Accounts
+                .Where(account => account.NotificationEnabled)
+                .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
+                .ToArray();
         return string.Join('\n',
             AiRouterTelegramRenderer.Escape($"[{data.DisplayName}]"),
-            "当前已启用: " + (enabled.Length == 0 ? "无" : string.Join(", ", enabled)));
+            AiRouterTelegramRenderer.Escape("当前已启用：") + (enabled.Length == 0 ? AiRouterTelegramRenderer.Escape("无") : string.Join(AiRouterTelegramRenderer.Escape("、"), enabled)));
     }
 }

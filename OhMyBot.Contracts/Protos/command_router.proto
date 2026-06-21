@@ -42,6 +42,10 @@ enum CommandResponseDataKind {
   COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_SIGN_RESULT = 8;
   COMMAND_RESPONSE_DATA_KIND_NOTIFY_TYPE_PANEL = 9;
   COMMAND_RESPONSE_DATA_KIND_NOTIFY_ACCOUNT_PANEL = 10;
+  COMMAND_RESPONSE_DATA_KIND_KURO_ACCOUNT_LIST = 11;
+  COMMAND_RESPONSE_DATA_KIND_KURO_BIND_RESULT = 12;
+  COMMAND_RESPONSE_DATA_KIND_KURO_BBS_SIGN_RESULT = 13;
+  COMMAND_RESPONSE_DATA_KIND_KURO_GAME_SIGN_RESULT = 14;
 }
 
 message CommandRequest {
@@ -211,6 +215,61 @@ message NotifyAccountPanelData {
   string type = 1;
   string display_name = 2;
   repeated AiRouterAccountItem accounts = 3;
+  repeated KuroAccountItem kuro_accounts = 4;
+}
+
+message KuroGameRoleItem {
+  int64 id = 1;
+  int64 game_id = 2;
+  string game_name = 3;
+  string server_id = 4;
+  string server_name = 5;
+  int64 role_id = 6;
+  string role_name = 7;
+  string game_level = 8;
+  bool auto_sign_enabled = 9;
+}
+
+message KuroAccountItem {
+  int64 id = 1;
+  int64 bbs_user_id = 2;
+  string display_name = 3;
+  bool auto_sign_enabled = 4;
+  int64 bbs_task_flags = 5;
+  bool notification_enabled = 6;
+  repeated KuroGameRoleItem roles = 7;
+}
+
+message KuroAccountListData {
+  repeated KuroAccountItem accounts = 1;
+}
+
+message KuroBindResultData {
+  KuroAccountItem account = 1;
+  bool updated_existing = 2;
+}
+
+message KuroBbsTaskProgressItem {
+  string remark = 1;
+  int64 complete_times = 2;
+  int64 need_action_times = 3;
+  int64 gain_gold = 4;
+  bool finished = 5;
+}
+
+message KuroBbsSignResultData {
+  KuroAccountItem account = 1;
+  repeated KuroBbsTaskProgressItem progress = 2;
+  repeated string lines = 3;
+  bool auto_sign = 4;
+  int64 occurred_at_unix_seconds = 5;
+}
+
+message KuroGameSignResultData {
+  KuroAccountItem account = 1;
+  repeated string lines = 2;
+  bool auto_sign = 3;
+  int64 occurred_at_unix_seconds = 4;
 }
 
 message CommandResponse {
@@ -236,6 +295,10 @@ message CommandResponse {
     AiRouterSignResultData ai_router_sign_result = 27;
     NotifyTypePanelData notify_type_panel = 28;
     NotifyAccountPanelData notify_account_panel = 29;
+    KuroAccountListData kuro_account_list = 30;
+    KuroBindResultData kuro_bind_result = 31;
+    KuroBbsSignResultData kuro_bbs_sign_result = 32;
+    KuroGameSignResultData kuro_game_sign_result = 33;
   }
 }
 

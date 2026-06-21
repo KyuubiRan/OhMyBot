@@ -7,6 +7,7 @@ using OhMyBot.Core.Callbacks;
 using OhMyBot.Core.Commands;
 using OhMyBot.Core.Data;
 using OhMyBot.Core.Identity;
+using OhMyBot.Core.Kuro;
 using OhMyBot.Core.Linking;
 using OhMyBot.Core.Messaging;
 using OhMyBot.Core.Notifications;
@@ -32,8 +33,12 @@ public static class ServiceCollectionExtensions
         services.AddOptions<EncryptionOptions>().BindConfiguration("Encryption");
         services.AddOptions<CallbackActionOptions>().BindConfiguration("CallbackActions");
         services.AddOptions<AiRouterOptions>().BindConfiguration("AiRouter");
+        services.AddOptions<KuroOptions>().BindConfiguration("Kuro");
         services.AddOptions<ScheduledTaskOptions>()
             .BindConfiguration("ScheduledTasks:AiRouterAutoSign")
+            .ValidateOnStart();
+        services.AddOptions<ScheduledTaskOptions>("KuroAutoSign")
+            .BindConfiguration("ScheduledTasks:KuroAutoSign")
             .ValidateOnStart();
         services.TryAddSingleton<InteractiveConsoleState>();
         services.AddScoped<IAdminCommand, UserAdminCommand>();
@@ -46,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<CallbackExecutionService>();
         services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, KuroCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
@@ -54,6 +60,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AiRouterAccountService>();
         services.AddScoped<AiRouterSignService>();
         services.AddScoped<AiRouterResponseBuilder>();
+        services.AddScoped<KuroAccountService>();
+        services.AddScoped<KuroSignService>();
+        services.AddScoped<KuroResponseBuilder>();
         services.AddScoped<NotificationSubscriptionService>();
         services.AddSingleton<CallbackActionStore>();
         services.AddSingleton<PlatformCommandDslRegistry>();
@@ -63,10 +72,17 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<INotificationPublisher, RabbitMqNotificationPublisher>();
         services.AddSingleton<ManagedTaskRegistry>();
         services.AddSingleton<IManagedTask, AiRouterAutoSignManagedTask>();
+        services.AddSingleton<IManagedTask, KuroAutoSignManagedTask>();
         services.AddHttpClient<AiRouterHttpClient>((provider, client) =>
         {
             var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiRouterOptions>>().Value;
             client.BaseAddress = new Uri(options.BaseUrl);
+        });
+        services.AddHttpClient<KuroHttpClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KuroOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.Timeout = options.Timeout;
         });
         services.AddHostedService<DatabaseMigrationHostedService>();
         services.AddHostedService<RouteStoreHostedService>();

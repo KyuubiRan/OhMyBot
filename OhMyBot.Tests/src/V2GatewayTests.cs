@@ -376,6 +376,63 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public void TelegramNotifyRendererUsesKuroAccountsForEnabledList()
+    {
+        var renderer = new NotifyTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.NotifyAccountPanel,
+            NotifyAccountPanel = new NotifyAccountPanelData
+            {
+                Type = "kuro-auto-sign",
+                DisplayName = "库街区自动签到"
+            }
+        };
+        response.NotifyAccountPanel.KuroAccounts.Add(new KuroAccountItem
+        {
+            Id = 10,
+            DisplayName = "库洛_账号",
+            NotificationEnabled = true
+        });
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("库街区自动签到", message.Text);
+        Assert.Contains("库洛_账号", message.Text);
+        Assert.IsFalse(message.Text.Contains("当前已启用：无", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void TelegramFallbackRendererUsesMarkdownForButtonTextPanels()
+    {
+        var renderer = new FallbackTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.Text,
+            Text = new TextData
+            {
+                Text = "点击下方按钮进行开/关签到功能\n当前已启用: `Kyuubiran`"
+            }
+        };
+        response.ButtonRows.Add(new ResponseButtonRow
+        {
+            Buttons =
+            {
+                new ResponseButton { Text = "[开] Kyuubiran", Payload = "payload" }
+            }
+        });
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("当前已启用", message.Text);
+        Assert.Contains("`Kyuubiran`", message.Text);
+    }
+
+    [TestMethod]
     public void TelegramHelpRendererUsesMarkdownAndEscapesText()
     {
         var renderer = new HelpTelegramRenderer();

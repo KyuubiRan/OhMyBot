@@ -4,8 +4,8 @@
     {
       "command": "ai",
       "coreCommand": "ai",
-      "description": "AI 相关指令",
-      "usage": "/ai <分类> <命令> [参数]",
+      "description": "AI \u76F8\u5173\u6307\u4EE4",
+      "usage": "/ai \u003C\u5206\u7C7B\u003E \u003C\u547D\u4EE4\u003E [\u53C2\u6570]",
       "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [
@@ -21,8 +21,8 @@
         {
           "command": "router",
           "coreCommand": "router",
-          "description": "Router 平台相关指令",
-          "usage": "/ai router <命令> [参数]",
+          "description": "Router \u5E73\u53F0\u76F8\u5173\u6307\u4EE4",
+          "usage": "/ai router \u003C\u547D\u4EE4\u003E [\u53C2\u6570]",
           "aliases": [],
           "requiredPrivilege": "User",
           "supportPlatforms": [
@@ -38,8 +38,8 @@
             {
               "command": "bind",
               "coreCommand": "bind",
-              "description": "绑定用户",
-              "usage": "/ai router bind <email> <password>",
+              "description": "\u7ED1\u5B9A\u7528\u6237",
+              "usage": "/ai router bind \u003Cemail\u003E \u003Cpassword\u003E",
               "aliases": [],
               "requiredPrivilege": "VerifiedUser",
               "supportPlatforms": [
@@ -48,12 +48,13 @@
               "supportChatTypes": [
                 "Private"
               ],
-              "enabled": true
+              "enabled": true,
+              "children": []
             },
             {
               "command": "list",
               "coreCommand": "list",
-              "description": "查看绑定账号",
+              "description": "\u67E5\u770B\u7ED1\u5B9A\u8D26\u53F7",
               "usage": "/ai router list",
               "aliases": [],
               "requiredPrivilege": "VerifiedUser",
@@ -63,12 +64,13 @@
               "supportChatTypes": [
                 "Private"
               ],
-              "enabled": true
+              "enabled": true,
+              "children": []
             },
             {
               "command": "signin",
               "coreCommand": "signin",
-              "description": "手动签到",
+              "description": "\u624B\u52A8\u7B7E\u5230",
               "usage": "/ai router signin",
               "aliases": [],
               "requiredPrivilege": "VerifiedUser",
@@ -78,12 +80,13 @@
               "supportChatTypes": [
                 "Private"
               ],
-              "enabled": true
+              "enabled": true,
+              "children": []
             },
             {
               "command": "autosign",
               "coreCommand": "autosign",
-              "description": "自动签到管理",
+              "description": "\u81EA\u52A8\u7B7E\u5230\u7BA1\u7406",
               "usage": "/ai router autosign",
               "aliases": [],
               "requiredPrivilege": "VerifiedUser",
@@ -93,12 +96,13 @@
               "supportChatTypes": [
                 "Private"
               ],
-              "enabled": true
+              "enabled": true,
+              "children": []
             },
             {
               "command": "delete",
               "coreCommand": "delete",
-              "description": "删除绑定",
+              "description": "\u5220\u9664\u7ED1\u5B9A",
               "usage": "/ai router delete",
               "aliases": [],
               "requiredPrivilege": "VerifiedUser",
@@ -108,7 +112,8 @@
               "supportChatTypes": [
                 "Private"
               ],
-              "enabled": true
+              "enabled": true,
+              "children": []
             }
           ]
         }
@@ -117,8 +122,8 @@
     {
       "command": "help",
       "coreCommand": "help",
-      "description": "显示可用指令",
-      "usage": "/help [子命令]",
+      "description": "\u663E\u793A\u53EF\u7528\u6307\u4EE4",
+      "usage": "/help [\u5B50\u547D\u4EE4]",
       "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [
@@ -129,12 +134,13 @@
         "Private",
         "Group"
       ],
-      "enabled": true
+      "enabled": true,
+      "children": []
     },
     {
       "command": "info",
       "coreCommand": "info",
-      "description": "查看用户信息",
+      "description": "\u67E5\u770B\u7528\u6237\u4FE1\u606F",
       "usage": "/info [uid]",
       "aliases": [],
       "requiredPrivilege": "User",
@@ -146,12 +152,13 @@
         "Private",
         "Group"
       ],
-      "enabled": true
+      "enabled": true,
+      "children": []
     },
     {
       "command": "link",
       "coreCommand": "link",
-      "description": "跨平台绑定身份",
+      "description": "\u8DE8\u5E73\u53F0\u7ED1\u5B9A\u8EAB\u4EFD",
       "usage": "/link [token]",
       "aliases": [],
       "requiredPrivilege": "User",
@@ -163,12 +170,13 @@
         "Private",
         "Group"
       ],
-      "enabled": true
+      "enabled": true,
+      "children": []
     },
     {
       "command": "notify",
       "coreCommand": "notify",
-      "description": "管理消息订阅",
+      "description": "\u7BA1\u7406\u6D88\u606F\u8BA2\u9605",
       "usage": "/notify",
       "aliases": [],
       "requiredPrivilege": "VerifiedUser",
@@ -178,12 +186,13 @@
       "supportChatTypes": [
         "Private"
       ],
-      "enabled": true
+      "enabled": true,
+      "children": []
     },
     {
       "command": "ping",
       "coreCommand": "ping",
-      "description": "检查 Core 连接状态",
+      "description": "\u68C0\u67E5 Core \u8FDE\u63A5\u72B6\u6001",
       "usage": "/ping",
       "aliases": [],
       "requiredPrivilege": "User",
@@ -195,7 +204,154 @@
         "Private",
         "Group"
       ],
-      "enabled": true
+      "enabled": true,
+      "children": []
+    },
+    {
+      "command": "kuro",
+      "coreCommand": "kuro",
+      "description": "\u5E93\u8857\u533A\u76F8\u5173\u6307\u4EE4",
+      "usage": "/kuro \u003C\u547D\u4EE4\u003E [\u53C2\u6570]",
+      "aliases": [],
+      "requiredPrivilege": "VerifiedUser",
+      "supportPlatforms": [
+        "Telegram"
+      ],
+      "supportChatTypes": [
+        "Private"
+      ],
+      "enabled": true,
+      "children": [
+        {
+          "command": "autosign",
+          "coreCommand": "autosign",
+          "description": "\u5E93\u8857\u533A\u81EA\u52A8\u7B7E\u5230\u7BA1\u7406",
+          "usage": "/kuro autosign",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "bind",
+          "coreCommand": "bind",
+          "description": "\u7ED1\u5B9A\u5E93\u8857\u533A\u8D26\u53F7",
+          "usage": "/kuro bind \u003Ctoken\u003E [devCode] [distinctId]",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "delete",
+          "coreCommand": "delete",
+          "description": "\u5220\u9664\u5E93\u8857\u533A\u7ED1\u5B9A",
+          "usage": "/kuro delete",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "game",
+          "coreCommand": "game",
+          "description": "\u5E93\u8857\u533A\u6E38\u620F\u7B7E\u5230",
+          "usage": "/kuro game \u003Cinit|signin\u003E [\u53C2\u6570]",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": [
+            {
+              "command": "init",
+              "coreCommand": "init",
+              "description": "\u540C\u6B65\u5E93\u8857\u533A\u6E38\u620F\u89D2\u8272",
+              "usage": "/kuro game init [accountId]",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true,
+              "children": []
+            },
+            {
+              "command": "signin",
+              "coreCommand": "signin",
+              "description": "\u6267\u884C\u5E93\u8857\u533A\u6E38\u620F\u7B7E\u5230",
+              "usage": "/kuro game signin [accountId] [wuwa|pgr|all]",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true,
+              "children": []
+            }
+          ]
+        },
+        {
+          "command": "list",
+          "coreCommand": "list",
+          "description": "\u67E5\u770B\u5E93\u8857\u533A\u8D26\u53F7",
+          "usage": "/kuro list",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "signin",
+          "coreCommand": "signin",
+          "description": "\u6267\u884C\u5E93\u8857\u533A\u793E\u533A\u7B7E\u5230\u4EFB\u52A1",
+          "usage": "/kuro signin [accountId] [signin|view|like|share ...]",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        }
+      ]
     }
   ]
 }

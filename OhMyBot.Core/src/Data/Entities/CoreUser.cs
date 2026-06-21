@@ -16,5 +16,7 @@ public class CoreUser
 
     public ICollection<AiRouterAccount> AiRouterAccounts { get; set; } = new List<AiRouterAccount>();
 
+    public ICollection<KuroAccount> KuroAccounts { get; set; } = new List<KuroAccount>();
+
     public ICollection<NotificationSubscription> NotificationSubscriptions { get; set; } = new List<NotificationSubscription>();
 }

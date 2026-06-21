@@ -13,6 +13,10 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
 
     public DbSet<AiRouterAccount> AiRouterAccounts => Set<AiRouterAccount>();
 
+    public DbSet<KuroAccount> KuroAccounts => Set<KuroAccount>();
+
+    public DbSet<KuroGameRole> KuroGameRoles => Set<KuroGameRole>();
+
     public DbSet<NotificationSubscription> NotificationSubscriptions => Set<NotificationSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -70,6 +74,41 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
             builder.HasOne(account => account.CoreUser)
                    .WithMany(user => user.AiRouterAccounts)
                    .HasForeignKey(account => account.CoreUserId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KuroAccount>(builder =>
+        {
+            builder.HasKey(account => account.Id);
+            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
+            builder.Property(account => account.TokenCiphertext).HasMaxLength(2048).IsRequired();
+            builder.Property(account => account.DevCode).HasMaxLength(255);
+            builder.Property(account => account.DistinctId).HasMaxLength(255);
+            builder.Property(account => account.CreatedAt).IsRequired();
+            builder.Property(account => account.UpdatedAt).IsRequired();
+
+            builder.HasIndex(account => account.BbsUserId).IsUnique();
+            builder.HasOne(account => account.CoreUser)
+                   .WithMany(user => user.KuroAccounts)
+                   .HasForeignKey(account => account.CoreUserId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<KuroGameRole>(builder =>
+        {
+            builder.HasKey(role => role.Id);
+            builder.Property(role => role.GameName).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.ServerId).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.ServerName).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.RoleName).HasMaxLength(256).IsRequired();
+            builder.Property(role => role.GameLevel).HasMaxLength(64).IsRequired();
+            builder.Property(role => role.CreatedAt).IsRequired();
+            builder.Property(role => role.UpdatedAt).IsRequired();
+
+            builder.HasIndex(role => new { role.KuroAccountId, role.GameId, role.ServerId, role.RoleId }).IsUnique();
+            builder.HasOne(role => role.KuroAccount)
+                   .WithMany(account => account.Roles)
+                   .HasForeignKey(role => role.KuroAccountId)
                    .OnDelete(DeleteBehavior.Cascade);
         });
 
