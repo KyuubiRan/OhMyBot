@@ -91,13 +91,18 @@ public sealed class CoreCommandDslProvider(
         var incomingToken = request.Args[0].Trim();
         if (string.IsNullOrWhiteSpace(incomingToken))
         {
-            return CommandResponses.Error("LinkTokenInvalid", "Link token is empty.", context);
+            return CommandResponses.Error("LinkTokenInvalid", "绑定令牌为空。", context);
         }
 
         var tokenPayload = await linkTokenStore.GetAsync(incomingToken, cancellationToken);
         if (tokenPayload is null)
         {
-            return CommandResponses.Error("LinkTokenInvalid", "Link token does not exist, expired, or was already consumed.", context);
+            return CommandResponses.Error("LinkTokenInvalid", "绑定令牌不存在、已过期或已被使用，请重新获取。", context);
+        }
+
+        if (tokenPayload.CreatedFromPlatform == request.Platform)
+        {
+            return CommandResponses.Error("LinkPlatformNotAllowed", "绑定令牌只能用于不同平台账号绑定。", context);
         }
 
         var targetUser = await dbContext.CoreUsers
@@ -107,7 +112,7 @@ public sealed class CoreCommandDslProvider(
         if (targetUser is null)
         {
             await linkTokenStore.RemoveAsync(incomingToken, cancellationToken);
-            return CommandResponses.Error("LinkTargetMissing", "The link token owner no longer exists.", context);
+            return CommandResponses.Error("LinkTargetMissing", "绑定令牌所属账号不存在，请重新获取。", context);
         }
 
         var sourceUser = await dbContext.CoreUsers
@@ -116,14 +121,7 @@ public sealed class CoreCommandDslProvider(
 
         if (sourceUser.Id == targetUser.Id)
         {
-            await linkTokenStore.RemoveAsync(incomingToken, cancellationToken);
-            var response = CommandResponses.Ok(CommandResponseDataKind.LinkResult, context);
-            response.LinkResult = new LinkResultData
-            {
-                Status = "already_linked",
-                CoreUserId = sourceUser.Id
-            };
-            return response;
+            return CommandResponses.Error("LinkAlreadyBound", "当前账号已经绑定到该身份。", context);
         }
 
         var (retainedUser, mergedUser) = SelectMergeDirection(sourceUser, targetUser);
@@ -278,4 +276,3 @@ public sealed class CoreCommandDslProvider(
                 cancellationToken);
     }
 }
-

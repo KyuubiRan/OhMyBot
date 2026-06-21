@@ -258,6 +258,28 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public void TelegramLinkRendererFormatsTokenAsMarkdown()
+    {
+        var renderer = new LinkTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.LinkToken,
+            LinkToken = new LinkTokenData
+            {
+                Token = "abc_def",
+                TtlSeconds = 300
+            }
+        };
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("绑定令牌：`abc\\_def`", message.Text);
+        Assert.Contains("有效期：5 分钟", message.Text);
+    }
+
+    [TestMethod]
     public void TelegramUserInfoRendererFormatsTelegramUserInfo()
     {
         var renderer = new UserInfoTelegramRenderer();

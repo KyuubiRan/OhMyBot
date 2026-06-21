@@ -166,6 +166,47 @@ public class V2CoreTests
 
         Assert.AreNotEqual(0, response.Code);
         Assert.AreEqual("LinkTokenInvalid", response.ErrorCode);
+        Assert.AreEqual("绑定令牌不存在、已过期或已被使用，请重新获取。", response.Message);
+    }
+
+    [TestMethod]
+    public async Task LinkTokenCannotBeConsumedFromSamePlatform()
+    {
+        await using var dbContext = CreateDbContext();
+        var tokenStore = new FakeLinkTokenStore();
+        var service = CreateCommandService(dbContext, tokenStore);
+
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "link"));
+        var token = tokenStore.LastToken!;
+
+        var sameUser = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "link", token));
+        var otherUser = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-other", "link", token));
+
+        Assert.AreNotEqual(0, sameUser.Code);
+        Assert.AreEqual("LinkPlatformNotAllowed", sameUser.ErrorCode);
+        Assert.AreEqual("绑定令牌只能用于不同平台账号绑定。", sameUser.Message);
+        Assert.AreNotEqual(0, otherUser.Code);
+        Assert.AreEqual("LinkPlatformNotAllowed", otherUser.ErrorCode);
+        Assert.IsTrue(tokenStore.Tokens.ContainsKey(token));
+        Assert.AreEqual(2, await dbContext.CoreUsers.CountAsync());
+    }
+
+    [TestMethod]
+    public async Task ConsumedLinkTokenReturnsChineseError()
+    {
+        await using var dbContext = CreateDbContext();
+        var tokenStore = new FakeLinkTokenStore();
+        var service = CreateCommandService(dbContext, tokenStore);
+
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "link"));
+        var token = tokenStore.LastToken!;
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-current", "link", token));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-other", "link", token));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("LinkTokenInvalid", response.ErrorCode);
+        Assert.AreEqual("绑定令牌不存在、已过期或已被使用，请重新获取。", response.Message);
     }
 
     [TestMethod]
