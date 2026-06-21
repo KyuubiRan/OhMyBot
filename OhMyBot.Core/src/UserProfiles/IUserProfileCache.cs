@@ -4,12 +4,12 @@ namespace OhMyBot.Core.UserProfiles;
 
 public interface IUserProfileCache
 {
-    Task<UserProfileUpdate?> GetAsync(
+    Task<UserProfileCacheEntry?> GetAsync(
         BotPlatform platform,
         string uid,
         CancellationToken cancellationToken = default);
 
     Task SetAsync(
-        UserProfileUpdate profile,
+        UserProfileCacheEntry entry,
         CancellationToken cancellationToken = default);
 }

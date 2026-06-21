@@ -21,30 +21,44 @@ public sealed class CoreIdentityService(
             return new ResolvedIdentity(cached.CoreUserId, cached.Privilege, request.Platform, request.UserId);
         }
 
-        var identity = await EnsureIdentityAsync(request, cancellationToken);
-        return new ResolvedIdentity(identity.CoreUserId, identity.CoreUser.Privilege, identity.Platform, identity.PlatformUserId);
+        var profile = await EnsureIdentityAsync(request, cancellationToken);
+        return new ResolvedIdentity(profile.CoreUserId!.Value, profile.CoreUser!.Privilege, profile.Platform, profile.Uid);
     }
 
-    public async Task<PlatformIdentity> EnsureIdentityAsync(CommandRequest request, CancellationToken cancellationToken = default)
+    public async Task<PlatformUserProfile> EnsureIdentityAsync(CommandRequest request, CancellationToken cancellationToken = default)
     {
         ValidateRequest(request);
 
         var now = timeProvider.GetUtcNow();
-        var identity = await dbContext.PlatformIdentities
+        var profile = await dbContext.PlatformUserProfiles
             .Include(item => item.CoreUser)
             .FirstOrDefaultAsync(
-                item => item.Platform == request.Platform && item.PlatformUserId == request.UserId,
+                item => item.Platform == request.Platform && item.Uid == request.UserId,
                 cancellationToken);
 
-        if (identity is not null)
+        if (profile is not null)
         {
-            identity.DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? identity.DisplayName : request.DisplayName;
-            identity.Username = string.IsNullOrWhiteSpace(request.Username) ? identity.Username : request.Username;
-            identity.UpdatedAt = now;
-            identity.CoreUser.UpdatedAt = now;
+            profile.Username = string.IsNullOrWhiteSpace(request.Username) ? profile.Username : request.Username;
+            profile.FirstName = string.IsNullOrWhiteSpace(request.FirstName) ? profile.FirstName : request.FirstName;
+            profile.LastName = string.IsNullOrWhiteSpace(request.LastName) ? profile.LastName : request.LastName;
+            profile.Nickname = string.IsNullOrWhiteSpace(request.Nickname) ? profile.Nickname : request.Nickname;
+            profile.UpdatedAt = now;
+            if (profile.CoreUser is null)
+            {
+                profile.CoreUser = new CoreUser
+                {
+                    CreatedAt = now,
+                    UpdatedAt = now
+                };
+            }
+            else
+            {
+                profile.CoreUser.UpdatedAt = now;
+            }
+
             await dbContext.SaveChangesAsync(cancellationToken);
-            await CacheIdentityAsync(identity, cancellationToken);
-            return identity;
+            await CacheIdentityAsync(profile, cancellationToken);
+            return profile;
         }
 
         var user = new CoreUser
@@ -53,42 +67,44 @@ public sealed class CoreIdentityService(
             UpdatedAt = now
         };
 
-        identity = new PlatformIdentity
+        profile = new PlatformUserProfile
         {
             CoreUser = user,
             Platform = request.Platform,
-            PlatformUserId = request.UserId,
-            DisplayName = string.IsNullOrWhiteSpace(request.DisplayName) ? null : request.DisplayName,
+            Uid = request.UserId,
             Username = string.IsNullOrWhiteSpace(request.Username) ? null : request.Username,
+            FirstName = string.IsNullOrWhiteSpace(request.FirstName) ? null : request.FirstName,
+            LastName = string.IsNullOrWhiteSpace(request.LastName) ? null : request.LastName,
+            Nickname = string.IsNullOrWhiteSpace(request.Nickname) ? null : request.Nickname,
             CreatedAt = now,
             UpdatedAt = now
         };
 
         dbContext.CoreUsers.Add(user);
-        dbContext.PlatformIdentities.Add(identity);
+        dbContext.PlatformUserProfiles.Add(profile);
         await dbContext.SaveChangesAsync(cancellationToken);
-        await CacheIdentityAsync(identity, cancellationToken);
-        return identity;
+        await CacheIdentityAsync(profile, cancellationToken);
+        return profile;
     }
 
     public async Task CacheUserIdentitiesAsync(CoreUser user, CancellationToken cancellationToken = default)
     {
-        foreach (var identity in user.Identities)
+        foreach (var profile in user.PlatformProfiles)
         {
             await identityCache.SetAsync(
-                identity.Platform,
-                identity.PlatformUserId,
+                profile.Platform,
+                profile.Uid,
                 new CachedIdentity(user.Id, user.Privilege),
                 cancellationToken);
         }
     }
 
-    private Task CacheIdentityAsync(PlatformIdentity identity, CancellationToken cancellationToken)
+    private Task CacheIdentityAsync(PlatformUserProfile profile, CancellationToken cancellationToken)
     {
         return identityCache.SetAsync(
-            identity.Platform,
-            identity.PlatformUserId,
-            new CachedIdentity(identity.CoreUserId, identity.CoreUser.Privilege),
+            profile.Platform,
+            profile.Uid,
+            new CachedIdentity(profile.CoreUserId!.Value, profile.CoreUser!.Privilege),
             cancellationToken);
     }
 

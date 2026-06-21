@@ -123,7 +123,7 @@ public sealed class UserAdminCommand(
     {
         var user = await dbContext.CoreUsers
             .AsNoTracking()
-            .Include(item => item.Identities)
+            .Include(item => item.PlatformProfiles)
             .FirstOrDefaultAsync(item => item.Id == coreUserId, cancellationToken);
 
         if (user is null)
@@ -139,19 +139,19 @@ public sealed class UserAdminCommand(
         string platformUserId,
         CancellationToken cancellationToken)
     {
-        var identity = await dbContext.PlatformIdentities
-            .Include(item => item.CoreUser)
-            .ThenInclude(user => user.Identities)
+        var profile = await dbContext.PlatformUserProfiles
+            .Include(item => item.CoreUser!)
+            .ThenInclude(user => user.PlatformProfiles)
             .FirstOrDefaultAsync(
-                item => item.Platform == platform && item.PlatformUserId == platformUserId,
+                item => item.Platform == platform && item.Uid == platformUserId,
                 cancellationToken);
 
-        if (identity is null)
+        if (profile?.CoreUser is null)
         {
-            return AdminCommandResult.Error($"User identity not found: platform={FormatPlatform(platform)}, uid={platformUserId}.");
+            return AdminCommandResult.Error($"User profile not found: platform={FormatPlatform(platform)}, uid={platformUserId}.");
         }
 
-        return AdminCommandResult.Ok(FormatUser(identity.CoreUser));
+        return AdminCommandResult.Ok(FormatUser(profile.CoreUser));
     }
 
     private async Task<AdminCommandResult> SetUserPrivilegeByIdAsync(
@@ -160,7 +160,7 @@ public sealed class UserAdminCommand(
         CancellationToken cancellationToken)
     {
         var user = await dbContext.CoreUsers
-            .Include(item => item.Identities)
+            .Include(item => item.PlatformProfiles)
             .FirstOrDefaultAsync(item => item.Id == coreUserId, cancellationToken);
 
         if (user is null)
@@ -183,14 +183,14 @@ public sealed class UserAdminCommand(
         CancellationToken cancellationToken)
     {
         var now = timeProvider.GetUtcNow();
-        var identity = await dbContext.PlatformIdentities
-            .Include(item => item.CoreUser)
-            .ThenInclude(user => user.Identities)
+        var profile = await dbContext.PlatformUserProfiles
+            .Include(item => item.CoreUser!)
+            .ThenInclude(user => user.PlatformProfiles)
             .FirstOrDefaultAsync(
-                item => item.Platform == platform && item.PlatformUserId == platformUserId,
+                item => item.Platform == platform && item.Uid == platformUserId,
                 cancellationToken);
 
-        if (identity is null)
+        if (profile is null)
         {
             var user = new CoreUser
             {
@@ -199,39 +199,50 @@ public sealed class UserAdminCommand(
                 UpdatedAt = now
             };
 
-            identity = new PlatformIdentity
+            profile = new PlatformUserProfile
             {
                 CoreUser = user,
                 Platform = platform,
-                PlatformUserId = platformUserId,
+                Uid = platformUserId,
                 CreatedAt = now,
                 UpdatedAt = now
             };
 
             dbContext.CoreUsers.Add(user);
-            dbContext.PlatformIdentities.Add(identity);
+            dbContext.PlatformUserProfiles.Add(profile);
+        }
+        else if (profile.CoreUser is null)
+        {
+            profile.CoreUser = new CoreUser
+            {
+                Privilege = privilege,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            profile.UpdatedAt = now;
+            dbContext.CoreUsers.Add(profile.CoreUser);
         }
         else
         {
-            identity.CoreUser.Privilege = privilege;
-            identity.CoreUser.UpdatedAt = now;
-            identity.UpdatedAt = now;
+            profile.CoreUser.Privilege = privilege;
+            profile.CoreUser.UpdatedAt = now;
+            profile.UpdatedAt = now;
         }
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await CacheUserIdentitiesAsync(identity.CoreUser, cancellationToken);
+        await CacheUserIdentitiesAsync(profile.CoreUser!, cancellationToken);
 
         return AdminCommandResult.Ok(
-            $"User privilege set: id={identity.CoreUserId}, platform={FormatPlatform(platform)}, uid={platformUserId}, privilege={FormatPrivilege(privilege)}.");
+            $"User privilege set: id={profile.CoreUserId}, platform={FormatPlatform(platform)}, uid={platformUserId}, privilege={FormatPrivilege(privilege)}.");
     }
 
     private async Task CacheUserIdentitiesAsync(CoreUser user, CancellationToken cancellationToken)
     {
-        foreach (var identity in user.Identities)
+        foreach (var profile in user.PlatformProfiles)
         {
             await identityCache.SetAsync(
-                identity.Platform,
-                identity.PlatformUserId,
+                profile.Platform,
+                profile.Uid,
                 new CachedIdentity(user.Id, user.Privilege),
                 cancellationToken);
         }
@@ -267,13 +278,13 @@ public sealed class UserAdminCommand(
             $"Privilege: {FormatPrivilege(user.Privilege)}"
         };
 
-        if (user.Identities.Count > 0)
+        if (user.PlatformProfiles.Count > 0)
         {
-            lines.Add("Identities:");
-            lines.AddRange(user.Identities
-                .OrderBy(identity => identity.Platform)
-                .ThenBy(identity => identity.PlatformUserId, StringComparer.Ordinal)
-                .Select(identity => $"  {FormatPlatform(identity.Platform)}:{identity.PlatformUserId}"));
+            lines.Add("PlatformProfiles:");
+            lines.AddRange(user.PlatformProfiles
+                .OrderBy(profile => profile.Platform)
+                .ThenBy(profile => profile.Uid, StringComparer.Ordinal)
+                .Select(profile => $"  {FormatPlatform(profile.Platform)}:{profile.Uid}"));
         }
 
         return string.Join(Environment.NewLine, lines);

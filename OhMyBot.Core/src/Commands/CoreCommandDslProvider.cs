@@ -106,7 +106,7 @@ public sealed class CoreCommandDslProvider(
         }
 
         var targetUser = await dbContext.CoreUsers
-            .Include(user => user.Identities)
+            .Include(user => user.PlatformProfiles)
             .FirstOrDefaultAsync(user => user.Id == tokenPayload.OwnerCoreUserId, cancellationToken);
 
         if (targetUser is null)
@@ -116,7 +116,7 @@ public sealed class CoreCommandDslProvider(
         }
 
         var sourceUser = await dbContext.CoreUsers
-            .Include(user => user.Identities)
+            .Include(user => user.PlatformProfiles)
             .FirstAsync(user => user.Id == currentIdentity.CoreUserId, cancellationToken);
 
         if (sourceUser.Id == targetUser.Id)
@@ -146,49 +146,44 @@ public sealed class CoreCommandDslProvider(
             ? context.Request.Args[0].Trim()
             : context.Request.ReplyToUserId.Trim();
 
-        CoreUser? targetUser;
+        UserInfoData? data;
         if (callerIsAdmin && !string.IsNullOrWhiteSpace(requestedUser))
         {
-            var targetIdentity = await FindIdentityAsync(
+            var targetProfile = await FindProfileAsync(
                 dbContext,
                 context.Request.Platform,
                 requestedUser,
                 context.CancellationToken);
-
-            if (targetIdentity is null)
-            {
-                return CommandResponses.Error(
-                    "UserNotFound",
-                    $"User identity not found: {requestedUser}.",
-                    context);
-            }
-
-            targetUser = await LoadUserAsync(dbContext, targetIdentity.CoreUserId, context.CancellationToken);
+            data = await BuildPlatformUserInfoDataAsync(
+                dbContext,
+                targetProfile,
+                self: false,
+                includeCoreUserId: true,
+                context.CancellationToken);
         }
         else
         {
-            targetUser = await LoadUserAsync(dbContext, context.Identity.CoreUserId, context.CancellationToken);
+            var currentProfile = await FindProfileAsync(
+                dbContext,
+                context.Request.Platform,
+                context.Identity.PlatformUserId,
+                context.CancellationToken);
+            data = await BuildPlatformUserInfoDataAsync(
+                dbContext,
+                currentProfile,
+                self: true,
+                includeCoreUserId: callerIsAdmin,
+                context.CancellationToken);
         }
 
-        if (targetUser is null)
+        if (data is null)
         {
-            return CommandResponses.Error("UserNotFound", "Current user was not found.", context);
-        }
-
-        var data = new UserInfoData
-        {
-            Self = targetUser.Id == context.Identity.CoreUserId,
-            Privilege = targetUser.Privilege
-        };
-
-        data.Identities.AddRange(targetUser.Identities
-            .OrderBy(identity => identity.Platform)
-            .ThenBy(identity => identity.PlatformUserId, StringComparer.Ordinal)
-            .Select(ToIdentityData));
-
-        if (callerIsAdmin)
-        {
-            data.CoreUserId = targetUser.Id;
+            return CommandResponses.Error(
+                "UserNotFound",
+                string.IsNullOrWhiteSpace(requestedUser)
+                    ? "Current user was not found."
+                    : $"User identity not found: {requestedUser}.",
+                context);
         }
 
         var response = CommandResponses.Ok(CommandResponseDataKind.UserInfo, context);
@@ -213,12 +208,12 @@ public sealed class CoreCommandDslProvider(
         targetUser.Privilege = (UserPrivilege)Math.Max((int)targetUser.Privilege, (int)sourceUser.Privilege);
         targetUser.UpdatedAt = now;
 
-        foreach (var identity in sourceUser.Identities.ToArray())
+        foreach (var profile in sourceUser.PlatformProfiles.ToArray())
         {
-            identity.CoreUserId = targetUser.Id;
-            identity.CoreUser = targetUser;
-            identity.UpdatedAt = now;
-            targetUser.Identities.Add(identity);
+            profile.CoreUserId = targetUser.Id;
+            profile.CoreUser = targetUser;
+            profile.UpdatedAt = now;
+            targetUser.PlatformProfiles.Add(profile);
         }
 
         dbContext.CoreUsers.Remove(sourceUser);
@@ -232,15 +227,56 @@ public sealed class CoreCommandDslProvider(
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private static PlatformIdentityData ToIdentityData(PlatformIdentity identity)
+    private static PlatformIdentityData ToIdentityData(PlatformUserProfile profile)
     {
         return new PlatformIdentityData
         {
-            Platform = identity.Platform,
-            Uid = identity.PlatformUserId,
-            DisplayName = identity.DisplayName ?? string.Empty,
-            Username = identity.Username ?? string.Empty
+            Platform = profile.Platform,
+            Uid = profile.Uid,
+            DisplayName = FirstNonEmpty(FormatProfileDisplayName(profile), profile.Uid),
+            Username = profile.Username ?? string.Empty
         };
+    }
+
+    private static async Task<UserInfoData?> BuildPlatformUserInfoDataAsync(
+        OhMyBotV2DbContext dbContext,
+        PlatformUserProfile? profile,
+        bool self,
+        bool includeCoreUserId,
+        CancellationToken cancellationToken)
+    {
+        if (profile is null)
+        {
+            return null;
+        }
+
+        CoreUser? coreUser = profile.CoreUserId is null
+            ? null
+            : await LoadUserAsync(dbContext, profile.CoreUserId.Value, cancellationToken);
+        var data = new UserInfoData
+        {
+            Self = self,
+            Privilege = coreUser?.Privilege ?? UserPrivilege.User
+        };
+        data.Identities.Add(ToIdentityData(profile));
+
+        if (includeCoreUserId && coreUser is not null)
+        {
+            data.CoreUserId = coreUser.Id;
+        }
+
+        return data;
+    }
+
+    private static string FormatProfileDisplayName(PlatformUserProfile profile)
+    {
+        var name = string.Join(' ', new[] { profile.LastName, profile.FirstName }.Where(part => !string.IsNullOrWhiteSpace(part)));
+        return FirstNonEmpty(profile.Nickname, name, profile.Username, profile.Uid);
+    }
+
+    private static string FirstNonEmpty(params string?[] values)
+    {
+        return values.FirstOrDefault(value => !string.IsNullOrWhiteSpace(value))?.Trim() ?? string.Empty;
     }
 
     private static Task<CoreUser?> LoadUserAsync(
@@ -250,11 +286,11 @@ public sealed class CoreCommandDslProvider(
     {
         return dbContext.CoreUsers
             .AsNoTracking()
-            .Include(user => user.Identities)
+            .Include(user => user.PlatformProfiles)
             .FirstOrDefaultAsync(user => user.Id == coreUserId, cancellationToken);
     }
 
-    private static Task<PlatformIdentity?> FindIdentityAsync(
+    private static Task<PlatformUserProfile?> FindProfileAsync(
         OhMyBotV2DbContext dbContext,
         BotPlatform platform,
         string requestedUser,
@@ -265,14 +301,14 @@ public sealed class CoreCommandDslProvider(
         var normalizedUsername = username.ToLowerInvariant();
         var searchByUsernameOnly = normalized.StartsWith('@');
 
-        return dbContext.PlatformIdentities
+        return dbContext.PlatformUserProfiles
             .AsNoTracking()
             .FirstOrDefaultAsync(
-                identity => identity.Platform == platform
+                profile => profile.Platform == platform
                     && (searchByUsernameOnly
-                        ? identity.Username != null && identity.Username.ToLower() == normalizedUsername
-                        : identity.PlatformUserId == normalized
-                            || identity.Username != null && identity.Username.ToLower() == normalizedUsername),
+                        ? profile.Username != null && profile.Username.ToLower() == normalizedUsername
+                        : profile.Uid == normalized
+                            || profile.Username != null && profile.Username.ToLower() == normalizedUsername),
                 cancellationToken);
     }
 }

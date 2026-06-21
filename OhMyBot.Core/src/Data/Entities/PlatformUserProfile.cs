@@ -10,6 +10,10 @@ public class PlatformUserProfile
 
     public string Uid { get; set; } = string.Empty;
 
+    public long? CoreUserId { get; set; }
+
+    public CoreUser? CoreUser { get; set; }
+
     public string? Username { get; set; }
 
     public string? FirstName { get; set; }

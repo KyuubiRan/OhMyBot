@@ -50,6 +50,7 @@ public sealed class TelegramUpdateHandler(
                 return;
             }
 
+            await RecordInfoTargetProfileAsync(message, text, cancellationToken);
             var response = await commandGateway.ExecuteAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
 
             await responseRenderer.RenderAsync(message.Chat.Id, response, message.MessageId, cancellationToken);
@@ -115,5 +116,36 @@ public sealed class TelegramUpdateHandler(
 
         logger.LogError(exception, "Telegram polling error from {Source}.", source);
         return Task.CompletedTask;
+    }
+
+    private async Task RecordInfoTargetProfileAsync(
+        Message message,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        var (command, _) = GatewayCommandParser.Parse(text, _options.CommandPrefixes, stripBotMention: true);
+        if (!string.Equals(command, "info", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var target = message.GetFirstCommandArgumentTextMentionUser() ?? message.ReplyToMessage?.From;
+        if (target is null)
+        {
+            return;
+        }
+
+        await commandGateway.RecordUserProfileAsync(
+            new GatewayCommandRequest(
+                message.Chat.Id.ToString(),
+                target.Id.ToString(),
+                message.MessageId.ToString(),
+                text,
+                Username: target.Username,
+                ChatType: ToChatType(message.Chat.Type),
+                FirstName: target.FirstName,
+                LastName: target.LastName),
+            _options.BotInstanceId,
+            cancellationToken);
     }
 }

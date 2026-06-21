@@ -14,7 +14,7 @@ public sealed class GatewayWorker(
     IOptions<TelegramGatewayOptions> options,
     ILogger<GatewayWorker> logger) : BackgroundService
 {
-    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(3);
     private readonly TelegramGatewayOptions _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)

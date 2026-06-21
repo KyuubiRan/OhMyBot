@@ -28,7 +28,7 @@ public sealed class PlatformUserProfileService(
         }
 
         var cached = await cache.GetAsync(incoming.Platform, incoming.Uid, cancellationToken);
-        if (cached is not null && cached.HasSameProfile(incoming))
+        if (cached is { Persisted: true } && cached.Profile.HasSameProfile(incoming))
         {
             return;
         }
@@ -54,13 +54,13 @@ public sealed class PlatformUserProfileService(
 
             dbContext.PlatformUserProfiles.Add(profile);
             await dbContext.SaveChangesAsync(cancellationToken);
-            await cache.SetAsync(incoming, cancellationToken);
+            await cache.SetAsync(UserProfileCacheEntry.PersistedProfile(incoming), cancellationToken);
             return;
         }
 
         if (!HasChanged(profile, incoming))
         {
-            await cache.SetAsync(ToUpdate(profile), cancellationToken);
+            await cache.SetAsync(UserProfileCacheEntry.PersistedProfile(ToUpdate(profile)), cancellationToken);
             return;
         }
 
@@ -71,7 +71,7 @@ public sealed class PlatformUserProfileService(
         profile.UpdatedAt = now;
 
         await dbContext.SaveChangesAsync(cancellationToken);
-        await cache.SetAsync(incoming, cancellationToken);
+        await cache.SetAsync(UserProfileCacheEntry.PersistedProfile(incoming), cancellationToken);
     }
 
     private static bool HasChanged(PlatformUserProfile profile, UserProfileUpdate incoming)

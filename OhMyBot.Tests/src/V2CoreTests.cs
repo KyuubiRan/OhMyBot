@@ -39,8 +39,9 @@ public class V2CoreTests
 
         Assert.AreNotEqual(0, identity.CoreUserId);
         Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
-        Assert.AreEqual(1, await dbContext.PlatformIdentities.CountAsync());
-        Assert.AreEqual("Tester", identity.DisplayName);
+        Assert.AreEqual(1, await dbContext.PlatformUserProfiles.CountAsync());
+        Assert.AreEqual("tester", identity.Username);
+        Assert.IsNotNull(identity.CoreUserId);
     }
 
     [TestMethod]
@@ -59,9 +60,9 @@ public class V2CoreTests
         });
 
         Assert.AreEqual(0, await dbContext.CoreUsers.CountAsync());
-        Assert.AreEqual(0, await dbContext.PlatformIdentities.CountAsync());
 
         var profile = await dbContext.PlatformUserProfiles.SingleAsync();
+        Assert.IsNull(profile.CoreUserId);
         Assert.AreEqual(BotPlatform.Telegram, profile.Platform);
         Assert.AreEqual("10001", profile.Uid);
         Assert.AreEqual("tester", profile.Username);
@@ -96,17 +97,47 @@ public class V2CoreTests
     }
 
     [TestMethod]
-    public async Task UserProfileRecordSkipsDatabaseWhenCachedProfileMatches()
+    public async Task UserProfileRecordCreatesDatabaseRowWhenOnlyCacheMatches()
     {
         await using var dbContext = CreateDbContext();
         var cache = new FakeUserProfileCache();
-        await cache.SetAsync(new UserProfileUpdate(
+        await cache.SetAsync(new UserProfileCacheEntry(
+            new UserProfileUpdate(
+                BotPlatform.Telegram,
+                "10001",
+                "tester",
+                "Test",
+                "User",
+                null),
+            Persisted: false));
+        var service = new PlatformUserProfileService(dbContext, cache, TimeProvider.System);
+
+        await service.RecordAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Telegram,
+            UserId = "10001",
+            Username = "tester",
+            FirstName = "Test",
+            LastName = "User"
+        });
+
+        var profile = await dbContext.PlatformUserProfiles.SingleAsync();
+        Assert.IsNull(profile.CoreUserId);
+        Assert.AreEqual("10001", profile.Uid);
+    }
+
+    [TestMethod]
+    public async Task UserProfileRecordSkipsDatabaseWhenPersistedCacheMatches()
+    {
+        await using var dbContext = CreateDbContext();
+        var cache = new FakeUserProfileCache();
+        await cache.SetAsync(UserProfileCacheEntry.PersistedProfile(new UserProfileUpdate(
             BotPlatform.Telegram,
             "10001",
             "tester",
             "Test",
             "User",
-            null));
+            null)));
         var service = new PlatformUserProfileService(dbContext, cache, TimeProvider.System);
 
         await service.RecordAsync(new CommandRequest
@@ -153,7 +184,7 @@ public class V2CoreTests
         Assert.AreEqual(0, response.Code);
         Assert.IsFalse(tokenStore.Tokens.ContainsKey(token));
         Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
-        Assert.AreEqual(2, await dbContext.PlatformIdentities.CountAsync());
+        Assert.AreEqual(2, await dbContext.PlatformUserProfiles.CountAsync());
     }
 
     [TestMethod]
@@ -220,7 +251,7 @@ public class V2CoreTests
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "ping"));
         await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-admin", "ping"));
 
-        var qqIdentity = await dbContext.PlatformIdentities
+        var qqIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Platform == BotPlatform.Qq);
         qqIdentity.CoreUser.Privilege = UserPrivilege.Admin;
@@ -255,12 +286,12 @@ public class V2CoreTests
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-old", "ping"));
         await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-new", "ping"));
 
-        var firstUser = await dbContext.PlatformIdentities
+        var firstUser = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .Where(identity => identity.Platform == BotPlatform.Telegram)
             .Select(identity => identity.CoreUser)
             .SingleAsync();
-        var secondUser = await dbContext.PlatformIdentities
+        var secondUser = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .Where(identity => identity.Platform == BotPlatform.Qq)
             .Select(identity => identity.CoreUser)
@@ -277,7 +308,7 @@ public class V2CoreTests
         Assert.AreEqual(0, response.Code);
         var retainedUser = await dbContext.CoreUsers.SingleAsync();
         Assert.AreEqual(Math.Min(firstUser.Id, secondUser.Id), retainedUser.Id);
-        Assert.AreEqual(2, await dbContext.PlatformIdentities.CountAsync(identity => identity.CoreUserId == retainedUser.Id));
+        Assert.AreEqual(2, await dbContext.PlatformUserProfiles.CountAsync(identity => identity.CoreUserId == retainedUser.Id));
     }
 
     [TestMethod]
@@ -388,7 +419,9 @@ public class V2CoreTests
 
         Assert.AreEqual(0, response.Code);
         Assert.AreEqual("secret", response.Text.Text);
-        Assert.AreEqual(0, await dbContext.PlatformIdentities.CountAsync());
+        var profile = await dbContext.PlatformUserProfiles.SingleAsync();
+        Assert.IsNull(profile.CoreUserId);
+        Assert.AreEqual("tg-owner", profile.Uid);
     }
 
     [TestMethod]
@@ -521,12 +554,12 @@ public class V2CoreTests
         var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "target", "ping"));
-        var adminIdentity = await dbContext.PlatformIdentities
+        var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
-            .SingleAsync(identity => identity.PlatformUserId == "admin");
+            .SingleAsync(identity => identity.Uid == "admin");
         adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
-        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "target"));
 
@@ -535,6 +568,7 @@ public class V2CoreTests
         Assert.IsTrue(response.UserInfo.HasCoreUserId);
         Assert.IsTrue(response.UserInfo.CoreUserId > 0);
         Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+        Assert.AreEqual(BotPlatform.Telegram, response.UserInfo.Identities.Single().Platform);
     }
 
     [TestMethod]
@@ -547,18 +581,89 @@ public class V2CoreTests
         var targetRequest = CreateRequest(BotPlatform.Telegram, "target", "ping");
         targetRequest.Username = "target_user";
         await service.ExecuteAsync(targetRequest);
-        var adminIdentity = await dbContext.PlatformIdentities
+        var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
-            .SingleAsync(identity => identity.PlatformUserId == "admin");
+            .SingleAsync(identity => identity.Uid == "admin");
         adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
-        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "@target_user"));
 
         Assert.AreEqual(0, response.Code);
         Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
         Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+    }
+
+    [TestMethod]
+    public async Task InfoCommandAdminCanQueryRecordedProfileWithoutIdentity()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        dbContext.PlatformUserProfiles.Add(new PlatformUserProfile
+        {
+            Platform = BotPlatform.Telegram,
+            Uid = "target",
+            Username = "target_user",
+            FirstName = "Target",
+            LastName = "User",
+            CreatedAt = DateTimeOffset.UtcNow,
+            UpdatedAt = DateTimeOffset.UtcNow
+        });
+        await dbContext.SaveChangesAsync();
+        var adminIdentity = await dbContext.PlatformUserProfiles
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.Uid == "admin");
+        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
+
+        var byUid = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "target"));
+        var byUsername = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "@target_user"));
+
+        Assert.AreEqual(0, byUid.Code);
+        Assert.AreEqual(CommandResponseDataKind.UserInfo, byUid.DataKind);
+        Assert.IsFalse(byUid.UserInfo.HasCoreUserId);
+        Assert.AreEqual(UserPrivilege.User, byUid.UserInfo.Privilege);
+        Assert.AreEqual("target", byUid.UserInfo.Identities.Single().Uid);
+        Assert.AreEqual("User Target", byUid.UserInfo.Identities.Single().DisplayName);
+        Assert.AreEqual(0, byUsername.Code);
+        Assert.AreEqual("target", byUsername.UserInfo.Identities.Single().Uid);
+    }
+
+    [TestMethod]
+    public async Task InfoCommandReturnsCurrentPlatformProfileForLinkedUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-target", "ping"));
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-target", "ping"));
+        var telegramIdentity = await dbContext.PlatformUserProfiles
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.Platform == BotPlatform.Telegram && identity.Uid == "tg-target");
+        var qqIdentity = await dbContext.PlatformUserProfiles
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.Platform == BotPlatform.Qq && identity.Uid == "qq-target");
+        qqIdentity.CoreUserId = telegramIdentity.CoreUserId;
+        qqIdentity.CoreUser = telegramIdentity.CoreUser;
+        var adminIdentity = await dbContext.PlatformUserProfiles
+            .Include(identity => identity.CoreUser)
+            .SingleAsync(identity => identity.Uid == "admin");
+        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
+        await identityCache.SetAsync(BotPlatform.Qq, "qq-target", new CachedIdentity(telegramIdentity.CoreUserId!.Value, UserPrivilege.User));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "tg-target"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual(1, response.UserInfo.Identities.Count);
+        Assert.AreEqual(BotPlatform.Telegram, response.UserInfo.Identities.Single().Platform);
+        Assert.AreEqual("tg-target", response.UserInfo.Identities.Single().Uid);
     }
 
     [TestMethod]
@@ -569,12 +674,12 @@ public class V2CoreTests
         var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "target", "ping"));
-        var adminIdentity = await dbContext.PlatformIdentities
+        var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
-            .SingleAsync(identity => identity.PlatformUserId == "admin");
+            .SingleAsync(identity => identity.Uid == "admin");
         adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
-        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
         var infoRequest = CreateRequest(BotPlatform.Telegram, "admin", "info");
         infoRequest.ReplyToUserId = "target";
 
@@ -592,12 +697,12 @@ public class V2CoreTests
         var identityCache = new FakeIdentityCache();
         var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
-        var adminIdentity = await dbContext.PlatformIdentities
+        var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
-            .SingleAsync(identity => identity.PlatformUserId == "admin");
+            .SingleAsync(identity => identity.Uid == "admin");
         adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
-        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId, UserPrivilege.Admin));
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "missing"));
 
@@ -967,9 +1072,9 @@ public class V2CoreTests
         var result = await executor.ExecuteAsync("user -p telegram -uid 123456 -sp owner");
 
         Assert.IsTrue(result.Success);
-        var identity = await dbContext.PlatformIdentities
+        var identity = await dbContext.PlatformUserProfiles
             .Include(item => item.CoreUser)
-            .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.PlatformUserId == "123456");
+            .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.Uid == "123456");
         Assert.AreEqual(UserPrivilege.Owner, identity.CoreUser.Privilege);
 
         var cached = await identityCache.GetAsync(BotPlatform.Telegram, "123456");
@@ -1016,9 +1121,9 @@ public class V2CoreTests
         Assert.IsTrue(result.Success);
         Assert.Contains("privilege=verified-user", result.Message);
 
-        var identity = await dbContext.PlatformIdentities
+        var identity = await dbContext.PlatformUserProfiles
             .Include(item => item.CoreUser)
-            .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.PlatformUserId == "123456");
+            .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.Uid == "123456");
         Assert.AreEqual(UserPrivilege.VerifiedUser, identity.CoreUser.Privilege);
 
         var cached = await identityCache.GetAsync(BotPlatform.Telegram, "123456");
@@ -1337,9 +1442,9 @@ public class V2CoreTests
 
     private sealed class FakeUserProfileCache : IUserProfileCache
     {
-        private readonly Dictionary<string, UserProfileUpdate> _profiles = new(StringComparer.Ordinal);
+        private readonly Dictionary<string, UserProfileCacheEntry> _profiles = new(StringComparer.Ordinal);
 
-        public Task<UserProfileUpdate?> GetAsync(
+        public Task<UserProfileCacheEntry?> GetAsync(
             BotPlatform platform,
             string uid,
             CancellationToken cancellationToken = default)
@@ -1348,9 +1453,9 @@ public class V2CoreTests
             return Task.FromResult(profile);
         }
 
-        public Task SetAsync(UserProfileUpdate profile, CancellationToken cancellationToken = default)
+        public Task SetAsync(UserProfileCacheEntry entry, CancellationToken cancellationToken = default)
         {
-            _profiles[GetKey(profile.Platform, profile.Uid)] = profile;
+            _profiles[GetKey(entry.Profile.Platform, entry.Profile.Uid)] = entry;
             return Task.CompletedTask;
         }
 

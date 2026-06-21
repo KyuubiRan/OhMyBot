@@ -48,6 +48,11 @@ internal static class TelegramMessageEntityExtensions
         return message.GetFirstCommandArgumentEntityByType(MessageEntityType.TextMention)?.User?.Id.ToString();
     }
 
+    public static User? GetFirstCommandArgumentTextMentionUser(this Message message)
+    {
+        return message.GetFirstCommandArgumentEntityByType(MessageEntityType.TextMention)?.User;
+    }
+
     public static string? GetEntityText(this Message message, MessageEntity entity)
     {
         var text = message.Text;

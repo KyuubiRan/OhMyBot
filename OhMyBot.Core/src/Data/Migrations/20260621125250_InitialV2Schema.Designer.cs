@@ -9,11 +9,11 @@ using OhMyBot.Core.Data;
 
 #nullable disable
 
-namespace OhMyBot.Core.Data.Migrations
+namespace OhMyBot.Core.src.Data.Migrations
 {
     [DbContext(typeof(OhMyBotV2DbContext))]
-    [Migration("20260620174031_AddAiRouterAndNotifications")]
-    partial class AddAiRouterAndNotifications
+    [Migration("20260621125250_InitialV2Schema")]
+    partial class InitialV2Schema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -94,6 +94,121 @@ namespace OhMyBot.Core.Data.Migrations
                     b.ToTable("CoreUsers");
                 });
 
+            modelBuilder.Entity("OhMyBot.Core.Data.Entities.KuroAccount", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AutoSignEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<long>("BbsTaskFlags")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("BbsUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("CoreUserId")
+                        .HasColumnType("bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DevCode")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("DistinctId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.Property<string>("TokenCiphertext")
+                        .IsRequired()
+                        .HasMaxLength(2048)
+                        .HasColumnType("character varying(2048)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BbsUserId")
+                        .IsUnique();
+
+                    b.HasIndex("CoreUserId");
+
+                    b.ToTable("KuroAccounts");
+                });
+
+            modelBuilder.Entity("OhMyBot.Core.Data.Entities.KuroGameRole", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<bool>("AutoSignEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<long>("GameId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("GameLevel")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<string>("GameName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<long>("KuroAccountId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("RoleId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("RoleName")
+                        .IsRequired()
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ServerId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<string>("ServerName")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("character varying(128)");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KuroAccountId", "GameId", "ServerId", "RoleId")
+                        .IsUnique();
+
+                    b.ToTable("KuroGameRoles");
+                });
+
             modelBuilder.Entity("OhMyBot.Core.Data.Entities.NotificationSubscription", b =>
                 {
                     b.Property<long>("Id")
@@ -146,51 +261,6 @@ namespace OhMyBot.Core.Data.Migrations
                     b.ToTable("NotificationSubscriptions");
                 });
 
-            modelBuilder.Entity("OhMyBot.Core.Data.Entities.PlatformIdentity", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<long>("CoreUserId")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("DisplayName")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasMaxLength(64)
-                        .HasColumnType("character varying(64)");
-
-                    b.Property<string>("PlatformUserId")
-                        .IsRequired()
-                        .HasMaxLength(128)
-                        .HasColumnType("character varying(128)");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("Username")
-                        .HasMaxLength(256)
-                        .HasColumnType("character varying(256)");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("CoreUserId");
-
-                    b.HasIndex("Platform", "PlatformUserId")
-                        .IsUnique();
-
-                    b.ToTable("PlatformIdentities");
-                });
-
             modelBuilder.Entity("OhMyBot.Core.Data.Entities.PlatformUserProfile", b =>
                 {
                     b.Property<long>("Id")
@@ -198,6 +268,9 @@ namespace OhMyBot.Core.Data.Migrations
                         .HasColumnType("bigint");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<long?>("CoreUserId")
+                        .HasColumnType("bigint");
 
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -233,6 +306,8 @@ namespace OhMyBot.Core.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CoreUserId");
+
                     b.HasIndex("Platform", "Uid")
                         .IsUnique();
 
@@ -250,6 +325,28 @@ namespace OhMyBot.Core.Data.Migrations
                     b.Navigation("CoreUser");
                 });
 
+            modelBuilder.Entity("OhMyBot.Core.Data.Entities.KuroAccount", b =>
+                {
+                    b.HasOne("OhMyBot.Core.Data.Entities.CoreUser", "CoreUser")
+                        .WithMany("KuroAccounts")
+                        .HasForeignKey("CoreUserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("CoreUser");
+                });
+
+            modelBuilder.Entity("OhMyBot.Core.Data.Entities.KuroGameRole", b =>
+                {
+                    b.HasOne("OhMyBot.Core.Data.Entities.KuroAccount", "KuroAccount")
+                        .WithMany("Roles")
+                        .HasForeignKey("KuroAccountId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("KuroAccount");
+                });
+
             modelBuilder.Entity("OhMyBot.Core.Data.Entities.NotificationSubscription", b =>
                 {
                     b.HasOne("OhMyBot.Core.Data.Entities.CoreUser", "CoreUser")
@@ -261,13 +358,12 @@ namespace OhMyBot.Core.Data.Migrations
                     b.Navigation("CoreUser");
                 });
 
-            modelBuilder.Entity("OhMyBot.Core.Data.Entities.PlatformIdentity", b =>
+            modelBuilder.Entity("OhMyBot.Core.Data.Entities.PlatformUserProfile", b =>
                 {
                     b.HasOne("OhMyBot.Core.Data.Entities.CoreUser", "CoreUser")
-                        .WithMany("Identities")
+                        .WithMany("PlatformProfiles")
                         .HasForeignKey("CoreUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.SetNull);
 
                     b.Navigation("CoreUser");
                 });
@@ -276,9 +372,16 @@ namespace OhMyBot.Core.Data.Migrations
                 {
                     b.Navigation("AiRouterAccounts");
 
-                    b.Navigation("Identities");
+                    b.Navigation("KuroAccounts");
 
                     b.Navigation("NotificationSubscriptions");
+
+                    b.Navigation("PlatformProfiles");
+                });
+
+            modelBuilder.Entity("OhMyBot.Core.Data.Entities.KuroAccount", b =>
+                {
+                    b.Navigation("Roles");
                 });
 #pragma warning restore 612, 618
         }

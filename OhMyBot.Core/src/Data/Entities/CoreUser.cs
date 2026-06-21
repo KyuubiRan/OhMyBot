@@ -12,7 +12,7 @@ public class CoreUser
 
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-    public ICollection<PlatformIdentity> Identities { get; set; } = new List<PlatformIdentity>();
+    public ICollection<PlatformUserProfile> PlatformProfiles { get; set; } = new List<PlatformUserProfile>();
 
     public ICollection<AiRouterAccount> AiRouterAccounts { get; set; } = new List<AiRouterAccount>();
 
