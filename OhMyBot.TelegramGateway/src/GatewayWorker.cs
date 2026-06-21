@@ -14,6 +14,7 @@ public sealed class GatewayWorker(
     IOptions<TelegramGatewayOptions> options,
     ILogger<GatewayWorker> logger) : BackgroundService
 {
+    private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(10);
     private readonly TelegramGatewayOptions _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -23,6 +24,30 @@ public sealed class GatewayWorker(
             throw new InvalidOperationException("Telegram:BotToken is required.");
         }
 
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await RunAsync(stoppingToken);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                logger.LogError(
+                    exception,
+                    "Telegram gateway startup failed. Retrying in {DelaySeconds} seconds.",
+                    RetryDelay.TotalSeconds);
+                await Task.Delay(RetryDelay, stoppingToken);
+            }
+        }
+    }
+
+    private async Task RunAsync(CancellationToken stoppingToken)
+    {
         var me = await botClient.GetMe(stoppingToken);
         logger.LogInformation("Telegram gateway connected as @{Username} ({BotId}).", me.Username, me.Id);
         logger.LogInformation("Telegram drop pending updates: {DropPendingUpdates}.", _options.DropPendingUpdates);
