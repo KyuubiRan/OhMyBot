@@ -11,6 +11,10 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
 
     public DbSet<PlatformUserProfile> PlatformUserProfiles => Set<PlatformUserProfile>();
 
+    public DbSet<AiRouterAccount> AiRouterAccounts => Set<AiRouterAccount>();
+
+    public DbSet<NotificationSubscription> NotificationSubscriptions => Set<NotificationSubscription>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<CoreUser>(builder =>
@@ -51,6 +55,45 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
             builder.Property(profile => profile.UpdatedAt).IsRequired();
 
             builder.HasIndex(profile => new { profile.Platform, profile.Uid }).IsUnique();
+        });
+
+        modelBuilder.Entity<AiRouterAccount>(builder =>
+        {
+            builder.HasKey(account => account.Id);
+            builder.Property(account => account.LoginEmail).HasMaxLength(320).IsRequired();
+            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
+            builder.Property(account => account.PasswordCiphertext).HasMaxLength(2048).IsRequired();
+            builder.Property(account => account.CreatedAt).IsRequired();
+            builder.Property(account => account.UpdatedAt).IsRequired();
+
+            builder.HasIndex(account => account.LoginEmail).IsUnique();
+            builder.HasOne(account => account.CoreUser)
+                   .WithMany(user => user.AiRouterAccounts)
+                   .HasForeignKey(account => account.CoreUserId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<NotificationSubscription>(builder =>
+        {
+            builder.HasKey(subscription => subscription.Id);
+            builder.Property(subscription => subscription.NotificationType).HasMaxLength(128).IsRequired();
+            builder.Property(subscription => subscription.TelegramBotInstanceId).HasMaxLength(128);
+            builder.Property(subscription => subscription.TelegramChatId).HasMaxLength(128);
+            builder.Property(subscription => subscription.QqBotInstanceId).HasMaxLength(128);
+            builder.Property(subscription => subscription.QqChatId).HasMaxLength(128);
+            builder.Property(subscription => subscription.CreatedAt).IsRequired();
+            builder.Property(subscription => subscription.UpdatedAt).IsRequired();
+
+            builder.HasIndex(subscription => new
+            {
+                subscription.CoreUserId,
+                subscription.NotificationType,
+                subscription.TargetId
+            }).IsUnique();
+            builder.HasOne(subscription => subscription.CoreUser)
+                   .WithMany(user => user.NotificationSubscriptions)
+                   .HasForeignKey(subscription => subscription.CoreUserId)
+                   .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

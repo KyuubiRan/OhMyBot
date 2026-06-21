@@ -1,13 +1,18 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OhMyBot.Contracts.Messaging;
+using OhMyBot.Core.AiRouter;
 using OhMyBot.Core.Admin;
+using OhMyBot.Core.Callbacks;
 using OhMyBot.Core.Commands;
 using OhMyBot.Core.Data;
 using OhMyBot.Core.Identity;
 using OhMyBot.Core.Linking;
 using OhMyBot.Core.Messaging;
+using OhMyBot.Core.Notifications;
 using OhMyBot.Core.Routing;
+using OhMyBot.Core.ScheduledTasks;
+using OhMyBot.Core.Security;
 using OhMyBot.Core.Terminal;
 using OhMyBot.Core.UserProfiles;
 using RouteOptions = OhMyBot.Core.Routing.RouteOptions;
@@ -24,26 +29,48 @@ public static class ServiceCollectionExtensions
         services.AddOptions<UserProfileCacheOptions>().BindConfiguration("UserProfileCache");
         services.AddOptions<RouteOptions>().BindConfiguration("Routes");
         services.AddOptions<RabbitMqOptions>().BindConfiguration("RabbitMQ");
+        services.AddOptions<EncryptionOptions>().BindConfiguration("Encryption");
+        services.AddOptions<CallbackActionOptions>().BindConfiguration("CallbackActions");
+        services.AddOptions<AiRouterOptions>().BindConfiguration("AiRouter");
+        services.AddOptions<ScheduledTaskOptions>()
+            .BindConfiguration("ScheduledTasks:AiRouterAutoSign")
+            .ValidateOnStart();
         services.TryAddSingleton<InteractiveConsoleState>();
         services.AddScoped<IAdminCommand, UserAdminCommand>();
+        services.AddScoped<IAdminCommand, TaskCtlAdminCommand>();
         services.AddScoped<AdminCommandCatalog>();
         services.AddScoped<AdminCommandExecutor>();
         services.AddScoped<CoreIdentityService>();
         services.AddScoped<PlatformUserProfileService>();
         services.AddScoped<CommandExecutionService>();
-        services.AddSingleton<ICoreCommand, PingCommand>();
-        services.AddSingleton<ICoreCommand, LinkCommand>();
-        services.AddSingleton<ICoreCommand, InfoCommand>();
+        services.AddScoped<CallbackExecutionService>();
+        services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
         services.AddScoped<IUserProfileCache, DistributedUserProfileCache>();
-        services.AddSingleton<CoreCommandCatalog>();
-        services.AddSingleton(provider => new CommandRegistry(
-            provider.GetRequiredService<CoreCommandCatalog>().CreateRegistrations()));
+        services.AddScoped<ISecretProtector, AesGcmSecretProtector>();
+        services.AddScoped<AiRouterAccountService>();
+        services.AddScoped<AiRouterSignService>();
+        services.AddScoped<AiRouterResponseBuilder>();
+        services.AddScoped<NotificationSubscriptionService>();
+        services.AddSingleton<CallbackActionStore>();
+        services.AddSingleton<PlatformCommandDslRegistry>();
+        services.AddScoped<PlatformCommandDslExecutor>();
         services.AddSingleton<RouteStore>();
         services.AddSingleton<IRouteChangePublisher, RabbitMqRouteChangePublisher>();
+        services.AddSingleton<INotificationPublisher, RabbitMqNotificationPublisher>();
+        services.AddSingleton<ManagedTaskRegistry>();
+        services.AddSingleton<IManagedTask, AiRouterAutoSignManagedTask>();
+        services.AddHttpClient<AiRouterHttpClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiRouterOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+        });
         services.AddHostedService<DatabaseMigrationHostedService>();
         services.AddHostedService<RouteStoreHostedService>();
+        services.AddHostedService<ManagedTaskHostedService>();
         services.AddHostedService<InteractiveConsoleRendererHostedService>();
         services.AddHostedService<InteractiveConsoleHostedService>();
         return services;

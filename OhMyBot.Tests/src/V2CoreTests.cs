@@ -5,11 +5,14 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Admin;
+using OhMyBot.Core.AiRouter;
 using OhMyBot.Core.Commands;
 using OhMyBot.Core.Data;
 using OhMyBot.Core.Identity;
 using OhMyBot.Core.Linking;
+using OhMyBot.Core.Notifications;
 using OhMyBot.Core.Routing;
+using OhMyBot.Core.Security;
 using OhMyBot.Core.UserProfiles;
 
 namespace OhMyBot.Tests;
@@ -236,15 +239,10 @@ public class V2CoreTests
     [TestMethod]
     public void CommandListIsFilteredBySupportedPlatforms()
     {
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "qqonly",
-            "QQ only command.",
-            "/qqonly",
-            UserPrivilege.User,
-            SupportedPlatforms.QQ,
-            _ => Task.FromResult(CommandResponses.Text("ok"))));
-
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("qqonly", "QQ only command.", "/qqonly", UserPrivilege.User, SupportedPlatforms.QQ)
+        ]);
         var routeStore = CreateRouteStore(registry);
         routeStore.InitializeAsync().GetAwaiter().GetResult();
 
@@ -259,15 +257,10 @@ public class V2CoreTests
     public async Task UnsupportedChatTypeReturnsStructuredError()
     {
         await using var dbContext = CreateDbContext();
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "group",
-            "Group only command.",
-            "/group",
-            UserPrivilege.User,
-            SupportedPlatforms.All,
-            _ => Task.FromResult(CommandResponses.Text("ok")),
-            supportChatTypes: SupportedChatTypes.Group));
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("group", "Group only command.", "/group", UserPrivilege.User, chatTypes: SupportedChatTypes.Group)
+        ]);
 
         var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
 
@@ -281,15 +274,10 @@ public class V2CoreTests
     public async Task SupportedGroupChatTypeExecutesCommand()
     {
         await using var dbContext = CreateDbContext();
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "group",
-            "Group only command.",
-            "/group",
-            UserPrivilege.User,
-            SupportedPlatforms.All,
-            _ => Task.FromResult(CommandResponses.Text("ok")),
-            supportChatTypes: SupportedChatTypes.Group));
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("group", "Group only command.", "/group", UserPrivilege.User, chatTypes: SupportedChatTypes.Group)
+        ]);
 
         var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
         var request = CreateRequest(BotPlatform.Telegram, "tg-1", "group");
@@ -305,14 +293,10 @@ public class V2CoreTests
     public async Task InsufficientPrivilegeReturnsStructuredError()
     {
         await using var dbContext = CreateDbContext();
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "owner",
-            "Owner command.",
-            "/owner",
-            UserPrivilege.Owner,
-            SupportedPlatforms.All,
-            _ => Task.FromResult(CommandResponses.Text("secret"))));
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("owner", "Owner command.", "/owner", UserPrivilege.Owner, handlerText: "secret")
+        ]);
 
         var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
 
@@ -332,14 +316,10 @@ public class V2CoreTests
             "tg-owner",
             new CachedIdentity(999, UserPrivilege.Owner));
 
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "owner",
-            "Owner command.",
-            "/owner",
-            UserPrivilege.Owner,
-            SupportedPlatforms.All,
-            _ => Task.FromResult(CommandResponses.Text("secret"))));
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("owner", "Owner command.", "/owner", UserPrivilege.Owner, handlerText: "secret")
+        ]);
 
         var routeDocument = new RouteDocument
         {
@@ -400,23 +380,16 @@ public class V2CoreTests
     public async Task RouteTargetMissingReturnsStructuredError()
     {
         await using var dbContext = CreateDbContext();
-        var routeDocument = new RouteDocument
-        {
-            Routes =
-            [
-                new RouteDefinition
-                {
-                    Command = "broken",
-                    CoreCommand = "missing",
-                    Description = "Broken route.",
-                    Usage = "/broken",
-                    RequiredPrivilege = "User",
-                    SupportPlatforms = ["Telegram"],
-                    Enabled = true
-                }
-            ]
-        };
-        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), routeDocument: routeDocument);
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            new CommandDslNode
+            {
+                Name = "broken",
+                Description = "Broken route.",
+                Usage = "/broken"
+            }
+        ]);
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "broken"));
 
@@ -428,14 +401,10 @@ public class V2CoreTests
     public async Task RouteCannotLowerCorePrivilege()
     {
         await using var dbContext = CreateDbContext();
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "owner",
-            "Owner command.",
-            "/owner",
-            UserPrivilege.Owner,
-            SupportedPlatforms.All,
-            _ => Task.FromResult(CommandResponses.Text("secret"))));
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("owner", "Owner command.", "/owner", UserPrivilege.Owner, handlerText: "secret")
+        ]);
 
         var routeDocument = new RouteDocument
         {
@@ -570,6 +539,76 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public void AesSecretProtectorRoundTripsWithoutPlaintext()
+    {
+        var protector = new AesGcmSecretProtector(Options.Create(new EncryptionOptions
+        {
+            Key = Convert.ToBase64String(Enumerable.Range(1, 32).Select(value => (byte)value).ToArray())
+        }));
+
+        var ciphertext = protector.Protect("secret-password");
+        var plaintext = protector.Unprotect(ciphertext);
+
+        Assert.AreEqual("secret-password", plaintext);
+        Assert.StartsWith("v1:", ciphertext);
+        Assert.IsFalse(ciphertext.Contains("secret-password", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void AesSecretProtectorRejectsInvalidKey()
+    {
+        var exception = Assert.ThrowsExactly<InvalidOperationException>(() =>
+            new AesGcmSecretProtector(Options.Create(new EncryptionOptions { Key = Convert.ToBase64String([1, 2, 3]) })));
+
+        Assert.Contains("exactly 32 bytes", exception.Message);
+    }
+
+    [TestMethod]
+    public async Task NotificationSubscriptionsDefaultEnabledAndToggleOnlyCurrentPlatform()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CoreUsers.Add(new Core.Data.Entities.CoreUser { Id = 1 });
+        await dbContext.SaveChangesAsync();
+        var service = new NotificationSubscriptionService(dbContext, TimeProvider.System);
+
+        var defaultEnabled = await service.GetEnabledTargetIdsAsync(
+            1,
+            BotPlatform.Telegram,
+            NotificationTypes.AiRouterAutoSign,
+            [100],
+            CancellationToken.None);
+        await service.ToggleAsync(
+            1,
+            BotPlatform.Telegram,
+            "tg",
+            "chat",
+            NotificationTypes.AiRouterAutoSign,
+            100,
+            CancellationToken.None);
+        var telegramAfterToggle = await service.GetEnabledTargetIdsAsync(
+            1,
+            BotPlatform.Telegram,
+            NotificationTypes.AiRouterAutoSign,
+            [100],
+            CancellationToken.None);
+        var qqAfterTelegramToggle = await service.GetEnabledTargetIdsAsync(
+            1,
+            BotPlatform.Qq,
+            NotificationTypes.AiRouterAutoSign,
+            [100],
+            CancellationToken.None);
+
+        Assert.IsTrue(defaultEnabled.Contains(100));
+        Assert.IsFalse(telegramAfterToggle.Contains(100));
+        Assert.IsTrue(qqAfterTelegramToggle.Contains(100));
+
+        var subscription = await dbContext.NotificationSubscriptions.SingleAsync();
+        Assert.AreEqual((int)NotificationPlatformFlags.QQ, subscription.EnabledPlatforms);
+        Assert.AreEqual("tg", subscription.TelegramBotInstanceId);
+        Assert.AreEqual("chat", subscription.TelegramChatId);
+    }
+
+    [TestMethod]
     public async Task InvalidRouteJsonKeepsPreviousSnapshot()
     {
         var registry = CreateBuiltInCommandRegistry();
@@ -589,14 +628,10 @@ public class V2CoreTests
     [TestMethod]
     public async Task RouteFileIsGeneratedAndMergedWithoutOverwritingExistingRoutes()
     {
-        var registry = CreateBuiltInCommandRegistry();
-        registry.Add(new CommandRegistration(
-            "owner",
-            "Owner command.",
-            "/owner",
-            UserPrivilege.Owner,
-            SupportedPlatforms.All,
-            _ => Task.FromResult(CommandResponses.Text("secret"))));
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            CommandOnly("owner", "Owner command.", "/owner", UserPrivilege.Owner, handlerText: "secret")
+        ]);
 
         var routeDocument = new RouteDocument
         {
@@ -629,6 +664,154 @@ public class V2CoreTests
         Assert.IsFalse(pingRoute.Enabled);
         Assert.IsTrue(generated.Routes.Any(route => route.Command == "link"));
         Assert.IsTrue(generated.Routes.Any(route => route.Command == "owner"));
+    }
+
+    [TestMethod]
+    public async Task HelpCommandShowsOnlyCommandsAllowedForUserPrivilege()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "user", UserPrivilege.User);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "help"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.IsFalse(response.Text.Text.Contains("可用命令：", StringComparison.Ordinal));
+        Assert.Contains("/help - 显示可用指令", response.Text.Text);
+        Assert.IsFalse(response.Text.Text.Contains("/help - 显示可用指令，目前支持的子命令有", StringComparison.Ordinal));
+        Assert.Contains("/ping", response.Text.Text);
+        Assert.Contains("/link", response.Text.Text);
+        Assert.Contains("/ai - AI 相关指令", response.Text.Text);
+        Assert.IsFalse(response.Text.Text.Contains("目前支持的子命令有", StringComparison.Ordinal));
+        Assert.IsFalse(response.Text.Text.Contains("/ai_router_auto_signin", StringComparison.Ordinal));
+        Assert.IsFalse(response.Text.Text.Contains("子命令：ai_router", StringComparison.Ordinal));
+        Assert.IsFalse(response.Text.Text.Contains("/owner", StringComparison.Ordinal));
+        Assert.IsFalse(response.Text.Text.Contains("权限：", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task HelpCommandShowsAiRouterGroupForVerifiedUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "verified", UserPrivilege.VerifiedUser);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.Contains("router - Router 平台相关指令", response.Text.Text);
+        Assert.IsFalse(response.Text.Text.Contains("/ai_router_auto_signin", StringComparison.Ordinal));
+        Assert.IsFalse(response.Text.Text.Contains("权限：", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task HelpCommandShowsAiRouterCommandsInSubCommand()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "verified", UserPrivilege.VerifiedUser);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai", "router"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.Contains("bind - 绑定用户", response.Text.Text);
+        Assert.Contains("autosign - 自动签到管理", response.Text.Text);
+        Assert.Contains("delete - 删除绑定", response.Text.Text);
+        Assert.IsFalse(response.Text.Text.Contains("/ping", StringComparison.Ordinal));
+        Assert.IsFalse(response.Text.Text.Contains("权限：", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public async Task CategoryCommandWithoutSubCommandShowsSameHelp()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "verified", UserPrivilege.VerifiedUser);
+
+        var help = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai"));
+        var ai = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "ai"));
+        var routerHelp = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai", "router"));
+        var router = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "ai", "router"));
+
+        Assert.AreEqual(help.Text.Text, ai.Text.Text);
+        Assert.AreEqual(routerHelp.Text.Text, router.Text.Text);
+    }
+
+    [TestMethod]
+    public async Task StartIsNotHelpAlias()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "user", UserPrivilege.User);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "start"));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("RouteNotFound", response.ErrorCode);
+    }
+
+    [TestMethod]
+    public async Task HelpCommandUsesEffectivePrivilegeWhenRouteAttemptsToLowerCommand()
+    {
+        await using var dbContext = CreateDbContext();
+        var routeDocument = new RouteDocument
+        {
+            Routes =
+            [
+                new RouteDefinition
+                {
+                    Command = "help",
+                    CoreCommand = "help",
+                    Description = "Help.",
+                    Usage = "/help",
+                    RequiredPrivilege = "User",
+                    SupportPlatforms = ["Telegram"],
+                    SupportChatTypes = ["Private"],
+                    Enabled = true
+                },
+                new RouteDefinition
+                {
+                    Command = "ai",
+                    CoreCommand = "ai",
+                    Description = "AI",
+                    Usage = "/ai",
+                    RequiredPrivilege = "User",
+                    SupportPlatforms = ["Telegram"],
+                    SupportChatTypes = ["Private"],
+                    Enabled = true,
+                    Children =
+                    [
+                        new RouteDefinition
+                        {
+                            Command = "router",
+                            CoreCommand = "router",
+                            Description = "Router",
+                            Usage = "/ai router",
+                            RequiredPrivilege = "User",
+                            SupportPlatforms = ["Telegram"],
+                            SupportChatTypes = ["Private"],
+                            Enabled = true,
+                            Children =
+                            [
+                                new RouteDefinition
+                                {
+                                    Command = "autosign",
+                                    CoreCommand = "autosign",
+                                    Description = "Auto sign.",
+                                    Usage = "/ai router autosign",
+                                    RequiredPrivilege = "User",
+                                    SupportPlatforms = ["Telegram"],
+                                    SupportChatTypes = ["Private"],
+                                    Enabled = true
+                                }
+                            ]
+                        }
+                    ]
+                }
+            ]
+        };
+        var service = CreateHelpCommandService(dbContext, "user", UserPrivilege.User, routeDocument);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "help"));
+
+        Assert.AreEqual(0, response.Code);
+        var aiHelp = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "help", "ai", "router"));
+        Assert.IsFalse(aiHelp.Text.Text.Contains("autosign", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -817,7 +1000,7 @@ public class V2CoreTests
     private static CommandExecutionService CreateCommandService(
         OhMyBotV2DbContext dbContext,
         FakeLinkTokenStore tokenStore,
-        CommandRegistry? registry = null,
+        PlatformCommandDslRegistry? registry = null,
         RouteDocument? routeDocument = null,
         FakeIdentityCache? identityCache = null)
     {
@@ -829,15 +1012,16 @@ public class V2CoreTests
         return new CommandExecutionService(
             new CoreIdentityService(dbContext, identityCache, TimeProvider.System),
             new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
-            registry,
             routeStore,
+            new PlatformCommandDslExecutor(routeStore),
             TimeProvider.System);
     }
 
-    private static CommandRegistry CreateBuiltInCommandRegistry(
+    private static PlatformCommandDslRegistry CreateBuiltInCommandRegistry(
         OhMyBotV2DbContext? dbContext = null,
         FakeLinkTokenStore? tokenStore = null,
-        FakeIdentityCache? identityCache = null)
+        FakeIdentityCache? identityCache = null,
+        IReadOnlyList<CommandDslNode>? extraNodes = null)
     {
         dbContext ??= CreateDbContext();
         tokenStore ??= new FakeLinkTokenStore();
@@ -850,13 +1034,54 @@ public class V2CoreTests
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new LinkTokenOptions()));
         services.AddSingleton<CoreIdentityService>();
-        services.AddSingleton<ICoreCommand, PingCommand>();
-        services.AddSingleton<ICoreCommand, LinkCommand>();
-        services.AddSingleton<ICoreCommand, InfoCommand>();
+        services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
+        if (extraNodes is { Count: > 0 })
+        {
+            services.AddSingleton<IPlatformCommandDslProvider>(new StaticDslProvider(extraNodes));
+        }
 
         var serviceProvider = services.BuildServiceProvider();
-        var catalog = new CoreCommandCatalog(serviceProvider.GetRequiredService<IEnumerable<ICoreCommand>>());
-        return new CommandRegistry(catalog.CreateRegistrations());
+        return new PlatformCommandDslRegistry(serviceProvider.GetRequiredService<IEnumerable<IPlatformCommandDslProvider>>());
+    }
+
+    private static CommandExecutionService CreateHelpCommandService(
+        OhMyBotV2DbContext dbContext,
+        string userId,
+        UserPrivilege privilege,
+        RouteDocument? routeDocument = null)
+    {
+        var identityCache = new FakeIdentityCache();
+        identityCache.SetAsync(BotPlatform.Telegram, userId, new CachedIdentity(1, privilege))
+            .GetAwaiter()
+            .GetResult();
+
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddSingleton<IIdentityCache>(identityCache);
+        services.AddSingleton<ILinkTokenStore>(new FakeLinkTokenStore());
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton(Options.Create(new LinkTokenOptions()));
+        services.AddSingleton<CoreIdentityService>();
+        services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider>(new StaticDslProvider(
+        [
+            CommandOnly("owner", "Owner command.", "/owner", UserPrivilege.Owner)
+        ]));
+        services.AddSingleton<PlatformCommandDslRegistry>();
+        services.AddSingleton(provider => CreateRouteStore(provider.GetRequiredService<PlatformCommandDslRegistry>(), routeDocument));
+        services.AddSingleton<PlatformCommandDslExecutor>();
+
+        var provider = services.BuildServiceProvider();
+        provider.GetRequiredService<RouteStore>().InitializeAsync().GetAwaiter().GetResult();
+        return new CommandExecutionService(
+            provider.GetRequiredService<CoreIdentityService>(),
+            new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
+            provider.GetRequiredService<RouteStore>(),
+            provider.GetRequiredService<PlatformCommandDslExecutor>(),
+            TimeProvider.System);
     }
 
     private static AdminCommandExecutor CreateAdminCommandExecutor(
@@ -871,7 +1096,7 @@ public class V2CoreTests
         return new AdminCommandExecutor(new AdminCommandCatalog(commands));
     }
 
-    private static RouteStore CreateRouteStore(CommandRegistry registry, RouteDocument? routeDocument = null)
+    private static RouteStore CreateRouteStore(PlatformCommandDslRegistry registry, RouteDocument? routeDocument = null)
     {
         var routeFilePath = Path.Combine(Path.GetTempPath(), "ohmybot-tests", Guid.NewGuid().ToString("N"), "route.json");
         if (routeDocument is not null)
@@ -1003,6 +1228,35 @@ public class V2CoreTests
         public Task<AdminCommandResult> ExecuteAsync(IReadOnlyList<string> args, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(AdminCommandResult.Ok($"{name}: {string.Join(' ', args)}"));
+        }
+    }
+
+    private static CommandDslNode CommandOnly(
+        string name,
+        string description,
+        string usage,
+        UserPrivilege requiredPrivilege,
+        SupportedPlatforms platforms = SupportedPlatforms.All,
+        SupportedChatTypes chatTypes = SupportedChatTypes.All,
+        string handlerText = "ok")
+    {
+        return new CommandDslNode
+        {
+            Name = name,
+            Description = description,
+            Usage = usage,
+            RequiredPrivilege = requiredPrivilege,
+            SupportPlatforms = platforms,
+            SupportChatTypes = chatTypes,
+            Handler = context => Task.FromResult(CommandResponses.Text(handlerText, context))
+        };
+    }
+
+    private sealed class StaticDslProvider(IReadOnlyList<CommandDslNode> nodes) : IPlatformCommandDslProvider
+    {
+        public IEnumerable<CommandDslNode> GetNodes()
+        {
+            return nodes;
         }
     }
 }

@@ -13,4 +13,8 @@ public class CoreUser
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
     public ICollection<PlatformIdentity> Identities { get; set; } = new List<PlatformIdentity>();
+
+    public ICollection<AiRouterAccount> AiRouterAccounts { get; set; } = new List<AiRouterAccount>();
+
+    public ICollection<NotificationSubscription> NotificationSubscriptions { get; set; } = new List<NotificationSubscription>();
 }

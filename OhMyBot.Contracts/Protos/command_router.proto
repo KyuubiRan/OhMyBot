@@ -6,6 +6,7 @@ package ohmybot.v2;
 
 service CommandRouter {
   rpc ExecuteCommand (CommandRequest) returns (CommandResponse);
+  rpc ExecuteCallback (CallbackRequest) returns (CommandResponse);
   rpc GetRoutes (GetRoutesRequest) returns (GetRoutesResponse);
   rpc RecordUserProfile (UserProfileRequest) returns (UserProfileResponse);
 }
@@ -36,6 +37,11 @@ enum CommandResponseDataKind {
   COMMAND_RESPONSE_DATA_KIND_LINK_TOKEN = 3;
   COMMAND_RESPONSE_DATA_KIND_LINK_RESULT = 4;
   COMMAND_RESPONSE_DATA_KIND_USER_INFO = 5;
+  COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_ACCOUNT_LIST = 6;
+  COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_BIND_RESULT = 7;
+  COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_SIGN_RESULT = 8;
+  COMMAND_RESPONSE_DATA_KIND_NOTIFY_TYPE_PANEL = 9;
+  COMMAND_RESPONSE_DATA_KIND_NOTIFY_ACCOUNT_PANEL = 10;
 }
 
 message CommandRequest {
@@ -53,6 +59,16 @@ message CommandRequest {
   string last_name = 12;
   string nickname = 13;
   string reply_to_user_id = 14;
+}
+
+message CallbackRequest {
+  BotPlatform platform = 1;
+  string bot_instance_id = 2;
+  string chat_id = 3;
+  string user_id = 4;
+  string message_id = 5;
+  string callback_query_id = 6;
+  string payload = 7;
 }
 
 message GetRoutesRequest {
@@ -102,6 +118,10 @@ message ResponseButton {
   string payload = 2;
 }
 
+message ResponseButtonRow {
+  repeated ResponseButton buttons = 1;
+}
+
 message CommandError {
   string code = 1;
   string message = 2;
@@ -145,6 +165,54 @@ message UserInfoData {
   repeated PlatformIdentityData identities = 4;
 }
 
+message AiRouterAccountItem {
+  int64 id = 1;
+  string login_email = 2;
+  string display_name = 3;
+  bool auto_sign_enabled = 4;
+  bool notification_enabled = 5;
+}
+
+message AiRouterAccountListData {
+  repeated AiRouterAccountItem accounts = 1;
+}
+
+message AiRouterBindResultData {
+  int64 account_id = 1;
+  string login_email = 2;
+  string display_name = 3;
+}
+
+message AiRouterSignResultData {
+  string login_email = 1;
+  string display_name = 2;
+  string status = 3;
+  string message = 4;
+  string today_reward = 5;
+  int64 current_streak = 6;
+  string total_reward = 7;
+  int64 month_signed_days = 8;
+  bool token_refreshed = 9;
+  int64 occurred_at_unix_seconds = 10;
+  bool auto_sign = 11;
+}
+
+message NotifyTypeItem {
+  string type = 1;
+  string display_name = 2;
+  bool enabled = 3;
+}
+
+message NotifyTypePanelData {
+  repeated NotifyTypeItem items = 1;
+}
+
+message NotifyAccountPanelData {
+  string type = 1;
+  string display_name = 2;
+  repeated AiRouterAccountItem accounts = 3;
+}
+
 message CommandResponse {
   int32 code = 1;
   string error_code = 2;
@@ -154,12 +222,20 @@ message CommandResponse {
   repeated ResponseButton buttons = 6;
   string reply_to_message_id = 7;
   optional string edit_message_id = 8;
+  repeated ResponseButtonRow button_rows = 9;
+  string callback_answer_text = 10;
+  bool callback_answer_alert = 11;
   oneof data {
     TextData text = 20;
     PingData ping = 21;
     LinkTokenData link_token = 22;
     LinkResultData link_result = 23;
     UserInfoData user_info = 24;
+    AiRouterAccountListData ai_router_account_list = 25;
+    AiRouterBindResultData ai_router_bind_result = 26;
+    AiRouterSignResultData ai_router_sign_result = 27;
+    NotifyTypePanelData notify_type_panel = 28;
+    NotifyAccountPanelData notify_account_panel = 29;
   }
 }
 

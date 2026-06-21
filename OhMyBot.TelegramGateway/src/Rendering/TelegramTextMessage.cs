@@ -4,7 +4,8 @@ namespace OhMyBot.TelegramGateway.Rendering;
 
 public sealed record TelegramTextMessage(
     string Text,
-    ParseMode ParseMode = default) : TelegramOutgoingMessage
+    ParseMode ParseMode = default,
+    int? EditMessageId = null) : TelegramOutgoingMessage
 {
     public static TelegramTextMessage PlainText(string text)
     {

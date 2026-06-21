@@ -141,6 +141,20 @@ public sealed class TelegramCommandGateway(
         }
     }
 
+    public async Task<CommandResponse> ExecuteCallbackAsync(
+        CallbackRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return await commandRouterClient.ExecuteCallbackAsync(request, cancellationToken);
+        }
+        catch (RpcException exception)
+        {
+            return ResponseError("CoreUnavailable", exception.Status.Detail);
+        }
+    }
+
     public async Task<bool> RecordUserProfileAsync(
         GatewayCommandRequest gatewayRequest,
         string botInstanceId,

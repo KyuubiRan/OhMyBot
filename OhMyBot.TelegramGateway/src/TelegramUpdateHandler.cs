@@ -58,8 +58,37 @@ public sealed class TelegramUpdateHandler(
 
         if (update.CallbackQuery is not null)
         {
-            logger.LogDebug("Ignoring Telegram callback query {CallbackQueryId}; callback routing is not implemented yet.",
-                update.CallbackQuery.Id);
+            var query = update.CallbackQuery;
+            if (query.Message is null || string.IsNullOrWhiteSpace(query.Data))
+            {
+                return;
+            }
+
+            var response = await commandGateway.ExecuteCallbackAsync(new CallbackRequest
+            {
+                Platform = BotPlatform.Telegram,
+                BotInstanceId = _options.BotInstanceId,
+                ChatId = query.Message.Chat.Id.ToString(),
+                UserId = query.From.Id.ToString(),
+                MessageId = query.Message.MessageId.ToString(),
+                CallbackQueryId = query.Id,
+                Payload = query.Data
+            }, cancellationToken);
+
+            if (!string.IsNullOrWhiteSpace(response.CallbackAnswerText))
+            {
+                await botClient.AnswerCallbackQuery(
+                    query.Id,
+                    response.CallbackAnswerText,
+                    showAlert: response.CallbackAnswerAlert,
+                    cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await botClient.AnswerCallbackQuery(query.Id, cancellationToken: cancellationToken);
+            }
+
+            await responseRenderer.RenderAsync(query.Message.Chat.Id, response, null, cancellationToken);
         }
     }
 

@@ -20,6 +20,7 @@ public sealed class TelegramResponseRenderer(
         var outgoingMessages = renderers
             .First(renderer => renderer.CanRender(response))
             .Render(response)
+            .Select(message => string.IsNullOrWhiteSpace(response.EditMessageId) ? message : WithEditMessageId(message, response.EditMessageId))
             .Where(message => message is not TelegramTextMessage textMessage || !string.IsNullOrWhiteSpace(textMessage.Text))
             .ToArray();
 
@@ -29,7 +30,7 @@ public sealed class TelegramResponseRenderer(
         }
 
         var replyParameters = CreateReplyParameters(response.ReplyToMessageId, fallbackReplyToMessageId);
-        var replyMarkup = CreateReplyMarkup(response.Buttons);
+        var replyMarkup = CreateReplyMarkup(response);
 
         for (var i = 0; i < outgoingMessages.Length; i++)
         {
@@ -54,13 +55,26 @@ public sealed class TelegramResponseRenderer(
         switch (message)
         {
             case TelegramTextMessage textMessage:
-                await botClient.SendMessage(
-                    chatId,
-                    textMessage.Text,
-                    parseMode: textMessage.ParseMode,
-                    replyParameters: replyParameters,
-                    replyMarkup: replyMarkup,
-                    cancellationToken: cancellationToken);
+                if (textMessage.EditMessageId is { } editMessageId)
+                {
+                    await botClient.EditMessageText(
+                        chatId,
+                        editMessageId,
+                        textMessage.Text,
+                        parseMode: textMessage.ParseMode,
+                        replyMarkup: replyMarkup,
+                        cancellationToken: cancellationToken);
+                }
+                else
+                {
+                    await botClient.SendMessage(
+                        chatId,
+                        textMessage.Text,
+                        parseMode: textMessage.ParseMode,
+                        replyParameters: replyParameters,
+                        replyMarkup: replyMarkup,
+                        cancellationToken: cancellationToken);
+                }
                 return;
             default:
                 throw new NotSupportedException($"Telegram outgoing message type is not supported yet: {message.GetType().Name}.");
@@ -87,13 +101,28 @@ public sealed class TelegramResponseRenderer(
             };
     }
 
-    private static InlineKeyboardMarkup? CreateReplyMarkup(IEnumerable<ResponseButton> buttons)
+    private static InlineKeyboardMarkup? CreateReplyMarkup(CommandResponse response)
     {
-        var rows = buttons
-            .Where(button => !string.IsNullOrWhiteSpace(button.Text) && !string.IsNullOrWhiteSpace(button.Payload))
-            .Select(button => new[] { InlineKeyboardButton.WithCallbackData(button.Text, button.Payload) })
-            .ToArray();
+        var rows = response.ButtonRows.Count > 0
+            ? response.ButtonRows
+                .Select(row => row.Buttons
+                    .Where(button => !string.IsNullOrWhiteSpace(button.Text) && !string.IsNullOrWhiteSpace(button.Payload))
+                    .Select(button => InlineKeyboardButton.WithCallbackData(button.Text, button.Payload))
+                    .ToArray())
+                .Where(row => row.Length > 0)
+                .ToArray()
+            : response.Buttons
+                .Where(button => !string.IsNullOrWhiteSpace(button.Text) && !string.IsNullOrWhiteSpace(button.Payload))
+                .Select(button => new[] { InlineKeyboardButton.WithCallbackData(button.Text, button.Payload) })
+                .ToArray();
 
         return rows.Length == 0 ? null : new InlineKeyboardMarkup(rows);
+    }
+
+    private static TelegramOutgoingMessage WithEditMessageId(TelegramOutgoingMessage message, string editMessageId)
+    {
+        return message is TelegramTextMessage textMessage && int.TryParse(editMessageId, out var parsed)
+            ? textMessage with { EditMessageId = parsed }
+            : message;
     }
 }

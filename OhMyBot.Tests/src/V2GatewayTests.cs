@@ -67,6 +67,35 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public async Task TelegramGatewayForwardsHierarchicalCommandArguments()
+    {
+        var routes = CreateMixedRoutes();
+        routes.Routes.Add(new RouteDescriptor
+        {
+            Command = "ai",
+            CoreCommand = "ai",
+            Description = "AI.",
+            Usage = "/ai <category> <command>",
+            RequiredPrivilege = UserPrivilege.User,
+            SupportPlatforms = 1,
+            Enabled = true
+        });
+        var client = new FakeTelegramClient(routes);
+        var gateway = new TelegramCommandGateway(client);
+        await gateway.ReloadAsync("tg");
+
+        await gateway.ExecuteAsync(new GatewayCommandRequest(
+            "chat",
+            "user",
+            "message",
+            "/ai router bind username password"), "tg");
+
+        Assert.IsNotNull(client.LastRequest);
+        Assert.AreEqual("ai", client.LastRequest.Command);
+        CollectionAssert.AreEqual(new[] { "router", "bind", "username", "password" }, client.LastRequest.Args.ToArray());
+    }
+
+    [TestMethod]
     public async Task TelegramGatewayUsesConfiguredCommandPrefixes()
     {
         var client = new FakeTelegramClient();
@@ -126,6 +155,27 @@ public class V2GatewayTests
         Assert.IsNotNull(client.LastRequest);
         Assert.AreEqual("info", client.LastRequest.Command);
         CollectionAssert.AreEqual(new[] { "@target_user" }, client.LastRequest.Args.ToArray());
+    }
+
+    [TestMethod]
+    public async Task TelegramGatewayForwardsCallback()
+    {
+        var client = new FakeTelegramClient();
+        var gateway = new TelegramCommandGateway(client);
+
+        await gateway.ExecuteCallbackAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            BotInstanceId = "tg",
+            ChatId = "chat",
+            UserId = "user",
+            MessageId = "message",
+            Payload = "hash"
+        });
+
+        Assert.IsNotNull(client.LastCallbackRequest);
+        Assert.AreEqual("hash", client.LastCallbackRequest.Payload);
+        Assert.AreEqual("user", client.LastCallbackRequest.UserId);
     }
 
     [TestMethod]
@@ -249,6 +299,82 @@ public class V2GatewayTests
         Assert.IsFalse(message.Contains("用户名:", StringComparison.Ordinal));
     }
 
+    [TestMethod]
+    public void TelegramAiRouterRendererFormatsStructuredSignResult()
+    {
+        var renderer = new AiRouterTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.AiRouterSignResult,
+            AiRouterSignResult = new AiRouterSignResultData
+            {
+                DisplayName = "Account1",
+                LoginEmail = "a@example.com",
+                Status = "success",
+                Message = "签到成功",
+                TodayReward = "1.00",
+                CurrentStreak = 2,
+                TotalReward = "3.00",
+                MonthSignedDays = 4,
+                OccurredAtUnixSeconds = 1
+            }
+        };
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("Account1", message.Text);
+        Assert.Contains("a@example.com", message.Text);
+        Assert.Contains("签到成功", message.Text);
+    }
+
+    [TestMethod]
+    public void TelegramNotifyRendererFormatsTypePanel()
+    {
+        var renderer = new NotifyTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.NotifyTypePanel,
+            NotifyTypePanel = new NotifyTypePanelData()
+        };
+        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
+        {
+            Type = "ai-router-auto-sign",
+            DisplayName = "AI Router 自动签到",
+            Enabled = true
+        });
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("消息订阅管理", message.Text);
+        Assert.Contains("AI Router 自动签到", message.Text);
+    }
+
+    [TestMethod]
+    public void TelegramHelpRendererUsesMarkdownAndEscapesText()
+    {
+        var renderer = new HelpTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.Text,
+            Text = new TextData
+            {
+                Text = "/help - 显示可用指令\nrouter - Router 平台相关指令"
+            }
+        };
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("/help \\- 显示可用指令", message.Text);
+        Assert.Contains("`router` \\- Router 平台相关指令", message.Text);
+        Assert.IsFalse(message.Text.Contains("`/help`", StringComparison.Ordinal));
+    }
+
     private static GetRoutesResponse CreateMixedRoutes()
     {
         var response = new GetRoutesResponse { Version = 1 };
@@ -330,11 +456,19 @@ public class V2GatewayTests
 
         public CommandRequest? LastRequest { get; private set; }
 
+        public CallbackRequest? LastCallbackRequest { get; private set; }
+
         public UserProfileRequest? LastProfileRequest { get; private set; }
 
         public Task<CommandResponse> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken = default)
         {
             LastRequest = request;
+            return Task.FromResult(new CommandResponse());
+        }
+
+        public Task<CommandResponse> ExecuteCallbackAsync(CallbackRequest request, CancellationToken cancellationToken = default)
+        {
+            LastCallbackRequest = request;
             return Task.FromResult(new CommandResponse());
         }
 
@@ -353,6 +487,11 @@ public class V2GatewayTests
     private sealed class FakeQQClient : QQGateway.ICommandRouterClient
     {
         public CommandRequest? LastRequest { get; private set; }
+
+        public Task<CommandResponse> ExecuteCallbackAsync(CallbackRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new CommandResponse());
+        }
 
         public Task<CommandResponse> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken = default)
         {

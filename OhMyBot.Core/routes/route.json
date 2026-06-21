@@ -2,10 +2,10 @@
   "version": 1,
   "routes": [
     {
-      "command": "link",
-      "coreCommand": "link",
-      "description": "Link identities across platforms.",
-      "usage": "/link [token]",
+      "command": "ai",
+      "coreCommand": "ai",
+      "description": "AI 相关指令",
+      "usage": "/ai <分类> <命令> [参数]",
       "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [
@@ -16,13 +16,109 @@
         "Private",
         "Group"
       ],
-      "enabled": true
+      "enabled": true,
+      "children": [
+        {
+          "command": "router",
+          "coreCommand": "router",
+          "description": "Router 平台相关指令",
+          "usage": "/ai router <命令> [参数]",
+          "aliases": [],
+          "requiredPrivilege": "User",
+          "supportPlatforms": [
+            "Telegram",
+            "QQ"
+          ],
+          "supportChatTypes": [
+            "Private",
+            "Group"
+          ],
+          "enabled": true,
+          "children": [
+            {
+              "command": "bind",
+              "coreCommand": "bind",
+              "description": "绑定用户",
+              "usage": "/ai router bind <email> <password>",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true
+            },
+            {
+              "command": "list",
+              "coreCommand": "list",
+              "description": "查看绑定账号",
+              "usage": "/ai router list",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true
+            },
+            {
+              "command": "signin",
+              "coreCommand": "signin",
+              "description": "手动签到",
+              "usage": "/ai router signin",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true
+            },
+            {
+              "command": "autosign",
+              "coreCommand": "autosign",
+              "description": "自动签到管理",
+              "usage": "/ai router autosign",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true
+            },
+            {
+              "command": "delete",
+              "coreCommand": "delete",
+              "description": "删除绑定",
+              "usage": "/ai router delete",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true
+            }
+          ]
+        }
+      ]
     },
     {
-      "command": "ping",
-      "coreCommand": "ping",
-      "description": "Check Core connectivity.",
-      "usage": "/ping",
+      "command": "help",
+      "coreCommand": "help",
+      "description": "显示可用指令",
+      "usage": "/help [子命令]",
       "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [
@@ -38,8 +134,57 @@
     {
       "command": "info",
       "coreCommand": "info",
-      "description": "Show user information.",
+      "description": "查看用户信息",
       "usage": "/info [uid]",
+      "aliases": [],
+      "requiredPrivilege": "User",
+      "supportPlatforms": [
+        "Telegram",
+        "QQ"
+      ],
+      "supportChatTypes": [
+        "Private",
+        "Group"
+      ],
+      "enabled": true
+    },
+    {
+      "command": "link",
+      "coreCommand": "link",
+      "description": "跨平台绑定身份",
+      "usage": "/link [token]",
+      "aliases": [],
+      "requiredPrivilege": "User",
+      "supportPlatforms": [
+        "Telegram",
+        "QQ"
+      ],
+      "supportChatTypes": [
+        "Private",
+        "Group"
+      ],
+      "enabled": true
+    },
+    {
+      "command": "notify",
+      "coreCommand": "notify",
+      "description": "管理消息订阅",
+      "usage": "/notify",
+      "aliases": [],
+      "requiredPrivilege": "VerifiedUser",
+      "supportPlatforms": [
+        "Telegram"
+      ],
+      "supportChatTypes": [
+        "Private"
+      ],
+      "enabled": true
+    },
+    {
+      "command": "ping",
+      "coreCommand": "ping",
+      "description": "检查 Core 连接状态",
+      "usage": "/ping",
       "aliases": [],
       "requiredPrivilege": "User",
       "supportPlatforms": [

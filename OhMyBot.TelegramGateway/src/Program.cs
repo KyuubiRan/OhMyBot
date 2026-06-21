@@ -39,10 +39,14 @@ builder.Services.AddSingleton<TelegramCommandGateway>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, PingTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, UserInfoTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, LinkTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, AiRouterTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, NotifyTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, HelpTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, FallbackTelegramRenderer>();
 builder.Services.AddSingleton<TelegramResponseRenderer>();
 builder.Services.AddSingleton<TelegramUpdateHandler>();
 builder.Services.AddHostedService<GatewayWorker>();
 builder.Services.AddHostedService<RouteRefreshConsumerService>();
+builder.Services.AddHostedService<TelegramNotificationConsumerService>();
 
 await builder.Build().RunAsync();

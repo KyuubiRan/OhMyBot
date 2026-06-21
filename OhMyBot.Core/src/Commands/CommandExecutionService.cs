@@ -7,8 +7,8 @@ namespace OhMyBot.Core.Commands;
 public sealed class CommandExecutionService(
     CoreIdentityService identityService,
     PlatformUserProfileService userProfileService,
-    CommandRegistry commandRegistry,
     RouteStore routeStore,
+    PlatformCommandDslExecutor dslExecutor,
     TimeProvider timeProvider)
 {
     public async Task<CommandResponse> ExecuteAsync(CommandRequest request, CancellationToken cancellationToken = default)
@@ -27,18 +27,18 @@ public sealed class CommandExecutionService(
             return CommandResponses.Error("RouteDisabled", "This route is disabled.", identity, request.MessageId);
         }
 
-        if (!route.TargetExists || !commandRegistry.TryGet(route.CoreCommand, out var command) || !command.Enabled)
+        if (!route.TargetExists)
         {
             return CommandResponses.Error("RouteTargetMissing", "The route target command is not available.", identity, request.MessageId);
         }
 
-        var platformFlag = CommandRegistry.ToSupportedPlatform(request.Platform);
-        if (platformFlag is SupportedPlatforms.None || !route.SupportPlatforms.HasFlag(platformFlag) || !command.SupportPlatforms.HasFlag(platformFlag))
+        var platformFlag = CommandDsl.ToSupportedPlatform(request.Platform);
+        if (platformFlag is SupportedPlatforms.None || !route.SupportPlatforms.HasFlag(platformFlag))
         {
             return CommandResponses.Error("UnsupportedPlatform", "This command is not available on this platform.", identity, request.MessageId);
         }
 
-        var chatTypeFlag = CommandRegistry.ToSupportedChatType(request.ChatType);
+        var chatTypeFlag = CommandDsl.ToSupportedChatType(request.ChatType);
         if (chatTypeFlag is SupportedChatTypes.None || !route.EffectiveSupportChatTypes.HasFlag(chatTypeFlag))
         {
             return CommandResponses.Error("UnsupportedChatType", "This command is not available in this chat type.", identity, request.MessageId);
@@ -49,7 +49,9 @@ public sealed class CommandExecutionService(
             return CommandResponses.Error("PrivilegeDenied", "Insufficient privilege.", identity, request.MessageId);
         }
 
-        return await command.ExecuteAsync(new CommandContext(request, identity, started, cancellationToken));
+        var canonicalRequest = request.Clone();
+        canonicalRequest.Command = route.Command;
+        return await dslExecutor.ExecuteAsync(new CommandContext(canonicalRequest, identity, started, cancellationToken));
     }
 
     public Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default)

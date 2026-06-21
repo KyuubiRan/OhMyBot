@@ -7,7 +7,7 @@ using OhMyBot.Core.Commands;
 namespace OhMyBot.Core.Routing;
 
 public sealed class RouteStore(
-    CommandRegistry commandRegistry,
+    PlatformCommandDslRegistry commandRegistry,
     IOptions<RouteOptions> options,
     ILogger<RouteStore> logger)
 {
@@ -19,6 +19,7 @@ public sealed class RouteStore(
     };
     private IReadOnlyDictionary<string, RouteEntry> _routes = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, RouteEntry> _routeLookup = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<CommandDslNode> _nodes = [];
     private long _version;
 
     public string RouteFilePath => Path.GetFullPath(_options.Path);
@@ -46,7 +47,8 @@ public sealed class RouteStore(
             var routeFilePath = RouteFilePath;
             var document = await LoadOrCreateDocumentAsync(routeFilePath, cancellationToken);
             var merged = MergeDefaults(document);
-            var routes = BuildRoutes(document);
+            var nodes = BuildNodes(document.Routes, commandRegistry.Roots);
+            var routes = BuildRoutes(nodes);
             var routeLookup = BuildRouteLookup(routes);
 
             if (writeMergedFile && merged)
@@ -58,6 +60,7 @@ public sealed class RouteStore(
             {
                 _routes = routes;
                 _routeLookup = routeLookup;
+                _nodes = nodes;
                 _version++;
             }
 
@@ -73,7 +76,7 @@ public sealed class RouteStore(
 
     public IReadOnlyList<RouteEntry> GetRoutes(BotPlatform platform)
     {
-        var platformFlag = CommandRegistry.ToSupportedPlatform(platform);
+        var platformFlag = CommandDsl.ToSupportedPlatform(platform);
         lock (_lock)
         {
             return _routes.Values
@@ -87,7 +90,23 @@ public sealed class RouteStore(
     {
         lock (_lock)
         {
-            return _routeLookup.TryGetValue(CommandRegistration.Normalize(command), out route!);
+            return _routeLookup.TryGetValue(CommandDsl.Normalize(command), out route!);
+        }
+    }
+
+    public IReadOnlyList<CommandDslNode> GetNodes()
+    {
+        lock (_lock)
+        {
+            return _nodes;
+        }
+    }
+
+    public bool TryGetNode(IReadOnlyList<string> path, out CommandDslNode node)
+    {
+        lock (_lock)
+        {
+            return TryFindNode(_nodes, path, out node);
         }
     }
 
@@ -110,69 +129,127 @@ public sealed class RouteStore(
     {
         var changed = false;
         var existing = document.Routes
-            .Select(route => CommandRegistration.Normalize(route.Command))
+            .Select(route => CommandDsl.Normalize(route.Command))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var command in commandRegistry.Commands)
+        foreach (var command in commandRegistry.Roots)
         {
             if (existing.Contains(command.Name))
             {
+                var definition = document.Routes.First(route => string.Equals(CommandDsl.Normalize(route.Command), command.Name, StringComparison.OrdinalIgnoreCase));
+                changed |= MergeChildren(definition, command);
                 continue;
             }
 
-            document.Routes.Add(new RouteDefinition
-            {
-                Command = command.Name,
-                CoreCommand = command.Name,
-                Description = command.Description,
-                Usage = command.Usage,
-                Aliases = command.Aliases.ToArray(),
-                RequiredPrivilege = command.RequiredPrivilege.ToString(),
-                SupportPlatforms = ToPlatformNames(command.SupportPlatforms),
-                SupportChatTypes = ToChatTypeNames(command.SupportChatTypes),
-                Enabled = command.Enabled
-            });
+            document.Routes.Add(ToDefinition(command));
             changed = true;
         }
 
         return changed;
     }
 
-    private IReadOnlyDictionary<string, RouteEntry> BuildRoutes(RouteDocument document)
+    private static bool MergeChildren(RouteDefinition definition, CommandDslNode node)
+    {
+        var changed = false;
+        var existing = definition.Children
+            .Select(child => CommandDsl.Normalize(child.Command))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var child in node.Children)
+        {
+            if (existing.Contains(child.Name))
+            {
+                var childDefinition = definition.Children.First(item => string.Equals(CommandDsl.Normalize(item.Command), child.Name, StringComparison.OrdinalIgnoreCase));
+                changed |= MergeChildren(childDefinition, child);
+                continue;
+            }
+
+            definition.Children.Add(ToDefinition(child));
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private static RouteDefinition ToDefinition(CommandDslNode command)
+    {
+        return new RouteDefinition
+        {
+            Command = command.Name,
+            CoreCommand = command.Name,
+            Description = command.Description,
+            Usage = command.Usage,
+            Aliases = command.Aliases.ToArray(),
+            RequiredPrivilege = command.RequiredPrivilege.ToString(),
+            SupportPlatforms = ToPlatformNames(command.SupportPlatforms),
+            SupportChatTypes = ToChatTypeNames(command.SupportChatTypes),
+            Enabled = command.Enabled,
+            Children = command.Children.Select(ToDefinition).ToList()
+        };
+    }
+
+    private static IReadOnlyList<CommandDslNode> BuildNodes(
+        IReadOnlyList<RouteDefinition> definitions,
+        IReadOnlyList<CommandDslNode> defaults)
+    {
+        var definitionLookup = definitions.ToDictionary(
+            definition => CommandDsl.Normalize(definition.Command),
+            StringComparer.OrdinalIgnoreCase);
+
+        return defaults
+            .Select(defaultNode => definitionLookup.TryGetValue(defaultNode.Name, out var definition)
+                ? ApplyDefinition(defaultNode, definition)
+                : defaultNode)
+            .ToArray();
+    }
+
+    private static CommandDslNode ApplyDefinition(CommandDslNode defaultNode, RouteDefinition definition)
+    {
+        var children = defaultNode.Children
+            .Select(child => definition.Children.FirstOrDefault(item => string.Equals(CommandDsl.Normalize(item.Command), child.Name, StringComparison.OrdinalIgnoreCase)) is { } childDefinition
+                ? ApplyDefinition(child, childDefinition)
+                : child)
+            .ToArray();
+
+        return new CommandDslNode
+        {
+            Name = defaultNode.Name,
+            Description = string.IsNullOrWhiteSpace(definition.Description) ? defaultNode.Description : definition.Description,
+            Usage = string.IsNullOrWhiteSpace(definition.Usage) ? defaultNode.Usage : definition.Usage,
+            Aliases = CommandDsl.NormalizeAliases(defaultNode.Name, definition.Aliases.Length == 0 ? defaultNode.Aliases : definition.Aliases),
+            RequiredPrivilege = (UserPrivilege)Math.Max((int)ParsePrivilege(definition.RequiredPrivilege), (int)defaultNode.RequiredPrivilege),
+            SupportPlatforms = ParsePlatforms(definition.SupportPlatforms),
+            SupportChatTypes = ParseChatTypes(definition.SupportChatTypes) & defaultNode.SupportChatTypes,
+            Enabled = definition.Enabled,
+            Handler = defaultNode.Handler,
+            Children = children
+        };
+    }
+
+    private IReadOnlyDictionary<string, RouteEntry> BuildRoutes(IReadOnlyList<CommandDslNode> roots)
     {
         var routes = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var definition in document.Routes)
+        foreach (var node in roots)
         {
-            var commandName = CommandRegistration.Normalize(definition.Command);
-            var coreCommand = CommandRegistration.Normalize(
-                string.IsNullOrWhiteSpace(definition.CoreCommand) ? definition.Command : definition.CoreCommand);
-
-            if (string.IsNullOrWhiteSpace(commandName))
+            if (string.IsNullOrWhiteSpace(node.Name))
             {
                 continue;
             }
 
-            var targetExists = commandRegistry.TryGet(coreCommand, out var commandRegistration);
-            var routePrivilege = ParsePrivilege(definition.RequiredPrivilege);
-            var corePrivilege = commandRegistration?.RequiredPrivilege ?? routePrivilege;
-            var routeChatTypes = ParseChatTypes(definition.SupportChatTypes);
-            var coreChatTypes = commandRegistration?.SupportChatTypes ?? routeChatTypes;
-            var aliases = NormalizeAliases(commandName, definition.Aliases);
-
-            routes[commandName] = new RouteEntry(
-                commandName,
-                coreCommand,
-                definition.Description,
-                definition.Usage,
-                aliases,
-                routePrivilege,
-                ParsePlatforms(definition.SupportPlatforms),
-                routeChatTypes,
-                definition.Enabled,
-                targetExists,
-                (UserPrivilege)Math.Max((int)routePrivilege, (int)corePrivilege),
-                routeChatTypes & coreChatTypes);
+            routes[node.Name] = new RouteEntry(
+                node.Name,
+                node.Name,
+                node.Description,
+                node.Usage,
+                node.Aliases,
+                node.RequiredPrivilege,
+                node.SupportPlatforms,
+                node.SupportChatTypes,
+                node.Enabled,
+                node.Handler is not null || node.Children.Count > 0,
+                node.RequiredPrivilege,
+                node.SupportChatTypes);
         }
 
         return routes;
@@ -289,13 +366,34 @@ public sealed class RouteStore(
         return names.ToArray();
     }
 
-    private static string[] NormalizeAliases(string commandName, IEnumerable<string> aliases)
+    private static bool TryFindNode(
+        IReadOnlyList<CommandDslNode> nodes,
+        IReadOnlyList<string> path,
+        out CommandDslNode node)
     {
-        return aliases
-            .Where(alias => !string.IsNullOrWhiteSpace(alias))
-            .Select(CommandRegistration.Normalize)
-            .Where(alias => alias.Length > 0 && !string.Equals(alias, commandName, StringComparison.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        node = null!;
+        if (path.Count == 0)
+        {
+            return false;
+        }
+
+        var current = nodes.FirstOrDefault(item => string.Equals(item.Name, CommandDsl.Normalize(path[0]), StringComparison.OrdinalIgnoreCase));
+        if (current is null)
+        {
+            return false;
+        }
+
+        for (var i = 1; i < path.Count; i++)
+        {
+            var segment = CommandDsl.Normalize(path[i]);
+            current = current.Children.FirstOrDefault(item => string.Equals(item.Name, segment, StringComparison.OrdinalIgnoreCase));
+            if (current is null)
+            {
+                return false;
+            }
+        }
+
+        node = current;
+        return true;
     }
 }
