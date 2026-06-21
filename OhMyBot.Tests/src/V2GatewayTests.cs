@@ -158,6 +158,25 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public async Task TelegramSetPrivilegeUsesTextMentionUserIdAsArgument()
+    {
+        var client = new FakeTelegramClient(CreateTelegramSetPrivilegeRoutes());
+        var gateway = new TelegramCommandGateway(client);
+        await gateway.ReloadAsync("tg");
+
+        await gateway.ExecuteAsync(new GatewayCommandRequest(
+            "chat",
+            "admin",
+            "message",
+            "/setpriv @display",
+            TextMentionUserId: "mentioned-user"), "tg");
+
+        Assert.IsNotNull(client.LastRequest);
+        Assert.AreEqual("setpriv", client.LastRequest.Command);
+        CollectionAssert.AreEqual(new[] { "mentioned-user" }, client.LastRequest.Args.ToArray());
+    }
+
+    [TestMethod]
     public async Task TelegramGatewayForwardsCallback()
     {
         var client = new FakeTelegramClient();
@@ -433,6 +452,27 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public void TelegramFallbackRendererUsesMarkdownForCodeSpansWithoutButtons()
+    {
+        var renderer = new FallbackTelegramRenderer();
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.Text,
+            Text = new TextData
+            {
+                Text = "`アネモネリア` 权限更新: `user` -> `verified-user`"
+            }
+        };
+
+        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+
+        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
+        Assert.Contains("`アネモネリア`", message.Text);
+        Assert.Contains("\\-\\>", message.Text);
+    }
+
+    [TestMethod]
     public void TelegramHelpRendererUsesMarkdownAndEscapesText()
     {
         var renderer = new HelpTelegramRenderer();
@@ -491,6 +531,22 @@ public class V2GatewayTests
             Description = "Info.",
             Usage = "/info [uid]",
             RequiredPrivilege = UserPrivilege.User,
+            SupportPlatforms = 1,
+            Enabled = true
+        });
+        return response;
+    }
+
+    private static GetRoutesResponse CreateTelegramSetPrivilegeRoutes()
+    {
+        var response = new GetRoutesResponse { Version = 1 };
+        response.Routes.Add(new RouteDescriptor
+        {
+            Command = "setpriv",
+            CoreCommand = "setpriv",
+            Description = "Set privilege.",
+            Usage = "/setpriv [uid]",
+            RequiredPrivilege = UserPrivilege.Admin,
             SupportPlatforms = 1,
             Enabled = true
         });

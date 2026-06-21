@@ -50,7 +50,7 @@ public sealed class TelegramUpdateHandler(
                 return;
             }
 
-            await RecordInfoTargetProfileAsync(message, text, cancellationToken);
+            await RecordCommandTargetProfileAsync(message, text, cancellationToken);
             var response = await commandGateway.ExecuteAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
 
             await responseRenderer.RenderAsync(message.Chat.Id, response, message.MessageId, cancellationToken);
@@ -118,13 +118,14 @@ public sealed class TelegramUpdateHandler(
         return Task.CompletedTask;
     }
 
-    private async Task RecordInfoTargetProfileAsync(
+    private async Task RecordCommandTargetProfileAsync(
         Message message,
         string text,
         CancellationToken cancellationToken)
     {
         var (command, _) = GatewayCommandParser.Parse(text, _options.CommandPrefixes, stripBotMention: true);
-        if (!string.Equals(command, "info", StringComparison.OrdinalIgnoreCase))
+        if (!string.Equals(command, "info", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(command, "setpriv", StringComparison.OrdinalIgnoreCase))
         {
             return;
         }

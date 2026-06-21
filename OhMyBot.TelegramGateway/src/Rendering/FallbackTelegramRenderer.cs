@@ -23,12 +23,17 @@ public sealed class FallbackTelegramRenderer : ITelegramCommandResultRenderer
                 return [];
             }
 
-            return response.ButtonRows.Count > 0
+            return response.ButtonRows.Count > 0 || ContainsMarkdownCodeSpan(response.Text.Text)
                 ? [TelegramTextMessage.Markdown(RenderMarkdownText(response.Text.Text))]
                 : [TelegramTextMessage.PlainText(response.Text.Text)];
         }
 
         return string.IsNullOrWhiteSpace(response.Message) ? [] : [TelegramTextMessage.PlainText(response.Message)];
+    }
+
+    private static bool ContainsMarkdownCodeSpan(string text)
+    {
+        return text.Contains('`', StringComparison.Ordinal);
     }
 
     private static string RenderMarkdownText(string text)

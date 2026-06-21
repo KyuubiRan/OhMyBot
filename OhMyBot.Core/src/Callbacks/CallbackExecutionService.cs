@@ -72,6 +72,7 @@ public sealed class CallbackExecutionService(
             "notify-type-select" => await ExecuteNotifyTypeSelectAsync(context, action, request.MessageId, cancellationToken),
             "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
             "notify-back" => await ExecuteNotifyBackAsync(context, request.MessageId, cancellationToken),
+            "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
             _ => CallbackError(identity, request.MessageId, "未知按钮操作。")
         };
     }
@@ -762,6 +763,46 @@ public sealed class CallbackExecutionService(
         return response;
     }
 
+    private async Task<CommandResponse> ExecuteSetPrivilegeApplyAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SetPrivilegeCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<SetPrivilegeService>();
+        var result = await service.SetAsync(
+            context.Identity.CoreUserId,
+            context.Identity.Privilege,
+            data.Platform,
+            data.Uid,
+            data.Privilege,
+            cancellationToken);
+
+        if (result.IsNotFound)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定用户。");
+        }
+
+        if (result.IsForbidden || !result.Success || result.Target is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "无权设置该用户权限。");
+        }
+
+        var response = CommandResponses.Text(
+            $"`{result.Target.DisplayName}` 权限更新: `{SetPrivilegeService.FormatPrivilege(result.Before)}` -> `{SetPrivilegeService.FormatPrivilege(result.After)}`",
+            context);
+        response.EditMessageId = editMessageId;
+        response.ReplyToMessageId = string.Empty;
+        return response;
+    }
+
     private static CommandResponse CallbackError(Identity.ResolvedIdentity identity, string editMessageId, string message)
     {
         return new CommandResponse
@@ -783,3 +824,5 @@ public sealed class CallbackExecutionService(
 }
 
 public sealed record AiRouterDeleteConfirmCallbackData(long AccountId, bool Confirm);
+
+public sealed record SetPrivilegeCallbackData(BotPlatform Platform, string Uid, UserPrivilege Privilege);

@@ -352,6 +352,24 @@
           "children": []
         }
       ]
+    },
+    {
+      "command": "setpriv",
+      "coreCommand": "setpriv",
+      "description": "\u8BBE\u7F6E\u7528\u6237\u6743\u9650\u3002",
+      "usage": "/setpriv \u003Cuid|@user\u003E \u6216\u56DE\u590D\u6D88\u606F /setpriv",
+      "aliases": [],
+      "requiredPrivilege": "Admin",
+      "supportPlatforms": [
+        "Telegram",
+        "QQ"
+      ],
+      "supportChatTypes": [
+        "Private",
+        "Group"
+      ],
+      "enabled": true,
+      "children": []
     }
   ]
 }

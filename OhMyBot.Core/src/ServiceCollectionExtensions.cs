@@ -46,6 +46,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<AdminCommandCatalog>();
         services.AddScoped<AdminCommandExecutor>();
         services.AddScoped<CoreIdentityService>();
+        services.AddScoped<SetPrivilegeService>();
         services.AddScoped<PlatformUserProfileService>();
         services.AddScoped<CommandExecutionService>();
         services.AddScoped<CallbackExecutionService>();

@@ -87,7 +87,7 @@ public sealed class TelegramCommandGateway(
                 command);
         }
 
-        if (command == "info" && !string.IsNullOrWhiteSpace(gatewayRequest.TextMentionUserId))
+        if ((command == "info" || command == "setpriv") && !string.IsNullOrWhiteSpace(gatewayRequest.TextMentionUserId))
         {
             args = [gatewayRequest.TextMentionUserId];
         }

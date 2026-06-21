@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
+using OhMyBot.Core.Callbacks;
 using OhMyBot.Core.Data;
 using OhMyBot.Core.Data.Entities;
 using OhMyBot.Core.Linking;
@@ -39,6 +40,14 @@ public sealed class CoreCommandDslProvider(
                 Description = "查看用户信息。",
                 Usage = "/info [uid]",
                 Handler = InfoAsync
+            },
+            new CommandDslNode
+            {
+                Name = "setpriv",
+                Description = "设置用户权限。",
+                Usage = "/setpriv <uid|@user> 或回复消息 /setpriv",
+                RequiredPrivilege = UserPrivilege.Admin,
+                Handler = SetPrivilegeAsync
             },
             new CommandDslNode
             {
@@ -188,6 +197,66 @@ public sealed class CoreCommandDslProvider(
 
         var response = CommandResponses.Ok(CommandResponseDataKind.UserInfo, context);
         response.UserInfo = data;
+        return response;
+    }
+
+    private async Task<CommandResponse> SetPrivilegeAsync(CommandContext context)
+    {
+        var requestedUser = context.Request.Args.Count > 0
+            ? context.Request.Args[0].Trim()
+            : context.Request.ReplyToUserId.Trim();
+
+        if (string.IsNullOrWhiteSpace(requestedUser))
+        {
+            return CommandResponses.Error("SetPrivilegeTargetMissing", "请回复用户消息，或提供 uid / @user。", context);
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var service = scope.ServiceProvider.GetRequiredService<SetPrivilegeService>();
+        var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
+        var target = await service.FindTargetAsync(context.Request.Platform, requestedUser, context.CancellationToken);
+        if (target is null)
+        {
+            return CommandResponses.Error("UserNotFound", $"未找到用户：{requestedUser}", context);
+        }
+
+        if (target.CoreUserId is not null
+            && !SetPrivilegeService.CanOperateTarget(context.Identity.CoreUserId, context.Identity.Privilege, target.CoreUserId.Value, target.CurrentPrivilege))
+        {
+            return CommandResponses.Error("SetPrivilegeForbidden", "不能操作权限高于或等于自己的用户。", context);
+        }
+
+        var allowedPrivileges = SetPrivilegeService.GetAllowedTargetPrivileges(context.Identity.Privilege);
+        if (allowedPrivileges.Count == 0)
+        {
+            return CommandResponses.Error("PrivilegeDenied", "Insufficient privilege.", context);
+        }
+
+        var response = CommandResponses.Text(
+            $"`{target.DisplayName}` 当前权限: `{SetPrivilegeService.FormatPrivilege(target.CurrentPrivilege)}`",
+            context);
+
+        foreach (var row in allowedPrivileges.Chunk(2))
+        {
+            var buttonRow = new ResponseButtonRow();
+            foreach (var privilege in row)
+            {
+                buttonRow.Buttons.Add(new ResponseButton
+                {
+                    Text = SetPrivilegeService.FormatPrivilege(privilege),
+                    Payload = await callbackStore.PutAsync(
+                        "setpriv-apply",
+                        context.Identity.CoreUserId,
+                        context.Request.ChatId,
+                        context.Request.UserId,
+                        new SetPrivilegeCallbackData(target.Platform, target.Uid, privilege),
+                        cancellationToken: context.CancellationToken)
+                });
+            }
+
+            response.ButtonRows.Add(buttonRow);
+        }
+
         return response;
     }
 

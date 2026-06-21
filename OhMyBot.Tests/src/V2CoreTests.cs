@@ -711,6 +711,112 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task SetPrivilegeCommandBuildsAdminButtonsForTarget()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        await service.ExecuteAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Telegram,
+            UserId = "target",
+            Command = "ping",
+            Username = "target_user",
+            FirstName = "Target",
+            LastName = "User",
+            ChatType = BotChatType.Private
+        });
+        var adminIdentity = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "admin");
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "@target_user"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.Contains("`User Target` 当前权限: `user`", response.Text.Text);
+        CollectionAssert.AreEqual(
+            new[] { "user", "verified-user" },
+            response.ButtonRows.SelectMany(row => row.Buttons).Select(button => button.Text).ToArray());
+    }
+
+    [TestMethod]
+    public async Task SetPrivilegeCallbackUpdatesPrivilegeAndEditsMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var serviceProvider = CreateCallbackServiceProvider(dbContext, identityCache, callbackStore);
+        var commandService = CreateCommandService(
+            dbContext,
+            new FakeLinkTokenStore(),
+            registry: CreateBuiltInCommandRegistry(dbContext, new FakeLinkTokenStore(), identityCache, callbackStore),
+            identityCache: identityCache);
+        await commandService.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        await commandService.ExecuteAsync(new CommandRequest
+        {
+            Platform = BotPlatform.Telegram,
+            UserId = "target",
+            Command = "ping",
+            FirstName = "Target",
+            LastName = "User",
+            ChatType = BotChatType.Private
+        });
+        var adminProfile = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "admin");
+        adminProfile.CoreUser!.Privilege = UserPrivilege.Owner;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminProfile.CoreUserId!.Value, UserPrivilege.Owner));
+        var panel = await commandService.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "target"));
+        var adminButton = panel.ButtonRows.SelectMany(row => row.Buttons).Single(button => button.Text == "admin");
+        var callbackService = new CallbackExecutionService(
+            serviceProvider.GetRequiredService<CoreIdentityService>(),
+            callbackStore,
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            TimeProvider.System);
+
+        var response = await callbackService.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            ChatId = "chat",
+            UserId = "admin",
+            MessageId = "123",
+            Payload = adminButton.Payload
+        });
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual("123", response.EditMessageId);
+        Assert.Contains("`User Target` 权限更新: `user` -> `admin`", response.Text.Text);
+        Assert.AreEqual(0, response.ButtonRows.Count);
+        var target = await dbContext.PlatformUserProfiles.Include(profile => profile.CoreUser).SingleAsync(profile => profile.Uid == "target");
+        Assert.AreEqual(UserPrivilege.Admin, target.CoreUser!.Privilege);
+    }
+
+    [TestMethod]
+    public async Task SetPrivilegeAdminCannotSetAdmin()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "target", "ping"));
+        var adminProfile = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "admin");
+        adminProfile.CoreUser!.Privilege = UserPrivilege.Admin;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminProfile.CoreUserId!.Value, UserPrivilege.Admin));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "target"));
+
+        Assert.IsFalse(response.ButtonRows.SelectMany(row => row.Buttons).Any(button => button.Text == "admin"));
+    }
+
+    [TestMethod]
     public void AesSecretProtectorRoundTripsWithoutPlaintext()
     {
         var protector = new AesGcmSecretProtector(Options.Create(new EncryptionOptions
@@ -1270,16 +1376,20 @@ public class V2CoreTests
         OhMyBotV2DbContext? dbContext = null,
         FakeLinkTokenStore? tokenStore = null,
         FakeIdentityCache? identityCache = null,
+        CallbackActionStore? callbackStore = null,
         IReadOnlyList<CommandDslNode>? extraNodes = null)
     {
         dbContext ??= CreateDbContext();
         tokenStore ??= new FakeLinkTokenStore();
         identityCache ??= new FakeIdentityCache();
+        callbackStore ??= new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
 
         var services = new ServiceCollection();
         services.AddSingleton(dbContext);
         services.AddSingleton<ILinkTokenStore>(tokenStore);
         services.AddSingleton<IIdentityCache>(identityCache);
+        services.AddSingleton(callbackStore);
+        services.AddSingleton<SetPrivilegeService>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new LinkTokenOptions()));
         services.AddSingleton<CoreIdentityService>();
@@ -1293,6 +1403,21 @@ public class V2CoreTests
 
         var serviceProvider = services.BuildServiceProvider();
         return new PlatformCommandDslRegistry(serviceProvider.GetRequiredService<IEnumerable<IPlatformCommandDslProvider>>());
+    }
+
+    private static ServiceProvider CreateCallbackServiceProvider(
+        OhMyBotV2DbContext dbContext,
+        FakeIdentityCache identityCache,
+        CallbackActionStore callbackStore)
+    {
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddSingleton<IIdentityCache>(identityCache);
+        services.AddSingleton(callbackStore);
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<CoreIdentityService>();
+        services.AddSingleton<SetPrivilegeService>();
+        return services.BuildServiceProvider();
     }
 
     private static CommandExecutionService CreateHelpCommandService(
@@ -1310,6 +1435,8 @@ public class V2CoreTests
         services.AddSingleton(dbContext);
         services.AddSingleton<IIdentityCache>(identityCache);
         services.AddSingleton<ILinkTokenStore>(new FakeLinkTokenStore());
+        services.AddSingleton(new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions())));
+        services.AddSingleton<SetPrivilegeService>();
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new LinkTokenOptions()));
         services.AddSingleton<CoreIdentityService>();
