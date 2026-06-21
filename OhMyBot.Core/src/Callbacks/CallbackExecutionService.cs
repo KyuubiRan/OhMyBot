@@ -57,6 +57,7 @@ public sealed class CallbackExecutionService(
             "ai-router-delete-confirm" => await ExecuteDeleteConfirmAsync(context, action, request.MessageId, cancellationToken),
             "notify-type-select" => await ExecuteNotifyTypeSelectAsync(context, action, request.MessageId, cancellationToken),
             "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
+            "notify-back" => await ExecuteNotifyBackAsync(context, request.MessageId, cancellationToken),
             _ => CallbackError(identity, request.MessageId, "未知按钮操作。")
         };
     }
@@ -274,6 +275,18 @@ public sealed class CallbackExecutionService(
 
         var updatedAccounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         return await builder.BuildNotifyAccountPanelAsync(context, updatedAccounts, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteNotifyBackAsync(
+        CommandContext context,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<AiRouterResponseBuilder>();
+        var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        return await builder.BuildNotifyTypePanelAsync(context, accounts, editMessageId, cancellationToken);
     }
 
     private static CommandResponse CallbackError(Identity.ResolvedIdentity identity, string editMessageId, string message)

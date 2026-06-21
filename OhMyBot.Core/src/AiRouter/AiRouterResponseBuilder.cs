@@ -211,7 +211,21 @@ public sealed class AiRouterResponseBuilder(
             includeAll: true,
             cancellationToken,
             accountText: account => account.DisplayName,
-            dataFactory: account => new NotifyAccountCallbackData(NotificationTypes.AiRouterAutoSign, account.Id, ToggleAll: false));
+            dataFactory: account => new NotifyAccountCallbackData(NotificationTypes.AiRouterAutoSign, account.Id, ToggleAll: false),
+            extraAllRowButtons:
+            [
+                new ResponseButton
+                {
+                    Text = "返回",
+                    Payload = await callbackStore.PutAsync(
+                        "notify-back",
+                        context.Identity.CoreUserId,
+                        context.Request.ChatId,
+                        context.Request.UserId,
+                        new NotifyBackCallbackData(),
+                        cancellationToken: cancellationToken)
+                }
+            ]);
         return response;
     }
 
@@ -249,7 +263,8 @@ public sealed class AiRouterResponseBuilder(
         bool includeAll,
         CancellationToken cancellationToken,
         Func<AiRouterAccount, string>? accountText = null,
-        Func<AiRouterAccount, object>? dataFactory = null)
+        Func<AiRouterAccount, object>? dataFactory = null,
+        IReadOnlyList<ResponseButton>? extraAllRowButtons = null)
     {
         var row = new ResponseButtonRow();
         foreach (var account in accounts)
@@ -300,6 +315,10 @@ public sealed class AiRouterResponseBuilder(
                     }
                 }
             });
+            if (extraAllRowButtons is { Count: > 0 })
+            {
+                response.ButtonRows[^1].Buttons.AddRange(extraAllRowButtons);
+            }
         }
     }
 
@@ -338,3 +357,5 @@ public sealed record AiRouterAutoSignCallbackData(long AccountId, bool ToggleAll
 public sealed record NotifyTypeCallbackData(string Type);
 
 public sealed record NotifyAccountCallbackData(string Type, long AccountId, bool ToggleAll = false);
+
+public sealed record NotifyBackCallbackData;

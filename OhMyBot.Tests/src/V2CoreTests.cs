@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Distributed;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -7,7 +8,9 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Admin;
 using OhMyBot.Core.AiRouter;
 using OhMyBot.Core.Commands;
+using OhMyBot.Core.Callbacks;
 using OhMyBot.Core.Data;
+using OhMyBot.Core.Data.Entities;
 using OhMyBot.Core.Identity;
 using OhMyBot.Core.Linking;
 using OhMyBot.Core.Notifications;
@@ -632,6 +635,42 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task NotifyAccountPanelAddsBackButtonBesideToggleAll()
+    {
+        await using var dbContext = CreateDbContext();
+        var callbackStore = new CallbackActionStore(
+            new FakeDistributedCache(),
+            Options.Create(new CallbackActionOptions()));
+        var builder = new AiRouterResponseBuilder(
+            callbackStore,
+            new NotificationSubscriptionService(dbContext, TimeProvider.System),
+            TimeProvider.System);
+        var context = new CommandContext(
+            CreateRequest(BotPlatform.Telegram, "tg-1", "notify"),
+            new ResolvedIdentity(1, UserPrivilege.VerifiedUser, BotPlatform.Telegram, "tg-1"),
+            TimeProvider.System.GetTimestamp(),
+            CancellationToken.None);
+
+        var response = await builder.BuildNotifyAccountPanelAsync(
+            context,
+            [
+                new AiRouterAccount
+                {
+                    Id = 100,
+                    CoreUserId = 1,
+                    DisplayName = "Account1",
+                    LoginEmail = "a@example.com"
+                }
+            ],
+            cancellationToken: CancellationToken.None);
+
+        var lastRow = response.ButtonRows.Last();
+        CollectionAssert.AreEqual(
+            new[] { "开启/关闭全部", "返回" },
+            lastRow.Buttons.Select(button => button.Text).ToArray());
+    }
+
+    [TestMethod]
     public async Task InvalidRouteJsonKeepsPreviousSnapshot()
     {
         var registry = CreateBuiltInCommandRegistry();
@@ -1237,6 +1276,53 @@ public class V2CoreTests
         private static string GetKey(BotPlatform platform, string uid)
         {
             return $"{platform}:{uid}";
+        }
+    }
+
+    private sealed class FakeDistributedCache : IDistributedCache
+    {
+        private readonly Dictionary<string, byte[]> _items = new(StringComparer.Ordinal);
+
+        public byte[]? Get(string key)
+        {
+            _items.TryGetValue(key, out var value);
+            return value;
+        }
+
+        public Task<byte[]?> GetAsync(string key, CancellationToken token = default)
+        {
+            return Task.FromResult(Get(key));
+        }
+
+        public void Set(string key, byte[] value, DistributedCacheEntryOptions options)
+        {
+            _items[key] = value;
+        }
+
+        public Task SetAsync(string key, byte[] value, DistributedCacheEntryOptions options, CancellationToken token = default)
+        {
+            Set(key, value, options);
+            return Task.CompletedTask;
+        }
+
+        public void Refresh(string key)
+        {
+        }
+
+        public Task RefreshAsync(string key, CancellationToken token = default)
+        {
+            return Task.CompletedTask;
+        }
+
+        public void Remove(string key)
+        {
+            _items.Remove(key);
+        }
+
+        public Task RemoveAsync(string key, CancellationToken token = default)
+        {
+            Remove(key);
+            return Task.CompletedTask;
         }
     }
 
