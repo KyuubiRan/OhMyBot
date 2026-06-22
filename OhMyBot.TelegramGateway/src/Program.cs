@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using System.Net;
 using OhMyBot.Contracts.Messaging;
 using OhMyBot.TelegramGateway;
 using OhMyBot.TelegramGateway.Rendering;
@@ -12,6 +13,7 @@ builder.Services.Configure<TelegramGatewayOptions>(options =>
 {
     options.BotInstanceId = builder.Configuration["BotInstanceId"] ?? options.BotInstanceId;
     options.BotToken = builder.Configuration["Telegram:BotToken"] ?? options.BotToken;
+    options.HttpProxy = builder.Configuration["Telegram:HttpProxy"] ?? options.HttpProxy;
     options.CoreGrpcAddress = builder.Configuration["Core:GrpcAddress"] ?? options.CoreGrpcAddress;
     options.DropPendingUpdates = builder.Configuration.GetValue("Telegram:DropPendingUpdates", options.DropPendingUpdates);
     options.CommandPrefixes = builder.Configuration.GetSection("Telegram:CommandPrefixes").Get<string[]>()
@@ -33,7 +35,18 @@ builder.Services.AddSingleton<ITelegramBotClient>(_ =>
         throw new InvalidOperationException("Telegram:BotToken is required.");
     }
 
-    return new TelegramBotClient(token);
+    var proxy = builder.Configuration["Telegram:HttpProxy"];
+    if (string.IsNullOrWhiteSpace(proxy))
+    {
+        return new TelegramBotClient(token);
+    }
+
+    var httpClient = new HttpClient(new SocketsHttpHandler
+    {
+        Proxy = new WebProxy(proxy),
+        UseProxy = true
+    });
+    return new TelegramBotClient(token, httpClient);
 });
 builder.Services.AddSingleton<TelegramCommandGateway>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, PingTelegramRenderer>();

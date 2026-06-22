@@ -40,6 +40,16 @@ public sealed class TelegramCommandGateway(
         }
     }
 
+    public bool CanHandle(string text)
+    {
+        var (command, _) = GatewayCommandParser.Parse(
+            text,
+            _commandPrefixes,
+            stripBotMention: true);
+
+        return command == "reload" || TryGetRoute(command, out _);
+    }
+
     public async Task<IReadOnlyList<RouteDescriptor>> ReloadAsync(string botInstanceId, CancellationToken cancellationToken = default)
     {
         var currentVersion = Version;

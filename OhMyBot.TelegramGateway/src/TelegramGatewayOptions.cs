@@ -6,6 +6,8 @@ public sealed class TelegramGatewayOptions
 
     public string BotToken { get; set; } = string.Empty;
 
+    public string HttpProxy { get; set; } = string.Empty;
+
     public string CoreGrpcAddress { get; set; } = "http://localhost:5100";
 
     public bool DropPendingUpdates { get; set; } = true;

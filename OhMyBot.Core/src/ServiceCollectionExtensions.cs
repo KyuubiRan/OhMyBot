@@ -74,10 +74,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<ManagedTaskRegistry>();
         services.AddSingleton<IManagedTask, AiRouterAutoSignManagedTask>();
         services.AddSingleton<IManagedTask, KuroAutoSignManagedTask>();
-        services.AddHttpClient<AiRouterHttpClient>((provider, client) =>
+        services.AddHttpClient<AiRouterHttpClient>(client =>
         {
-            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<AiRouterOptions>>().Value;
-            client.BaseAddress = new Uri(options.BaseUrl);
+            client.BaseAddress = new Uri("https://ai.router.team");
         });
         services.AddHttpClient<KuroHttpClient>((provider, client) =>
         {

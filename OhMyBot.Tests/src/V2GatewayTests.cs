@@ -121,6 +121,20 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public async Task TelegramGatewayCanHandleKnownCommandsOnly()
+    {
+        var client = new FakeTelegramClient();
+        var gateway = new TelegramCommandGateway(client);
+        await gateway.ReloadAsync("tg");
+
+        Assert.IsTrue(gateway.CanHandle("/ping"));
+        Assert.IsTrue(gateway.CanHandle("/p"));
+        Assert.IsTrue(gateway.CanHandle("/reload"));
+        Assert.IsFalse(gateway.CanHandle("/unknown"));
+        Assert.IsFalse(gateway.CanHandle("hello"));
+    }
+
+    [TestMethod]
     public async Task TelegramInfoUsesTextMentionUserIdAsArgument()
     {
         var client = new FakeTelegramClient(CreateTelegramInfoRoutes());

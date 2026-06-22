@@ -43,17 +43,41 @@ public sealed class TelegramUpdateHandler(
                 ReplyToUserId: message.ReplyToMessage?.From?.Id.ToString(),
                 TextMentionUserId: message.GetFirstCommandArgumentTextMentionUserId());
 
-            await commandGateway.RecordUserProfileAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
-
             if (!GatewayCommandParser.IsCommand(text, _options.CommandPrefixes))
             {
+                _ = Task.Run(
+                    () => RecordUserProfileSafeAsync(gatewayRequest, cancellationToken),
+                    CancellationToken.None);
                 return;
             }
 
-            await RecordCommandTargetProfileAsync(message, text, cancellationToken);
-            var response = await commandGateway.ExecuteAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
+            if (!commandGateway.CanHandle(text))
+            {
+                _ = Task.Run(
+                    () => RecordUserProfileSafeAsync(gatewayRequest, cancellationToken),
+                    CancellationToken.None);
+                return;
+            }
 
-            await responseRenderer.RenderAsync(message.Chat.Id, response, message.MessageId, cancellationToken);
+            if (!IsSignInCommand(text))
+            {
+                await ExecuteMessageCommandAsync(message, null, gatewayRequest, text, cancellationToken);
+                return;
+            }
+
+            var processingMessage = await botClient.SendMessage(
+                message.Chat.Id,
+                "正在签到...",
+                replyParameters: new ReplyParameters
+                {
+                    MessageId = message.MessageId,
+                    AllowSendingWithoutReply = true
+                },
+                cancellationToken: cancellationToken);
+
+            _ = Task.Run(
+                () => ExecuteMessageCommandAsync(message, processingMessage.MessageId, gatewayRequest, text, cancellationToken),
+                CancellationToken.None);
             return;
         }
 
@@ -65,7 +89,7 @@ public sealed class TelegramUpdateHandler(
                 return;
             }
 
-            var response = await commandGateway.ExecuteCallbackAsync(new CallbackRequest
+            var callbackRequest = new CallbackRequest
             {
                 Platform = BotPlatform.Telegram,
                 BotInstanceId = _options.BotInstanceId,
@@ -74,22 +98,13 @@ public sealed class TelegramUpdateHandler(
                 MessageId = query.Message.MessageId.ToString(),
                 CallbackQueryId = query.Id,
                 Payload = query.Data
-            }, cancellationToken);
+            };
 
-            if (!string.IsNullOrWhiteSpace(response.CallbackAnswerText))
-            {
-                await botClient.AnswerCallbackQuery(
-                    query.Id,
-                    response.CallbackAnswerText,
-                    showAlert: response.CallbackAnswerAlert,
-                    cancellationToken: cancellationToken);
-            }
-            else
-            {
-                await botClient.AnswerCallbackQuery(query.Id, cancellationToken: cancellationToken);
-            }
+            await botClient.AnswerCallbackQuery(query.Id, "正在处理...", cancellationToken: cancellationToken);
 
-            await responseRenderer.RenderAsync(query.Message.Chat.Id, response, null, cancellationToken);
+            _ = Task.Run(
+                () => ExecuteCallbackAsync(query.Message.Chat.Id, callbackRequest, cancellationToken),
+                CancellationToken.None);
         }
     }
 
@@ -148,5 +163,122 @@ public sealed class TelegramUpdateHandler(
                 LastName: target.LastName),
             _options.BotInstanceId,
             cancellationToken);
+    }
+
+    private async Task ExecuteMessageCommandAsync(
+        Message message,
+        int? processingMessageId,
+        GatewayCommandRequest gatewayRequest,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await RecordUserProfileSafeAsync(gatewayRequest, cancellationToken);
+            await RecordCommandTargetProfileAsync(message, text, cancellationToken);
+            var response = await commandGateway.ExecuteAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
+            if (processingMessageId is not null && string.IsNullOrWhiteSpace(response.EditMessageId))
+            {
+                response.EditMessageId = processingMessageId.Value.ToString();
+                response.ReplyToMessageId = string.Empty;
+            }
+
+            await responseRenderer.RenderAsync(message.Chat.Id, response, message.MessageId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Failed to execute Telegram command in background.");
+            await RenderFailureSafeAsync(message.Chat.Id, processingMessageId, message.MessageId, exception, cancellationToken);
+        }
+    }
+
+    private async Task ExecuteCallbackAsync(
+        ChatId chatId,
+        CallbackRequest request,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var response = await commandGateway.ExecuteCallbackAsync(request, cancellationToken);
+            await responseRenderer.RenderAsync(chatId, response, null, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogError(exception, "Failed to execute Telegram callback in background.");
+            if (int.TryParse(request.MessageId, out var messageId))
+            {
+                await RenderFailureSafeAsync(chatId, messageId, exception, cancellationToken);
+            }
+        }
+    }
+
+    private Task RenderFailureSafeAsync(
+        ChatId chatId,
+        int editMessageId,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        return RenderFailureSafeAsync(chatId, editMessageId, null, exception, cancellationToken);
+    }
+
+    private async Task RenderFailureSafeAsync(
+        ChatId chatId,
+        int? editMessageId,
+        int? fallbackReplyToMessageId,
+        Exception exception,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await responseRenderer.RenderAsync(
+                chatId,
+                new CommandResponse
+                {
+                    Code = 1,
+                    ErrorCode = "GatewayExecutionFailed",
+                    Message = "执行失败：" + exception.GetBaseException().Message,
+                    EditMessageId = editMessageId?.ToString() ?? string.Empty,
+                    ReplyToMessageId = string.Empty
+                },
+                fallbackReplyToMessageId,
+                cancellationToken);
+        }
+        catch (Exception renderException) when (renderException is not OperationCanceledException)
+        {
+            logger.LogError(renderException, "Failed to render Telegram failure message.");
+        }
+    }
+
+    private async Task RecordUserProfileSafeAsync(
+        GatewayCommandRequest gatewayRequest,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await commandGateway.RecordUserProfileAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            logger.LogDebug(exception, "Failed to record Telegram user profile.");
+        }
+    }
+
+    private bool IsSignInCommand(string text)
+    {
+        var (_, args) = GatewayCommandParser.Parse(
+            text,
+            _options.CommandPrefixes,
+            stripBotMention: true);
+
+        return args.Any(arg => string.Equals(arg, "signin", StringComparison.OrdinalIgnoreCase));
     }
 }
