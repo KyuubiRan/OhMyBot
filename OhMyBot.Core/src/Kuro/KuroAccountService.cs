@@ -96,7 +96,7 @@ public sealed class KuroAccountService(
         return dbContext.KuroAccounts
             .AsNoTracking()
             .Include(account => account.CoreUser)
-            .Where(account => account.AutoSignEnabled && account.CoreUser.Privilege > UserPrivilege.User)
+            .Where(account => account.AutoSignEnabled && account.TokenCiphertext != string.Empty && account.CoreUser.Privilege > UserPrivilege.User)
             .OrderBy(account => account.Id)
             .Skip(offset)
             .Take(limit)
@@ -238,7 +238,7 @@ public sealed class KuroAccountService(
         return true;
     }
 
-    public async Task DisableAccountAsync(long accountId, CancellationToken cancellationToken = default)
+    public async Task ClearTokenAsync(long accountId, CancellationToken cancellationToken = default)
     {
         var account = await dbContext.KuroAccounts.FirstOrDefaultAsync(item => item.Id == accountId, cancellationToken);
         if (account is null)
@@ -246,13 +246,18 @@ public sealed class KuroAccountService(
             return;
         }
 
-        account.AutoSignEnabled = false;
+        account.TokenCiphertext = string.Empty;
         account.UpdatedAt = timeProvider.GetUtcNow();
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 
     public string DecryptToken(KuroAccount account)
     {
+        if (string.IsNullOrEmpty(account.TokenCiphertext))
+        {
+            throw new InvalidOperationException("Token 已失效，请重新绑定库街区账号");
+        }
+
         return secretProtector.Unprotect(account.TokenCiphertext);
     }
 

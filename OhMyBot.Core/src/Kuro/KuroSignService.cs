@@ -206,7 +206,7 @@ public sealed class KuroSignService(
             var result = await action(posts[i % posts.Count]);
             if (result.Code == KuroHttpClient.TokenExpiredCode)
             {
-                await accountService.DisableAccountAsync(account.Id, cancellationToken);
+                await accountService.ClearTokenAsync(account.Id, cancellationToken);
                 throw new InvalidOperationException("Token 已失效，请重新绑定库街区账号");
             }
 
@@ -238,7 +238,7 @@ public sealed class KuroSignService(
 
         if (response.Code == KuroHttpClient.TokenExpiredCode)
         {
-            await accountService.DisableAccountAsync(account.Id, cancellationToken);
+            await accountService.ClearTokenAsync(account.Id, cancellationToken);
             throw new InvalidOperationException("Token 已失效，请重新绑定库街区账号");
         }
 
@@ -252,7 +252,7 @@ public sealed class KuroSignService(
             return;
         }
 
-        await accountService.DisableAccountAsync(account.Id, cancellationToken);
+        await accountService.ClearTokenAsync(account.Id, cancellationToken);
         throw new InvalidOperationException("Token 已失效，请重新绑定库街区账号");
     }
 

@@ -10,6 +10,7 @@ using OhMyBot.Core.Data.Entities;
 using OhMyBot.Core.Identity;
 using OhMyBot.Core.Kuro;
 using OhMyBot.Core.Notifications;
+using OhMyBot.Core.Security;
 using OhMyBot.TelegramGateway.Rendering;
 using Telegram.Bot.Types.Enums;
 
@@ -76,6 +77,36 @@ public class V2KuroTests
         var bbsUserIdIndex = entityType.GetIndexes().Single(index =>
             index.Properties.Select(property => property.Name).SequenceEqual([nameof(KuroAccount.BbsUserId)]));
         Assert.IsTrue(bbsUserIdIndex.IsUnique);
+    }
+
+    [TestMethod]
+    public async Task KuroExpiredTokenIsClearedWithoutDisablingAutoSignAndSkippedLater()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CoreUsers.Add(new CoreUser { Id = 1, Privilege = UserPrivilege.VerifiedUser });
+        dbContext.KuroAccounts.Add(new KuroAccount
+        {
+            Id = 10,
+            CoreUserId = 1,
+            BbsUserId = 1001,
+            DisplayName = "Kuro",
+            TokenCiphertext = "token",
+            AutoSignEnabled = true
+        });
+        await dbContext.SaveChangesAsync();
+        var service = new KuroAccountService(
+            dbContext,
+            CreateKuroClient(),
+            new PlainSecretProtector(),
+            TimeProvider.System);
+
+        await service.ClearTokenAsync(10);
+
+        var account = await dbContext.KuroAccounts.SingleAsync();
+        var targets = await service.ListAutoSignTargetsAsync(0, 20);
+        Assert.AreEqual(string.Empty, account.TokenCiphertext);
+        Assert.IsTrue(account.AutoSignEnabled);
+        Assert.AreEqual(0, targets.Count);
     }
 
     [TestMethod]
@@ -214,6 +245,14 @@ public class V2KuroTests
         return new OhMyBotV2DbContext(options);
     }
 
+    private static KuroHttpClient CreateKuroClient()
+    {
+        return new KuroHttpClient(new HttpClient(new RecordingHandler())
+        {
+            BaseAddress = new Uri("https://api.kurobbs.com")
+        }, Options.Create(new KuroOptions()));
+    }
+
     private static CommandContext CreateContext()
     {
         return new CommandContext(
@@ -254,6 +293,13 @@ public class V2KuroTests
 
             return clone;
         }
+    }
+
+    private sealed class PlainSecretProtector : ISecretProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+
+        public string Unprotect(string ciphertext) => ciphertext;
     }
 
     private sealed class FakeDistributedCache : IDistributedCache

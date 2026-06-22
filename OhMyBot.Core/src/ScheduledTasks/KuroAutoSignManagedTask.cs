@@ -71,6 +71,11 @@ public sealed class KuroAutoSignManagedTask : ManagedTaskBase
             return;
         }
 
+        if (string.IsNullOrEmpty(account.TokenCiphertext))
+        {
+            return;
+        }
+
         var telegramEndpoints = await subscriptionService.ListEnabledEndpointsByTargetAsync(
             BotPlatform.Telegram,
             NotificationTypes.KuroAutoSign,
