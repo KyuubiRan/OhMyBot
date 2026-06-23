@@ -4,6 +4,11 @@ using OhMyBot.Core.Grpc;
 using OhMyBot.Core.Terminal;
 
 var builder = WebApplication.CreateBuilder(args);
+if (await RemoteConsoleClient.TryRunAsync(builder.Configuration))
+{
+    return;
+}
+
 var consoleState = new InteractiveConsoleState();
 var consoleOutputQueue = new InteractiveConsoleOutputQueue();
 consoleState.AttachOutputQueue(consoleOutputQueue);
@@ -11,8 +16,9 @@ consoleState.AttachOutputQueue(consoleOutputQueue);
 if (consoleState.Enabled)
 {
     builder.Logging.ClearProviders();
-    builder.Logging.AddProvider(new InteractiveConsoleLoggerProvider(consoleState));
 }
+
+builder.Logging.AddProvider(new InteractiveConsoleLoggerProvider(consoleOutputQueue));
 
 builder.Services.AddGrpc();
 builder.Services.AddSingleton(consoleState);

@@ -12,10 +12,12 @@ using OhMyBot.Core.Callbacks;
 using OhMyBot.Core.Data;
 using OhMyBot.Core.Data.Entities;
 using OhMyBot.Core.Identity;
+using OhMyBot.Core.Kuro;
 using OhMyBot.Core.Linking;
 using OhMyBot.Core.Notifications;
 using OhMyBot.Core.Routing;
 using OhMyBot.Core.Security;
+using OhMyBot.Core.Terminal;
 using OhMyBot.Core.UserProfiles;
 
 namespace OhMyBot.Tests;
@@ -797,6 +799,65 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task NotifyBackKeepsTypeButtonsInSameRow()
+    {
+        await using var dbContext = CreateDbContext();
+        dbContext.CoreUsers.Add(new CoreUser { Id = 1, Privilege = UserPrivilege.VerifiedUser });
+        dbContext.PlatformUserProfiles.Add(new PlatformUserProfile
+        {
+            Platform = BotPlatform.Telegram,
+            Uid = "admin",
+            FirstName = "Admin",
+            CoreUserId = 1
+        });
+        await dbContext.SaveChangesAsync();
+
+        var identityCache = new FakeIdentityCache();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(1, UserPrivilege.VerifiedUser));
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var backPayload = await callbackStore.PutAsync(
+            "notify-back",
+            1,
+            "chat",
+            "admin",
+            new NotifyBackCallbackData());
+        var services = new ServiceCollection();
+        services.AddSingleton(dbContext);
+        services.AddSingleton<IIdentityCache>(identityCache);
+        services.AddSingleton(callbackStore);
+        services.AddSingleton(TimeProvider.System);
+        services.AddSingleton<IDistributedCache, FakeDistributedCache>();
+        services.AddSingleton<ISecretProtector, PlainSecretProtector>();
+        services.AddSingleton(Options.Create(new AiRouterOptions()));
+        services.AddSingleton(Options.Create(new KuroOptions()));
+        services.AddSingleton(new AiRouterHttpClient(new HttpClient()));
+        services.AddSingleton(new KuroHttpClient(new HttpClient(), Options.Create(new KuroOptions())));
+        services.AddSingleton<CoreIdentityService>();
+        services.AddSingleton<AiRouterAccountService>();
+        services.AddSingleton<KuroAccountService>();
+        services.AddSingleton<NotificationSubscriptionService>();
+        var serviceProvider = services.BuildServiceProvider();
+        var callbackService = new CallbackExecutionService(
+            serviceProvider.GetRequiredService<CoreIdentityService>(),
+            callbackStore,
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            TimeProvider.System);
+
+        var response = await callbackService.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            ChatId = "chat",
+            UserId = "admin",
+            MessageId = "123",
+            Payload = backPayload
+        });
+
+        CollectionAssert.AreEqual(
+            new[] { "AI Router 自动签到", "库街区自动签到" },
+            response.ButtonRows.Single().Buttons.Select(button => button.Text).ToArray());
+    }
+
+    [TestMethod]
     public async Task SetPrivilegeAdminCannotSetAdmin()
     {
         await using var dbContext = CreateDbContext();
@@ -1344,6 +1405,24 @@ public class V2CoreTests
             tokens.ToArray());
     }
 
+    [TestMethod]
+    public async Task InteractiveConsoleOutputQueueBroadcastsToAllReaders()
+    {
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
+        var queue = new InteractiveConsoleOutputQueue();
+        await using var first = queue.ReadAllAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+        await using var second = queue.ReadAllAsync(cts.Token).GetAsyncEnumerator(cts.Token);
+
+        var firstRead = first.MoveNextAsync().AsTask();
+        var secondRead = second.MoveNextAsync().AsTask();
+
+        Assert.IsTrue(queue.TryEnqueue(new InteractiveConsoleOutputItem([new ConsoleTextSegment("hello")])));
+        Assert.IsTrue(await firstRead.WaitAsync(cts.Token));
+        Assert.IsTrue(await secondRead.WaitAsync(cts.Token));
+        Assert.AreEqual("hello", first.Current.Segments[0].Text);
+        Assert.AreEqual("hello", second.Current.Segments[0].Text);
+    }
+
     private static OhMyBotV2DbContext CreateDbContext()
     {
         return new OhMyBotV2DbContext(new DbContextOptionsBuilder<OhMyBotV2DbContext>()
@@ -1637,6 +1716,13 @@ public class V2CoreTests
             Remove(key);
             return Task.CompletedTask;
         }
+    }
+
+    private sealed class PlainSecretProtector : ISecretProtector
+    {
+        public string Protect(string plaintext) => plaintext;
+
+        public string Unprotect(string ciphertext) => ciphertext;
     }
 
     private sealed class FakeAdminCommand(string name, IReadOnlyList<string> aliases) : IAdminCommand

@@ -9,6 +9,7 @@ service CommandRouter {
   rpc ExecuteCallback (CallbackRequest) returns (CommandResponse);
   rpc GetRoutes (GetRoutesRequest) returns (GetRoutesResponse);
   rpc RecordUserProfile (UserProfileRequest) returns (UserProfileResponse);
+  rpc OpenAdminConsole (stream AdminConsoleInput) returns (stream AdminConsoleOutput);
 }
 
 enum BotPlatform {
@@ -93,6 +94,20 @@ message UserProfileRequest {
 
 message UserProfileResponse {
   bool recorded = 1;
+}
+
+message AdminConsoleInput {
+  string command_line = 1;
+}
+
+message AdminConsoleTextSegment {
+  string text = 1;
+  optional int32 foreground_color = 2;
+  optional int32 background_color = 3;
+}
+
+message AdminConsoleOutput {
+  repeated AdminConsoleTextSegment segments = 1;
 }
 
 message RouteDescriptor {

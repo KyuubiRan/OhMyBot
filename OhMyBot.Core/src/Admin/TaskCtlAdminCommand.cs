@@ -12,8 +12,8 @@ public sealed class TaskCtlAdminCommand(ManagedTaskRegistry registry) : IAdminCo
         [],
         [
             "taskctl list",
-            "taskctl status ai-router-auto-sign",
-            "taskctl execute ai-router-auto-sign"
+            "taskctl status taskname",
+            "taskctl execute taskname"
         ]);
 
     public AdminCommandDefinition Definition => CommandDefinition;

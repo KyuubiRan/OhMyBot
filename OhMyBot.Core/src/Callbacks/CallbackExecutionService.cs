@@ -739,25 +739,31 @@ public sealed class CallbackExecutionService(
         });
         var enabledNames = response.NotifyTypePanel.Items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
         response.Message = "[消息订阅管理]\n当前已启用: " + (enabledNames.Length == 0 ? "无" : string.Join("、", enabledNames));
+        var row = new ResponseButtonRow();
         foreach (var item in response.NotifyTypePanel.Items)
         {
-            response.ButtonRows.Add(new ResponseButtonRow
+            row.Buttons.Add(new ResponseButton
             {
-                Buttons =
-                {
-                    new ResponseButton
-                    {
-                        Text = item.DisplayName,
-                        Payload = await callbackStore.PutAsync(
-                            "notify-type-select",
-                            context.Identity.CoreUserId,
-                            context.Request.ChatId,
-                            context.Request.UserId,
-                            new NotifyTypeCallbackData(item.Type),
-                            cancellationToken: cancellationToken)
-                    }
-                }
+                Text = item.DisplayName,
+                Payload = await callbackStore.PutAsync(
+                    "notify-type-select",
+                    context.Identity.CoreUserId,
+                    context.Request.ChatId,
+                    context.Request.UserId,
+                    new NotifyTypeCallbackData(item.Type),
+                    cancellationToken: cancellationToken)
             });
+
+            if (row.Buttons.Count == 2)
+            {
+                response.ButtonRows.Add(row);
+                row = new ResponseButtonRow();
+            }
+        }
+
+        if (row.Buttons.Count > 0)
+        {
+            response.ButtonRows.Add(row);
         }
 
         return response;

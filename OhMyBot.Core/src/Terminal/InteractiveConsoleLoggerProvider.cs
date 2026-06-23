@@ -1,10 +1,10 @@
 namespace OhMyBot.Core.Terminal;
 
-public sealed class InteractiveConsoleLoggerProvider(InteractiveConsoleState consoleState) : ILoggerProvider
+public sealed class InteractiveConsoleLoggerProvider(InteractiveConsoleOutputQueue outputQueue) : ILoggerProvider
 {
     public ILogger CreateLogger(string categoryName)
     {
-        return new InteractiveConsoleLogger(consoleState, categoryName);
+        return new InteractiveConsoleLogger(outputQueue, categoryName);
     }
 
     public void Dispose()
@@ -12,7 +12,7 @@ public sealed class InteractiveConsoleLoggerProvider(InteractiveConsoleState con
     }
 
     private sealed class InteractiveConsoleLogger(
-        InteractiveConsoleState consoleState,
+        InteractiveConsoleOutputQueue outputQueue,
         string categoryName) : ILogger
     {
         public IDisposable? BeginScope<TState>(TState state)
@@ -53,10 +53,11 @@ public sealed class InteractiveConsoleLoggerProvider(InteractiveConsoleState con
             }
 
             var (foregroundColor, backgroundColor) = GetColors(logLevel);
-            consoleState.WriteSegmentsLine(
+            outputQueue.TryEnqueue(new InteractiveConsoleOutputItem([
                 new ConsoleTextSegment($"[{timestamp}] "),
                 new ConsoleTextSegment($"[{level}]", foregroundColor, backgroundColor),
-                new ConsoleTextSegment(suffix));
+                new ConsoleTextSegment(suffix)
+            ]));
         }
 
         private static string FormatLevel(LogLevel logLevel)
