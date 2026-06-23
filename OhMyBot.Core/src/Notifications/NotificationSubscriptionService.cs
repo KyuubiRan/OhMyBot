@@ -25,8 +25,8 @@ public sealed class NotificationSubscriptionService(
             .ToListAsync(cancellationToken);
         var byTarget = subscriptions.ToDictionary(subscription => subscription.TargetId);
         return knownTargetIds
-            .Where(targetId => !byTarget.TryGetValue(targetId, out var subscription)
-                || HasPlatform(subscription.EnabledPlatforms, platformFlag))
+            .Where(targetId => byTarget.TryGetValue(targetId, out var subscription)
+                && HasPlatform(subscription.EnabledPlatforms, platformFlag))
             .ToHashSet();
     }
 
@@ -74,7 +74,7 @@ public sealed class NotificationSubscriptionService(
                 CoreUserId = coreUserId,
                 NotificationType = notificationType,
                 TargetId = targetId,
-                EnabledPlatforms = (int)(NotificationPlatformFlags.All & ~platformFlag),
+                EnabledPlatforms = (int)platformFlag,
                 CreatedAt = now,
                 UpdatedAt = now
             };
@@ -176,9 +176,7 @@ public sealed class NotificationSubscriptionService(
                 CoreUserId = coreUserId,
                 NotificationType = notificationType,
                 TargetId = targetId,
-                EnabledPlatforms = (int)(shouldEnable
-                    ? NotificationPlatformFlags.All
-                    : NotificationPlatformFlags.All & ~platformFlag),
+                EnabledPlatforms = shouldEnable ? (int)platformFlag : 0,
                 CreatedAt = now,
                 UpdatedAt = now
             };

@@ -22,7 +22,7 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
         modelBuilder.Entity<CoreUser>(builder =>
         {
             builder.HasKey(user => user.Id);
-            builder.Property(user => user.Privilege).HasConversion<string>().HasMaxLength(64);
+            builder.Property(user => user.Privilege);
             builder.Property(user => user.CreatedAt).IsRequired();
             builder.Property(user => user.UpdatedAt).IsRequired();
         });
@@ -30,7 +30,7 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
         modelBuilder.Entity<PlatformUserProfile>(builder =>
         {
             builder.HasKey(profile => profile.Id);
-            builder.Property(profile => profile.Platform).HasConversion<string>().HasMaxLength(64);
+            builder.Property(profile => profile.Platform);
             builder.Property(profile => profile.Uid).HasMaxLength(128).IsRequired();
             builder.Property(profile => profile.Username).HasMaxLength(256);
             builder.Property(profile => profile.FirstName).HasMaxLength(256);

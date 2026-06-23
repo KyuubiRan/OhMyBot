@@ -904,7 +904,7 @@ public class V2CoreTests
     }
 
     [TestMethod]
-    public async Task NotificationSubscriptionsDefaultEnabledAndToggleOnlyCurrentPlatform()
+    public async Task NotificationSubscriptionsDefaultDisabledAndToggleOnlyCurrentPlatform()
     {
         await using var dbContext = CreateDbContext();
         dbContext.CoreUsers.Add(new Core.Data.Entities.CoreUser { Id = 1 });
@@ -938,12 +938,12 @@ public class V2CoreTests
             [100],
             CancellationToken.None);
 
-        Assert.IsTrue(defaultEnabled.Contains(100));
-        Assert.IsFalse(telegramAfterToggle.Contains(100));
-        Assert.IsTrue(qqAfterTelegramToggle.Contains(100));
+        Assert.IsFalse(defaultEnabled.Contains(100));
+        Assert.IsTrue(telegramAfterToggle.Contains(100));
+        Assert.IsFalse(qqAfterTelegramToggle.Contains(100));
 
         var subscription = await dbContext.NotificationSubscriptions.SingleAsync();
-        Assert.AreEqual((int)NotificationPlatformFlags.QQ, subscription.EnabledPlatforms);
+        Assert.AreEqual((int)NotificationPlatformFlags.Telegram, subscription.EnabledPlatforms);
         Assert.AreEqual("tg", subscription.TelegramBotInstanceId);
         Assert.AreEqual("chat", subscription.TelegramChatId);
     }
@@ -982,7 +982,7 @@ public class V2CoreTests
         var subscription = await dbContext.NotificationSubscriptions.SingleAsync();
 
         Assert.IsTrue(enabled.Contains(100));
-        Assert.AreEqual((int)NotificationPlatformFlags.All, subscription.EnabledPlatforms);
+        Assert.AreEqual((int)NotificationPlatformFlags.Telegram, subscription.EnabledPlatforms);
         Assert.AreEqual("tg-new", subscription.TelegramBotInstanceId);
         Assert.AreEqual("chat-new", subscription.TelegramChatId);
     }
@@ -1021,7 +1021,7 @@ public class V2CoreTests
         CollectionAssert.AreEqual(
             new[] { "开启/关闭全部", "返回" },
             lastRow.Buttons.Select(button => button.Text).ToArray());
-        Assert.StartsWith("[开] ", response.ButtonRows[0].Buttons[0].Text);
+        Assert.StartsWith("[关] ", response.ButtonRows[0].Buttons[0].Text);
     }
 
     [TestMethod]

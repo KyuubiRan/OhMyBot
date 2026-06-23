@@ -53,6 +53,7 @@ public sealed class TaskCtlAdminCommand(ManagedTaskRegistry registry) : IAdminCo
                 return AdminCommandResult.Ok($"Disabled task: {task.Name}.");
             case "cancel":
                 return AdminCommandResult.Ok(task.Cancel() ? $"Cancel requested: {task.Name}." : $"Task is not running: {task.Name}.");
+            case "exec":
             case "execute":
                 _ = Task.Run(() => task.ExecuteAsync(cancellationToken), CancellationToken.None);
                 return AdminCommandResult.Ok($"Execution started: {task.Name}.");
