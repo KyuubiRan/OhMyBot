@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Events;
+using OhMyBot.Contracts.Grpc;
 using OhMyBot.Contracts.Messaging;
 using RabbitMQ.Client;
 
@@ -14,11 +15,28 @@ public sealed class RabbitMqNotificationPublisher(
     private readonly RabbitMqOptions _options = options.Value;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
+    public async Task PublishAsync(
+        BotPlatform platform,
+        string botInstanceId,
+        string chatId,
+        IReadOnlyList<string> messages,
+        CancellationToken cancellationToken = default)
+    {
+        await PublishCoreAsync(
+            BotNotificationEvent.Create(platform, botInstanceId, chatId, messages, timeProvider.GetUtcNow()),
+            cancellationToken);
+    }
+
     public async Task PublishTelegramAsync(
         string botInstanceId,
         string chatId,
         IReadOnlyList<string> messages,
         CancellationToken cancellationToken = default)
+    {
+        await PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, cancellationToken);
+    }
+
+    private async Task PublishCoreAsync(BotNotificationEvent notification, CancellationToken cancellationToken)
     {
         try
         {
@@ -41,12 +59,12 @@ public sealed class RabbitMqNotificationPublisher(
                 cancellationToken: cancellationToken);
 
             var payload = JsonSerializer.SerializeToUtf8Bytes(
-                BotNotificationEvent.Telegram(botInstanceId, chatId, messages, timeProvider.GetUtcNow()),
+                notification,
                 JsonOptions);
 
             await channel.BasicPublishAsync(
                 _options.NotificationExchange,
-                BotNotificationEvent.EventType,
+                notification.Type,
                 mandatory: false,
                 basicProperties: new BasicProperties
                 {
@@ -58,7 +76,7 @@ public sealed class RabbitMqNotificationPublisher(
         }
         catch (Exception exception)
         {
-            logger.LogError(exception, "Failed to publish Telegram notification.");
+            logger.LogError(exception, "Failed to publish {Platform} notification.", notification.Platform);
         }
     }
 }

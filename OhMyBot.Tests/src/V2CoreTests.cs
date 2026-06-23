@@ -15,6 +15,7 @@ using OhMyBot.Core.Identity;
 using OhMyBot.Core.Kuro;
 using OhMyBot.Core.Linking;
 using OhMyBot.Core.Notifications;
+using OhMyBot.Core.Messaging;
 using OhMyBot.Core.Routing;
 using OhMyBot.Core.Security;
 using OhMyBot.Core.Terminal;
@@ -1358,6 +1359,22 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task PushMessageAdminCommandPublishesPrivateMessage()
+    {
+        var publisher = new FakeNotificationPublisher();
+        var executor = new AdminCommandExecutor(new AdminCommandCatalog([
+            new PushMessageAdminCommand(publisher)
+        ]));
+
+        var result = await executor.ExecuteAsync("pushmsg -p telegram -uid 123456 -m \"hello world\"");
+
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual(BotPlatform.Telegram, publisher.Platform);
+        Assert.AreEqual("123456", publisher.ChatId);
+        CollectionAssert.AreEqual(new[] { "hello world" }, publisher.Messages.ToArray());
+    }
+
+    [TestMethod]
     public async Task AdminCommandAliasDispatchesToCommand()
     {
         var executor = new AdminCommandExecutor(new AdminCommandCatalog([
@@ -1668,6 +1685,37 @@ public class V2CoreTests
         private static string GetKey(BotPlatform platform, string uid)
         {
             return $"{platform}:{uid}";
+        }
+    }
+
+    private sealed class FakeNotificationPublisher : INotificationPublisher
+    {
+        public BotPlatform Platform { get; private set; }
+        public string BotInstanceId { get; private set; } = string.Empty;
+        public string ChatId { get; private set; } = string.Empty;
+        public IReadOnlyList<string> Messages { get; private set; } = [];
+
+        public Task PublishAsync(
+            BotPlatform platform,
+            string botInstanceId,
+            string chatId,
+            IReadOnlyList<string> messages,
+            CancellationToken cancellationToken = default)
+        {
+            Platform = platform;
+            BotInstanceId = botInstanceId;
+            ChatId = chatId;
+            Messages = messages;
+            return Task.CompletedTask;
+        }
+
+        public Task PublishTelegramAsync(
+            string botInstanceId,
+            string chatId,
+            IReadOnlyList<string> messages,
+            CancellationToken cancellationToken = default)
+        {
+            return PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, cancellationToken);
         }
     }
 

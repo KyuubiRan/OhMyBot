@@ -5,16 +5,17 @@ using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Events;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Contracts.Messaging;
+using OhMyBot.OneBotV11;
+using OhMyBot.OneBotV11.Transport;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using Telegram.Bot;
 
-namespace OhMyBot.TelegramGateway;
+namespace OhMyBot.QQGateway;
 
-public sealed class TelegramNotificationConsumerService(
-    ITelegramBotClient botClient,
+public sealed class QQNotificationConsumerService(
+    IOneBotClient oneBotClient,
     IOptions<RabbitMqOptions> rabbitMqOptions,
-    ILogger<TelegramNotificationConsumerService> logger) : BackgroundService
+    ILogger<QQNotificationConsumerService> logger) : BackgroundService
 {
     private readonly RabbitMqOptions _rabbitMqOptions = rabbitMqOptions.Value;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -25,6 +26,7 @@ public sealed class TelegramNotificationConsumerService(
         {
             try
             {
+                await oneBotClient.StartAsync(stoppingToken);
                 await ConsumeAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -33,8 +35,12 @@ public sealed class TelegramNotificationConsumerService(
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "RabbitMQ notification consumer failed. Retrying in 10 seconds.");
+                logger.LogError(exception, "QQ notification consumer failed. Retrying in 10 seconds.");
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+            finally
+            {
+                await oneBotClient.StopAsync(CancellationToken.None);
             }
         }
     }
@@ -42,7 +48,7 @@ public sealed class TelegramNotificationConsumerService(
     private async Task ConsumeAsync(CancellationToken stoppingToken)
     {
         var queueName = string.IsNullOrWhiteSpace(_rabbitMqOptions.NotificationQueue)
-            ? "ohmybot.telegram.notifications"
+            ? "ohmybot.qq.notifications.messages"
             : _rabbitMqOptions.NotificationQueue + ".messages";
 
         var factory = new ConnectionFactory
@@ -66,7 +72,7 @@ public sealed class TelegramNotificationConsumerService(
         await channel.QueueBindAsync(
             queueName,
             _rabbitMqOptions.NotificationExchange,
-            BotNotificationEvent.TelegramEventType,
+            BotNotificationEvent.QqEventType,
             cancellationToken: stoppingToken);
 
         var consumer = new AsyncEventingBasicConsumer(channel);
@@ -75,17 +81,14 @@ public sealed class TelegramNotificationConsumerService(
             try
             {
                 var notification = JsonSerializer.Deserialize<BotNotificationEvent>(args.Body.Span, JsonOptions);
-                if (notification is { Type: BotNotificationEvent.TelegramEventType, Platform: BotPlatform.Telegram })
+                if (notification is { Type: BotNotificationEvent.QqEventType, Platform: BotPlatform.Qq })
                 {
-                    foreach (var message in notification.Messages.Where(message => !string.IsNullOrWhiteSpace(message)))
-                    {
-                        await botClient.SendMessage(notification.ChatId, message, cancellationToken: stoppingToken);
-                    }
+                    await SendMessagesAsync(notification, stoppingToken);
                 }
             }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Failed to handle Telegram notification event.");
+                logger.LogError(exception, "Failed to handle QQ notification event.");
             }
             finally
             {
@@ -95,5 +98,28 @@ public sealed class TelegramNotificationConsumerService(
 
         await channel.BasicConsumeAsync(queueName, autoAck: false, consumer, stoppingToken);
         await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+    }
+
+    private async Task SendMessagesAsync(BotNotificationEvent notification, CancellationToken cancellationToken)
+    {
+        if (!long.TryParse(notification.ChatId, out var userId))
+        {
+            logger.LogWarning("Invalid QQ user id for notification: {ChatId}.", notification.ChatId);
+            return;
+        }
+
+        foreach (var message in notification.Messages.Where(message => !string.IsNullOrWhiteSpace(message)))
+        {
+            var response = await oneBotClient.SendActionAsync(
+                new OneBotActionRequest("send_private_msg", new { user_id = userId, message }),
+                cancellationToken);
+
+            if (!response.IsSuccess)
+            {
+                logger.LogWarning("OneBot send_private_msg failed retcode={RetCode} message={Message}.",
+                    response.RetCode,
+                    response.Message ?? response.Wording);
+            }
+        }
     }
 }

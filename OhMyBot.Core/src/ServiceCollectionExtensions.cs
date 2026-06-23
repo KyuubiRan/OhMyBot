@@ -43,6 +43,7 @@ public static class ServiceCollectionExtensions
         services.TryAddSingleton<InteractiveConsoleState>();
         services.AddScoped<IAdminCommand, UserAdminCommand>();
         services.AddScoped<IAdminCommand, TaskCtlAdminCommand>();
+        services.AddScoped<IAdminCommand, PushMessageAdminCommand>();
         services.AddScoped<AdminCommandCatalog>();
         services.AddScoped<AdminCommandExecutor>();
         services.AddScoped<CoreIdentityService>();
