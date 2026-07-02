@@ -54,6 +54,7 @@ builder.Services.AddSingleton<ITelegramCommandResultRenderer, UserInfoTelegramRe
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, LinkTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, AiRouterTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, KuroTelegramRenderer>();
+builder.Services.AddSingleton<ITelegramCommandResultRenderer, MihoyoTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, NotifyTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, HelpTelegramRenderer>();
 builder.Services.AddSingleton<ITelegramCommandResultRenderer, FallbackTelegramRenderer>();

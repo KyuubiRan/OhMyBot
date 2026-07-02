@@ -47,6 +47,10 @@ enum CommandResponseDataKind {
   COMMAND_RESPONSE_DATA_KIND_KURO_BIND_RESULT = 12;
   COMMAND_RESPONSE_DATA_KIND_KURO_BBS_SIGN_RESULT = 13;
   COMMAND_RESPONSE_DATA_KIND_KURO_GAME_SIGN_RESULT = 14;
+  COMMAND_RESPONSE_DATA_KIND_MIHOYO_ACCOUNT_LIST = 15;
+  COMMAND_RESPONSE_DATA_KIND_MIHOYO_BIND_RESULT = 16;
+  COMMAND_RESPONSE_DATA_KIND_MIHOYO_BBS_SIGN_RESULT = 17;
+  COMMAND_RESPONSE_DATA_KIND_MIHOYO_GAME_SIGN_RESULT = 18;
 }
 
 message CommandRequest {
@@ -231,6 +235,7 @@ message NotifyAccountPanelData {
   string display_name = 2;
   repeated AiRouterAccountItem accounts = 3;
   repeated KuroAccountItem kuro_accounts = 4;
+  repeated MihoyoAccountItem mihoyo_accounts = 5;
 }
 
 message KuroGameRoleItem {
@@ -287,6 +292,52 @@ message KuroGameSignResultData {
   int64 occurred_at_unix_seconds = 4;
 }
 
+message MihoyoGameRoleItem {
+  int64 id = 1;
+  string game_biz = 2;
+  string game_name = 3;
+  string region = 4;
+  int64 game_uid = 5;
+  string nickname = 6;
+  string level = 7;
+  bool auto_sign_enabled = 8;
+}
+
+message MihoyoAccountItem {
+  int64 id = 1;
+  int64 stuid = 2;
+  string display_name = 3;
+  // 0 = CN, 1 = OS
+  int32 region = 4;
+  bool auto_sign_enabled = 5;
+  int64 bbs_task_flags = 6;
+  bool notification_enabled = 7;
+  repeated MihoyoGameRoleItem roles = 8;
+}
+
+message MihoyoAccountListData {
+  repeated MihoyoAccountItem accounts = 1;
+}
+
+message MihoyoBindResultData {
+  MihoyoAccountItem account = 1;
+  bool updated_existing = 2;
+}
+
+message MihoyoBbsSignResultData {
+  MihoyoAccountItem account = 1;
+  repeated string lines = 2;
+  bool auto_sign = 3;
+  int64 occurred_at_unix_seconds = 4;
+}
+
+message MihoyoGameSignResultData {
+  MihoyoAccountItem account = 1;
+  repeated string lines = 2;
+  bool auto_sign = 3;
+  int64 occurred_at_unix_seconds = 4;
+}
+
 message CommandResponse {
   int32 code = 1;
   string error_code = 2;
@@ -314,6 +365,10 @@ message CommandResponse {
     KuroBindResultData kuro_bind_result = 31;
     KuroBbsSignResultData kuro_bbs_sign_result = 32;
     KuroGameSignResultData kuro_game_sign_result = 33;
+    MihoyoAccountListData mihoyo_account_list = 34;
+    MihoyoBindResultData mihoyo_bind_result = 35;
+    MihoyoBbsSignResultData mihoyo_bbs_sign_result = 36;
+    MihoyoGameSignResultData mihoyo_game_sign_result = 37;
   }
 }
 

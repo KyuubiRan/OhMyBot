@@ -5,21 +5,22 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
-using OhMyBot.Core.Admin;
-using OhMyBot.Core.AiRouter;
-using OhMyBot.Core.Commands;
-using OhMyBot.Core.Callbacks;
-using OhMyBot.Core.Data;
-using OhMyBot.Core.Data.Entities;
-using OhMyBot.Core.Identity;
-using OhMyBot.Core.Kuro;
-using OhMyBot.Core.Linking;
-using OhMyBot.Core.Notifications;
-using OhMyBot.Core.Messaging;
-using OhMyBot.Core.Routing;
-using OhMyBot.Core.Security;
-using OhMyBot.Core.Terminal;
-using OhMyBot.Core.UserProfiles;
+using OhMyBot.Core.Commanding.Admin;
+using OhMyBot.Core.Integrations.AiRouter;
+using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Callbacks;
+using OhMyBot.Core.Infrastructure.Data;
+using OhMyBot.Core.Infrastructure.Data.Entities;
+using OhMyBot.Core.Infrastructure.Identity;
+using OhMyBot.Core.Integrations.Kuro;
+using OhMyBot.Core.Integrations.Mihoyo;
+using OhMyBot.Core.Infrastructure.Linking;
+using OhMyBot.Core.Commanding.Notifications;
+using OhMyBot.Core.Infrastructure.Messaging;
+using OhMyBot.Core.Commanding.Routing;
+using OhMyBot.Core.Infrastructure.Security;
+using OhMyBot.Core.Infrastructure.Terminal;
+using OhMyBot.Core.Infrastructure.UserProfiles;
 
 namespace OhMyBot.Tests;
 
@@ -833,9 +834,12 @@ public class V2CoreTests
         services.AddSingleton(Options.Create(new KuroOptions()));
         services.AddSingleton(new AiRouterHttpClient(new HttpClient()));
         services.AddSingleton(new KuroHttpClient(new HttpClient(), Options.Create(new KuroOptions())));
+        services.AddSingleton(Options.Create(new MihoyoOptions()));
+        services.AddSingleton(new MihoyoHttpClient(new HttpClient(), Options.Create(new MihoyoOptions())));
         services.AddSingleton<CoreIdentityService>();
         services.AddSingleton<AiRouterAccountService>();
         services.AddSingleton<KuroAccountService>();
+        services.AddSingleton<MihoyoAccountService>();
         services.AddSingleton<NotificationSubscriptionService>();
         var serviceProvider = services.BuildServiceProvider();
         var callbackService = new CallbackExecutionService(
@@ -854,8 +858,8 @@ public class V2CoreTests
         });
 
         CollectionAssert.AreEqual(
-            new[] { "AI Router 自动签到", "库街区自动签到" },
-            response.ButtonRows.Single().Buttons.Select(button => button.Text).ToArray());
+            new[] { "AI Router 自动签到", "库街区自动签到", "米游社自动签到" },
+            response.ButtonRows.SelectMany(row => row.Buttons).Select(button => button.Text).ToArray());
     }
 
     [TestMethod]
@@ -900,14 +904,14 @@ public class V2CoreTests
         var exception = Assert.ThrowsExactly<InvalidOperationException>(() =>
             new AesGcmSecretProtector(Options.Create(new EncryptionOptions { Key = Convert.ToBase64String([1, 2, 3]) })));
 
-        Assert.Contains("exactly 32 bytes", exception.Message);
+        Assert.Contains("32 字节", exception.Message);
     }
 
     [TestMethod]
     public async Task NotificationSubscriptionsDefaultDisabledAndToggleOnlyCurrentPlatform()
     {
         await using var dbContext = CreateDbContext();
-        dbContext.CoreUsers.Add(new Core.Data.Entities.CoreUser { Id = 1 });
+        dbContext.CoreUsers.Add(new Core.Infrastructure.Data.Entities.CoreUser { Id = 1 });
         await dbContext.SaveChangesAsync();
         var service = new NotificationSubscriptionService(dbContext, TimeProvider.System);
 
@@ -952,7 +956,7 @@ public class V2CoreTests
     public async Task NotificationSubscriptionEnableTurnsOnCurrentPlatformAndStoresEndpoint()
     {
         await using var dbContext = CreateDbContext();
-        dbContext.CoreUsers.Add(new Core.Data.Entities.CoreUser { Id = 1 });
+        dbContext.CoreUsers.Add(new Core.Infrastructure.Data.Entities.CoreUser { Id = 1 });
         await dbContext.SaveChangesAsync();
         var service = new NotificationSubscriptionService(dbContext, TimeProvider.System);
 

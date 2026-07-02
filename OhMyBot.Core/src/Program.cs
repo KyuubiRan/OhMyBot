@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using OhMyBot.Core;
-using OhMyBot.Core.Grpc;
-using OhMyBot.Core.Terminal;
+using OhMyBot.Core.Infrastructure.Grpc;
+using OhMyBot.Core.Infrastructure.Terminal;
 
 var builder = WebApplication.CreateBuilder(args);
 if (await RemoteConsoleClient.TryRunAsync(builder.Configuration))

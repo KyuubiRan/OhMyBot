@@ -3,14 +3,14 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
-using OhMyBot.Core.Callbacks;
-using OhMyBot.Core.Commands;
-using OhMyBot.Core.Data;
-using OhMyBot.Core.Data.Entities;
-using OhMyBot.Core.Identity;
-using OhMyBot.Core.Kuro;
-using OhMyBot.Core.Notifications;
-using OhMyBot.Core.Security;
+using OhMyBot.Core.Commanding.Callbacks;
+using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Infrastructure.Data;
+using OhMyBot.Core.Infrastructure.Data.Entities;
+using OhMyBot.Core.Infrastructure.Identity;
+using OhMyBot.Core.Integrations.Kuro;
+using OhMyBot.Core.Commanding.Notifications;
+using OhMyBot.Core.Infrastructure.Security;
 using OhMyBot.TelegramGateway.Rendering;
 using Telegram.Bot.Types.Enums;
 
@@ -235,6 +235,52 @@ public class V2KuroTests
         CollectionAssert.AreEqual(
             new[] { "开启/关闭全部", "返回" },
             response.ButtonRows[^1].Buttons.Select(button => button.Text).ToArray());
+    }
+
+    [TestMethod]
+    public async Task KuroGameSignPanelRendersCheckboxPerOwnedGameAndActionRow()
+    {
+        var builder = CreateBuilder();
+        var account = new KuroAccount { Id = 5, CoreUserId = 1, BbsUserId = 1, DisplayName = "Kuro" };
+        account.Roles.Add(new KuroGameRole { GameId = 2, GameName = "战双帕弥什", RoleId = 1 });
+        account.Roles.Add(new KuroGameRole { GameId = 3, GameName = "鸣潮", RoleId = 2 });
+
+        // 仅勾选鸣潮(3)
+        var response = await builder.BuildGameSignPanelAsync(CreateContext(), account, [3L]);
+
+        // 意图：每个已同步游戏一个开关，√/× 反映勾选状态，底部提供「签到」「返回」
+        Assert.HasCount(3, response.ButtonRows);
+        Assert.AreEqual("[×] 战双帕弥什", response.ButtonRows[0].Buttons[0].Text);
+        Assert.AreEqual("[√] 鸣潮", response.ButtonRows[1].Buttons[0].Text);
+        CollectionAssert.AreEqual(
+            new[] { "签到", "返回" },
+            response.ButtonRows[^1].Buttons.Select(button => button.Text).ToArray());
+    }
+
+    [TestMethod]
+    public async Task KuroGameSignSelectionAddsSignAllOnlyForMultipleAccounts()
+    {
+        var builder = CreateBuilder();
+        var many = new[]
+        {
+            new KuroAccount { Id = 1, DisplayName = "a" },
+            new KuroAccount { Id = 2, DisplayName = "b" }
+        };
+
+        var multi = await builder.BuildGameSignSelectionAsync(CreateContext(), many);
+        Assert.HasCount(3, multi.ButtonRows);
+        Assert.AreEqual("全部签到", multi.ButtonRows[^1].Buttons[0].Text);
+
+        var single = await builder.BuildGameSignSelectionAsync(CreateContext(), [many[0]]);
+        Assert.HasCount(1, single.ButtonRows);
+    }
+
+    private static KuroResponseBuilder CreateBuilder()
+    {
+        return new KuroResponseBuilder(
+            new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions())),
+            new NotificationSubscriptionService(CreateDbContext(), TimeProvider.System),
+            TimeProvider.System);
     }
 
     private static OhMyBotV2DbContext CreateDbContext()

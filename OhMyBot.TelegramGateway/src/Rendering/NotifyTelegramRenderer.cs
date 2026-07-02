@@ -31,15 +31,20 @@ public sealed class NotifyTelegramRenderer : ITelegramCommandResultRenderer
 
     private static string RenderAccountPanel(NotifyAccountPanelData data)
     {
-        var enabled = data.KuroAccounts.Count > 0
-            ? data.KuroAccounts
+        var enabled = data.MihoyoAccounts.Count > 0
+            ? data.MihoyoAccounts
                 .Where(account => account.NotificationEnabled)
                 .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
                 .ToArray()
-            : data.Accounts
-                .Where(account => account.NotificationEnabled)
-                .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
-                .ToArray();
+            : data.KuroAccounts.Count > 0
+                ? data.KuroAccounts
+                    .Where(account => account.NotificationEnabled)
+                    .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
+                    .ToArray()
+                : data.Accounts
+                    .Where(account => account.NotificationEnabled)
+                    .Select(account => $"`{AiRouterTelegramRenderer.Code(account.DisplayName)}`")
+                    .ToArray();
         return string.Join('\n',
             AiRouterTelegramRenderer.Escape($"[{data.DisplayName}]"),
             AiRouterTelegramRenderer.Escape("当前已启用：") + (enabled.Length == 0 ? AiRouterTelegramRenderer.Escape("无") : string.Join(AiRouterTelegramRenderer.Escape("、"), enabled)));

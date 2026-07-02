@@ -370,6 +370,152 @@
       ],
       "enabled": true,
       "children": []
+    },
+    {
+      "command": "mihoyo",
+      "coreCommand": "mihoyo",
+      "description": "\u7C73\u6E38\u793E\u76F8\u5173\u6307\u4EE4",
+      "usage": "/mihoyo \u003C\u547D\u4EE4\u003E [\u53C2\u6570]",
+      "aliases": [],
+      "requiredPrivilege": "VerifiedUser",
+      "supportPlatforms": [
+        "Telegram"
+      ],
+      "supportChatTypes": [
+        "Private"
+      ],
+      "enabled": true,
+      "children": [
+        {
+          "command": "autosign",
+          "coreCommand": "autosign",
+          "description": "\u7C73\u6E38\u793E\u81EA\u52A8\u7B7E\u5230\u7BA1\u7406",
+          "usage": "/mihoyo autosign",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "bind",
+          "coreCommand": "bind",
+          "description": "\u7ED1\u5B9A\u7C73\u6E38\u793E/HoYoLAB \u8D26\u53F7",
+          "usage": "/mihoyo bind \u003Ccookie\u003E",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "delete",
+          "coreCommand": "delete",
+          "description": "\u5220\u9664\u7C73\u6E38\u793E\u7ED1\u5B9A",
+          "usage": "/mihoyo delete",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "game",
+          "coreCommand": "game",
+          "description": "\u7C73\u6E38\u793E\u6E38\u620F\u7B7E\u5230",
+          "usage": "/mihoyo game \u003Cinit|signin\u003E [\u53C2\u6570]",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": [
+            {
+              "command": "init",
+              "coreCommand": "init",
+              "description": "\u540C\u6B65\u7C73\u6E38\u793E\u6E38\u620F\u89D2\u8272",
+              "usage": "/mihoyo game init [accountId]",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true,
+              "children": []
+            },
+            {
+              "command": "signin",
+              "coreCommand": "signin",
+              "description": "\u6267\u884C\u7C73\u6E38\u793E\u6E38\u620F\u7B7E\u5230",
+              "usage": "/mihoyo game signin [accountId] [genshin|sr|zzz|honkai3|themis|honkai2|all]",
+              "aliases": [],
+              "requiredPrivilege": "VerifiedUser",
+              "supportPlatforms": [
+                "Telegram"
+              ],
+              "supportChatTypes": [
+                "Private"
+              ],
+              "enabled": true,
+              "children": []
+            }
+          ]
+        },
+        {
+          "command": "list",
+          "coreCommand": "list",
+          "description": "\u67E5\u770B\u7C73\u6E38\u793E\u8D26\u53F7",
+          "usage": "/mihoyo list",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        },
+        {
+          "command": "signin",
+          "coreCommand": "signin",
+          "description": "\u6267\u884C\u7C73\u6E38\u793E\u4EFB\u52A1\uFF08\u4EC5\u56FD\u670D\uFF09",
+          "usage": "/mihoyo signin [accountId] [signin|view|like|share ...]",
+          "aliases": [],
+          "requiredPrivilege": "VerifiedUser",
+          "supportPlatforms": [
+            "Telegram"
+          ],
+          "supportChatTypes": [
+            "Private"
+          ],
+          "enabled": true,
+          "children": []
+        }
+      ]
     }
   ]
 }

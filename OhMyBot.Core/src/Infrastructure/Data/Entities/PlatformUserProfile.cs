@@ -1,0 +1,28 @@
+using OhMyBot.Contracts.Grpc;
+
+namespace OhMyBot.Core.Infrastructure.Data.Entities;
+
+public class PlatformUserProfile
+{
+    public long Id { get; set; }
+
+    public BotPlatform Platform { get; set; }
+
+    public string Uid { get; set; } = string.Empty;
+
+    public long? CoreUserId { get; set; }
+
+    public CoreUser? CoreUser { get; set; }
+
+    public string? Username { get; set; }
+
+    public string? FirstName { get; set; }
+
+    public string? LastName { get; set; }
+
+    public string? Nickname { get; set; }
+
+    public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
+
+    public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
+}
