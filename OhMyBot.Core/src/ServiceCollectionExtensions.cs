@@ -131,7 +131,10 @@ public static class ServiceCollectionExtensions
         var redisConfiguration = configuration.GetSection("Redis")["Configuration"];
         if (string.IsNullOrWhiteSpace(redisConfiguration))
         {
-            throw new InvalidOperationException("Redis:Configuration is required.");
+            // 未配置 Redis 时降级为进程内分布式缓存，方便无 Redis 环境（如 Windows）本地运行。
+            // 注意：多实例部署时各实例缓存互不共享，需配置 Redis。
+            services.AddDistributedMemoryCache();
+            return services;
         }
 
         services.AddStackExchangeRedisCache(options => options.Configuration = redisConfiguration);
