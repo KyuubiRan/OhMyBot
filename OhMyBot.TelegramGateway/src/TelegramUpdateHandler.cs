@@ -59,25 +59,16 @@ public sealed class TelegramUpdateHandler(
                 return;
             }
 
-            if (!IsSignInCommand(text))
+            if (IsSignInCommand(text))
             {
-                await ExecuteMessageCommandAsync(message, null, gatewayRequest, text, cancellationToken);
+                // 签到类指令可能耗时，放到后台执行避免阻塞轮询；不再发送“请稍等...”占位消息，直接回复结果。
+                _ = Task.Run(
+                    () => ExecuteMessageCommandAsync(message, null, gatewayRequest, text, cancellationToken),
+                    CancellationToken.None);
                 return;
             }
 
-            var processingMessage = await botClient.SendMessage(
-                message.Chat.Id,
-                "正在签到...",
-                replyParameters: new ReplyParameters
-                {
-                    MessageId = message.MessageId,
-                    AllowSendingWithoutReply = true
-                },
-                cancellationToken: cancellationToken);
-
-            _ = Task.Run(
-                () => ExecuteMessageCommandAsync(message, processingMessage.MessageId, gatewayRequest, text, cancellationToken),
-                CancellationToken.None);
+            await ExecuteMessageCommandAsync(message, null, gatewayRequest, text, cancellationToken);
             return;
         }
 
@@ -100,10 +91,9 @@ public sealed class TelegramUpdateHandler(
                 Payload = query.Data
             };
 
-            await botClient.AnswerCallbackQuery(query.Id, "正在处理...", cancellationToken: cancellationToken);
-
+            // 不再预先回应“正在处理...”，否则回调会被标记为已响应；改为执行完成后再回应（可携带真正的提示文案）。
             _ = Task.Run(
-                () => ExecuteCallbackAsync(query.Message.Chat.Id, callbackRequest, cancellationToken),
+                () => ExecuteCallbackAsync(botClient, query.Id, query.Message.Chat.Id, callbackRequest, cancellationToken),
                 CancellationToken.None);
         }
     }
@@ -196,6 +186,8 @@ public sealed class TelegramUpdateHandler(
     }
 
     private async Task ExecuteCallbackAsync(
+        ITelegramBotClient botClient,
+        string callbackQueryId,
         ChatId chatId,
         CallbackRequest request,
         CancellationToken cancellationToken)
@@ -204,6 +196,8 @@ public sealed class TelegramUpdateHandler(
         {
             var response = await commandGateway.ExecuteCallbackAsync(request, cancellationToken);
             await responseRenderer.RenderAsync(chatId, response, null, cancellationToken);
+            // 执行完成后再回应回调，关闭按钮加载动画；如有提示文案则一并显示。
+            await AnswerCallbackSafeAsync(botClient, callbackQueryId, response.CallbackAnswerText, response.CallbackAnswerAlert, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -211,10 +205,32 @@ public sealed class TelegramUpdateHandler(
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             logger.LogError(exception, "Failed to execute Telegram callback in background.");
+            await AnswerCallbackSafeAsync(botClient, callbackQueryId, null, false, cancellationToken);
             if (int.TryParse(request.MessageId, out var messageId))
             {
                 await RenderFailureSafeAsync(chatId, messageId, exception, cancellationToken);
             }
+        }
+    }
+
+    private static async Task AnswerCallbackSafeAsync(
+        ITelegramBotClient botClient,
+        string callbackQueryId,
+        string? text,
+        bool showAlert,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await botClient.AnswerCallbackQuery(
+                callbackQueryId,
+                string.IsNullOrEmpty(text) ? null : text,
+                showAlert: showAlert,
+                cancellationToken: cancellationToken);
+        }
+        catch (Exception)
+        {
+            // 回调可能已超时/已回应，忽略即可。
         }
     }
 
