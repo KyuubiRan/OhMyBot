@@ -19,7 +19,7 @@ public sealed class PlatformCommandDslExecutor(RouteStore routeStore)
 
         if (!TryResolvePath(path, out var node, out var consumed))
         {
-            return CommandResponses.Error("RouteNotFound", "Unknown route.", context);
+            return CommandResponses.Silent(context);
         }
 
         var remainingArgs = context.Request.Args.Skip(consumed - 1).ToArray();
@@ -35,7 +35,7 @@ public sealed class PlatformCommandDslExecutor(RouteStore routeStore)
 
         if (node.Children.Count > 0 && remainingArgs.Length > 0)
         {
-            return CommandResponses.Error("RouteNotFound", "Unknown route.", context);
+            return CommandResponses.Silent(context);
         }
 
         if (node.Handler is null)

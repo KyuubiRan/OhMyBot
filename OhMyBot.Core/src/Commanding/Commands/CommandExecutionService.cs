@@ -42,7 +42,7 @@ public sealed class CommandExecutionService(
         var chatTypeFlag = CommandDsl.ToSupportedChatType(request.ChatType);
         if (chatTypeFlag is SupportedChatTypes.None || !route.EffectiveSupportChatTypes.HasFlag(chatTypeFlag))
         {
-            return CommandResponses.Error("UnsupportedChatType", "This command is not available in this chat type.", identity, request.MessageId);
+            return CommandResponses.Error("UnsupportedChatType", DescribeChatTypeRestriction(route.EffectiveSupportChatTypes), identity, request.MessageId);
         }
 
         if ((int)identity.Privilege < (int)route.EffectiveRequiredPrivilege)
@@ -89,6 +89,16 @@ public sealed class CommandExecutionService(
 
         response.Routes.AddRange(routeStore.GetRoutes(request.Platform).Select(route => route.ToDescriptor()));
         return Task.FromResult(response);
+    }
+
+    private static string DescribeChatTypeRestriction(SupportedChatTypes supported)
+    {
+        return supported switch
+        {
+            SupportedChatTypes.Private => "此命令只能在私聊中使用。",
+            SupportedChatTypes.Group => "此命令只能在群聊中使用。",
+            _ => "此命令不支持在当前会话类型中使用。"
+        };
     }
 
 }

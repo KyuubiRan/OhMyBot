@@ -47,6 +47,17 @@ public static class CommandResponses
         };
     }
 
+    // 不产生任何回复：Code=0 且无内容，网关渲染为空消息直接跳过发送。
+    // 用于未知子命令等场景，行为对齐未知主命令（静默不响应）。
+    public static CommandResponse Silent(CommandContext context)
+    {
+        return new CommandResponse
+        {
+            Code = 0,
+            Context = ToContext(context.Identity)
+        };
+    }
+
     public static CommandResponse Error(
         string errorCode,
         string message,
