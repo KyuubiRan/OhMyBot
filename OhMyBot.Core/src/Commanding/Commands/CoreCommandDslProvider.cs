@@ -32,6 +32,7 @@ public sealed class CoreCommandDslProvider(
                 Name = "link",
                 Description = "跨平台绑定身份。",
                 Usage = "/link [token]",
+                SupportChatTypes = SupportedChatTypes.Private,
                 Handler = LinkAsync
             },
             new CommandDslNode
