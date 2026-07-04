@@ -1,6 +1,7 @@
 /.idea
 /.vs
 /.vscode
+/.tmp
 .DS_Store
 
 [Bb]in/

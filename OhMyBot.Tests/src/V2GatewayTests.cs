@@ -355,6 +355,57 @@ public class V2GatewayTests
     }
 
     [TestMethod]
+    public void QQUserInfoRendererMatchesTelegramFieldLayout()
+    {
+        var renderer = new QQResponseRenderer();
+        var data = new UserInfoData { Privilege = UserPrivilege.Owner, CoreUserId = 42 };
+        data.Identities.Add(new PlatformIdentityData
+        {
+            Platform = BotPlatform.Qq,
+            Uid = "123456",
+            DisplayName = "群昵称",
+            Username = string.Empty
+        });
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.UserInfo,
+            UserInfo = data
+        };
+
+        var text = renderer.Render(response).Single();
+
+        // 与 Telegram 字段对齐的纯文本：UID / 昵称 / 权限；QQ 无 username 故省略；不再出现 Core ID。
+        Assert.AreEqual("UID: 123456\n昵称: 群昵称\n权限: owner", text);
+        Assert.IsFalse(text.Contains("Core ID", StringComparison.Ordinal));
+        Assert.IsFalse(text.Contains("用户名", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
+    public void QQUserInfoRendererPrefixesUsernameWithAt()
+    {
+        var renderer = new QQResponseRenderer();
+        var data = new UserInfoData { Privilege = UserPrivilege.User };
+        data.Identities.Add(new PlatformIdentityData
+        {
+            Platform = BotPlatform.Qq,
+            Uid = "123456",
+            DisplayName = "n",
+            Username = "tester"
+        });
+        var response = new CommandResponse
+        {
+            Code = 0,
+            DataKind = CommandResponseDataKind.UserInfo,
+            UserInfo = data
+        };
+
+        var text = renderer.Render(response).Single();
+
+        Assert.Contains("用户名: @tester", text);
+    }
+
+    [TestMethod]
     public void TelegramAiRouterRendererFormatsStructuredSignResult()
     {
         var renderer = new AiRouterTelegramRenderer();

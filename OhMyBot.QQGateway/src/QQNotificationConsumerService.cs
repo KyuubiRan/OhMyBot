@@ -22,11 +22,11 @@ public sealed class QQNotificationConsumerService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        // OneBot 连接由 GatewayWorker 独占管理，这里只消费队列并复用已连接的客户端发送。
         while (!stoppingToken.IsCancellationRequested)
         {
             try
             {
-                await oneBotClient.StartAsync(stoppingToken);
                 await ConsumeAsync(stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -37,10 +37,6 @@ public sealed class QQNotificationConsumerService(
             {
                 logger.LogError(exception, "QQ notification consumer failed. Retrying in 10 seconds.");
                 await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
-            }
-            finally
-            {
-                await oneBotClient.StopAsync(CancellationToken.None);
             }
         }
     }

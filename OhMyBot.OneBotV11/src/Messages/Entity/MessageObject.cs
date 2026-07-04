@@ -5,7 +5,9 @@ namespace OhMyBot.OneBotV11.Messages.Entity;
 public abstract class MessageObject<T> where T : MessageObject<T>, new()
 {
     [JsonPropertyName("type")] public string Type { get; init; } = null!;
-    [JsonPropertyName("data")] public Dictionary<string, string> Parameters { get; init; } = [];
+    [JsonPropertyName("data")]
+    [JsonConverter(typeof(MessageParameterMapConverter))]
+    public Dictionary<string, string> Parameters { get; init; } = [];
 
     public T WithParameter(string key, object? value)
     {
