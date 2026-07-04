@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
@@ -12,7 +13,8 @@ using OhMyBot.OneBotV11.Transport;
 namespace OhMyBot.QQGateway;
 
 // 订阅 OneBot 消息事件，将 QQ 私聊/群消息转成命令请求交给 Core，再把结果发回。
-// 注意：QQ 无按钮、无 Markdown，回复一律为纯文本消息段（与 Telegram 的富文本分开维护）。
+// QQ 无官方可点击按钮，交互改用「编号文本菜单 + 回复序号」：Core 产出编号菜单纯文本，
+// 网关发出后把「消息 id -> 选项」绑定进 Core Redis；用户回复序号时再交给 Core 执行选择。
 public sealed class QQUpdateHandler(
     QQCommandGateway gateway,
     QQResponseRenderer renderer,
@@ -44,18 +46,15 @@ public sealed class QQUpdateHandler(
     {
         try
         {
-            var text = ExtractText(message);
-            if (string.IsNullOrWhiteSpace(text))
+            // 按段链类型解析：text 段拼接为命令/序号文本；reply 段取被回复消息 id；at 等其它段忽略。
+            // 这样对 QQ 回复自动带的 @（用户可在输入框手删）都健壮，不做脆弱的按位置剥离。
+            var text = ExtractText(message).Trim();
+            if (string.IsNullOrEmpty(text))
             {
                 return;
             }
 
-            var (command, _) = GatewayCommandParser.Parse(text, _commandPrefixes);
-            if (string.IsNullOrEmpty(command))
-            {
-                // 非命令消息：不记录、不响应，避免群聊刷屏拖垮 Core。
-                return;
-            }
+            var replyToMessageId = message.GetMessageByType(MessageType.Reply)?.Parameters.GetValueOrDefault("id");
 
             string chatId;
             BotChatType chatType;
@@ -89,13 +88,29 @@ public sealed class QQUpdateHandler(
                 ChatType: chatType,
                 Nickname: string.IsNullOrWhiteSpace(nickname) ? null : nickname);
 
+            // 纯数字 = 菜单选择：群聊必须回复某条菜单，私聊可回复也可直接发数字（走最近菜单）。
+            if (IsSelection(text) && (!string.IsNullOrEmpty(replyToMessageId) || chatType == BotChatType.Private))
+            {
+                var selectionResponse = await gateway.ExecuteMenuSelectionAsync(
+                    request,
+                    replyToMessageId,
+                    text,
+                    _options.BotInstanceId);
+                await SendResponseAsync(selectionResponse, chatType, chatId, request.UserId, request.MessageId);
+                return;
+            }
+
+            var (command, _) = GatewayCommandParser.Parse(text, _commandPrefixes);
+            if (string.IsNullOrEmpty(command))
+            {
+                // 非命令、非菜单选择：不记录、不响应，避免群聊刷屏拖垮 Core。
+                return;
+            }
+
             await RecordUserProfileSafeAsync(request);
 
             var response = await gateway.ExecuteAsync(request, _options.BotInstanceId);
-            foreach (var line in renderer.Render(response).Where(line => !string.IsNullOrWhiteSpace(line)))
-            {
-                await SendTextAsync(chatType, chatId, line);
-            }
+            await SendResponseAsync(response, chatType, chatId, request.UserId, request.MessageId);
         }
         catch (Exception exception)
         {
@@ -103,16 +118,43 @@ public sealed class QQUpdateHandler(
         }
     }
 
-    private async Task SendTextAsync(BotChatType chatType, string chatId, string text)
+    // 发送响应的每条消息（引用回复触发消息）；带 MenuToken 的消息发出后绑定「消息 id -> 选项」到 Core。
+    private async Task SendResponseAsync(
+        CommandResponse response,
+        BotChatType chatType,
+        string chatId,
+        string senderId,
+        string replyToMessageId)
+    {
+        foreach (var rendered in renderer.Render(response))
+        {
+            var sentMessageId = await SendTextAsync(chatType, chatId, rendered.Text, replyToMessageId);
+            if (!string.IsNullOrEmpty(rendered.MenuToken) && !string.IsNullOrEmpty(sentMessageId))
+            {
+                await BindMenuSafeAsync(chatId, sentMessageId, senderId, chatType, rendered.MenuToken);
+            }
+        }
+    }
+
+    // 返回已发出消息的 message_id（供菜单绑定）；失败返回 null。
+    private async Task<string?> SendTextAsync(BotChatType chatType, string chatId, string text, string? replyToMessageId)
     {
         if (!long.TryParse(chatId, out var targetId))
         {
             logger.LogWarning("无效的 QQ 会话 ID：{ChatId}", chatId);
-            return;
+            return null;
         }
 
-        // 以「数组格式的纯文本段」发送，避免机器人输出中的方括号被 NapCat 当作 CQ 码解析。
-        var segments = new[] { new { type = "text", data = new { text } } };
+        // 以「数组格式的段链」发送：可选的 reply 段做引用回复（须在开头），再加纯文本段
+        // （避免机器人输出中的方括号被 NapCat 当作 CQ 码解析）。
+        var segments = new List<object>();
+        if (!string.IsNullOrEmpty(replyToMessageId))
+        {
+            segments.Add(new { type = "reply", data = new { id = replyToMessageId } });
+        }
+
+        segments.Add(new { type = "text", data = new { text } });
+
         var (action, parameters) = chatType == BotChatType.Group
             ? ("send_group_msg", (object)new { group_id = targetId, message = segments })
             : ("send_private_msg", new { user_id = targetId, message = segments });
@@ -125,6 +167,26 @@ public sealed class QQUpdateHandler(
                 action,
                 response.RetCode,
                 response.Message ?? response.Wording);
+            return null;
+        }
+
+        return ExtractMessageId(response.Data);
+    }
+
+    private async Task BindMenuSafeAsync(
+        string chatId,
+        string messageId,
+        string senderId,
+        BotChatType chatType,
+        string menuToken)
+    {
+        try
+        {
+            await gateway.BindMenuAsync(chatId, messageId, senderId, chatType, menuToken, _options.BotInstanceId);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "绑定 QQ 菜单失败。message_id={MessageId}", messageId);
         }
     }
 
@@ -140,9 +202,30 @@ public sealed class QQUpdateHandler(
         }
     }
 
+    private static string? ExtractMessageId(JsonElement data)
+    {
+        if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("message_id", out var element))
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.Number => element.GetRawText(),
+                JsonValueKind.String => element.GetString(),
+                _ => null
+            };
+        }
+
+        return null;
+    }
+
+    // 纯数字（1-based 序号）。避免误判超长串，限制长度。
+    private static bool IsSelection(string text)
+    {
+        return text.Length is > 0 and <= 6 && text.All(char.IsDigit);
+    }
+
     private static string ExtractText(MessageEvent message)
     {
-        // 拼接所有 text 段；命令通常只有一个 text 段。没有 text 段时回退到 raw_message。
+        // 拼接所有 text 段；命令/序号通常只有一个 text 段。没有 text 段时回退到 raw_message。
         var text = string.Concat(
             message.GetMessagesByType(MessageType.Text)
                 .Select(entity => entity.Parameters.TryGetValue("text", out var value) ? value : string.Empty));

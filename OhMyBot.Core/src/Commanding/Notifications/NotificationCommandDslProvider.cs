@@ -20,7 +20,7 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
                 Description = "管理消息订阅",
                 Usage = "/notify",
                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                SupportPlatforms = SupportedPlatforms.Telegram,
+                SupportPlatforms = SupportedPlatforms.All,
                 SupportChatTypes = SupportedChatTypes.Private,
                 Handler = NotifyAsync
             }

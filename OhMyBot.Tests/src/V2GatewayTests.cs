@@ -285,7 +285,9 @@ public class V2GatewayTests
             }
         };
 
-        CollectionAssert.AreEqual(new[] { "第一条", "第二条" }, renderer.Render(response).ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "第一条", "第二条" },
+            renderer.Render(response).Select(message => message.Text).ToArray());
     }
 
     private static GetRoutesResponse CreateMixedRoutes()
@@ -409,6 +411,16 @@ public class V2GatewayTests
         public Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new UserProfileResponse { Recorded = true });
+        }
+
+        public Task<BindQqMenuResponse> BindQqMenuAsync(BindQqMenuRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new BindQqMenuResponse { Bound = true });
+        }
+
+        public Task<CommandResponse> ExecuteQqMenuSelectionAsync(QqMenuSelectionRequest request, CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new CommandResponse());
         }
     }
 }

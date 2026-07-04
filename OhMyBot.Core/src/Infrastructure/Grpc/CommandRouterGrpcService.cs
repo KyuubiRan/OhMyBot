@@ -3,6 +3,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Admin;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Infrastructure.Terminal;
 using OhMyBot.Core.Infrastructure.UserProfiles;
 
@@ -12,13 +13,18 @@ public sealed class CommandRouterGrpcService(
     CommandExecutionService commandExecutionService,
     CallbackExecutionService callbackExecutionService,
     PlatformUserProfileService userProfileService,
+    QqMenuStore qqMenuStore,
+    QqMenuConverter qqMenuConverter,
     IServiceScopeFactory scopeFactory,
     InteractiveConsoleOutputQueue consoleOutputQueue,
     ILogger<CommandRouterGrpcService> logger) : CommandRouter.CommandRouterBase
 {
-    public override Task<CommandResponse> ExecuteCommand(CommandRequest request, ServerCallContext context)
+    public override async Task<CommandResponse> ExecuteCommand(CommandRequest request, ServerCallContext context)
     {
-        return commandExecutionService.ExecuteAsync(request, context.CancellationToken);
+        var response = await commandExecutionService.ExecuteAsync(request, context.CancellationToken);
+        return request.Platform == BotPlatform.Qq
+            ? await qqMenuConverter.ToQqAsync(response, request.ChatType, context.CancellationToken)
+            : response;
     }
 
     public override Task<GetRoutesResponse> GetRoutes(GetRoutesRequest request, ServerCallContext context)
@@ -30,6 +36,55 @@ public sealed class CommandRouterGrpcService(
     {
         return callbackExecutionService.ExecuteAsync(request, context.CancellationToken);
     }
+
+    public override async Task<BindQqMenuResponse> BindQqMenu(BindQqMenuRequest request, ServerCallContext context)
+    {
+        var bound = await qqMenuStore.BindAsync(
+            request.ChatId,
+            request.MessageId,
+            request.SenderId,
+            request.ChatType,
+            request.MenuToken,
+            context.CancellationToken);
+        return new BindQqMenuResponse { Bound = bound };
+    }
+
+    public override async Task<CommandResponse> ExecuteQqMenuSelection(QqMenuSelectionRequest request, ServerCallContext context)
+    {
+        // 解析序号（1-based）。非数字/越界 → 静默，避免误触发或刷屏。
+        if (!int.TryParse(request.Selection.Trim(), out var choice) || choice < 1)
+        {
+            return SilentQq();
+        }
+
+        var replyTo = string.IsNullOrEmpty(request.ReplyToMessageId) ? null : request.ReplyToMessageId;
+        var payload = await qqMenuStore.ResolveAsync(
+            request.ChatId,
+            replyTo,
+            request.UserId,
+            request.ChatType,
+            choice - 1,
+            context.CancellationToken);
+        if (payload is null)
+        {
+            // 菜单已过期 / 选项越界 / 非菜单回复：静默忽略。
+            return SilentQq();
+        }
+
+        var response = await callbackExecutionService.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Qq,
+            BotInstanceId = request.BotInstanceId,
+            ChatId = request.ChatId,
+            UserId = request.UserId,
+            MessageId = request.MessageId,
+            Payload = payload
+        }, context.CancellationToken);
+
+        return await qqMenuConverter.ToQqAsync(response, request.ChatType, context.CancellationToken);
+    }
+
+    private static CommandResponse SilentQq() => new() { Qq = new QqResponse() };
 
     public override async Task<UserProfileResponse> RecordUserProfile(UserProfileRequest request, ServerCallContext context)
     {

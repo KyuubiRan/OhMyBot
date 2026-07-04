@@ -25,7 +25,7 @@ public sealed class MihoyoCommandDslProvider(IServiceScopeFactory scopeFactory) 
                 Description = "米游社相关指令",
                 Usage = "/mihoyo <命令> [参数]",
                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                SupportPlatforms = SupportedPlatforms.Telegram,
+                SupportPlatforms = SupportedPlatforms.All,
                 SupportChatTypes = SupportedChatTypes.Private,
                 Children =
                 [
@@ -38,7 +38,7 @@ public sealed class MihoyoCommandDslProvider(IServiceScopeFactory scopeFactory) 
                         Description = "米游社游戏签到",
                         Usage = "/mihoyo game <init|signin> [参数]",
                         RequiredPrivilege = UserPrivilege.VerifiedUser,
-                        SupportPlatforms = SupportedPlatforms.Telegram,
+                        SupportPlatforms = SupportedPlatforms.All,
                         SupportChatTypes = SupportedChatTypes.Private,
                         Children =
                         [
@@ -61,7 +61,7 @@ public sealed class MihoyoCommandDslProvider(IServiceScopeFactory scopeFactory) 
             Description = description,
             Usage = usage,
             RequiredPrivilege = UserPrivilege.VerifiedUser,
-            SupportPlatforms = SupportedPlatforms.Telegram,
+            SupportPlatforms = SupportedPlatforms.All,
             SupportChatTypes = SupportedChatTypes.Private,
             Handler = handler
         };

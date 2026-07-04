@@ -10,6 +10,9 @@ service CommandRouter {
   rpc GetRoutes (GetRoutesRequest) returns (GetRoutesResponse);
   rpc RecordUserProfile (UserProfileRequest) returns (UserProfileResponse);
   rpc OpenAdminConsole (stream AdminConsoleInput) returns (stream AdminConsoleOutput);
+  // QQ 数字菜单：网关发出菜单消息拿到 message_id 后绑定「消息 -> 选项列表」；用户回复序号后执行选择。
+  rpc BindQqMenu (BindQqMenuRequest) returns (BindQqMenuResponse);
+  rpc ExecuteQqMenuSelection (QqMenuSelectionRequest) returns (CommandResponse);
 }
 
 enum BotPlatform {
@@ -158,6 +161,9 @@ message TelegramResponse {
 // 一条已按 QQ 渲染好的最终消息（纯文本，无 Markdown、无按钮）。
 message QqMessage {
   string text = 1;
+  // 非空 ⇒ 这是一条数字菜单：网关发出后需调用 BindQqMenu 把「消息 id -> 选项 payload 列表」写入 Core。
+  // 菜单选项文本已内嵌在 text 中，网关无需理解选项内容。
+  string menu_token = 2;
 }
 
 message QqResponse {
@@ -182,4 +188,30 @@ message NotificationEvent {
   string chat_id = 3;
   repeated ResponseMessage messages = 4;
   repeated ResponseButton buttons = 5;
+}
+
+// 绑定一条已发出的 QQ 菜单消息到其选项列表（存入 Redis）。
+message BindQqMenuRequest {
+  string bot_instance_id = 1;
+  string chat_id = 2;
+  string message_id = 3;   // 已发出的菜单消息 id
+  string sender_id = 4;    // 私聊裸数字回退：该用户最近一次菜单指针
+  BotChatType chat_type = 5;
+  string menu_token = 6;   // QqMessage.menu_token
+}
+
+message BindQqMenuResponse {
+  bool bound = 1;
+}
+
+// 用户回复/发送序号选择某个菜单项。
+message QqMenuSelectionRequest {
+  BotPlatform platform = 1;
+  string bot_instance_id = 2;
+  string chat_id = 3;
+  string user_id = 4;
+  string message_id = 5;             // 用户这条选择消息的 id
+  string reply_to_message_id = 6;    // 被回复的菜单消息 id（群聊必填；私聊裸数字为空，走 latest 指针）
+  BotChatType chat_type = 7;
+  string selection = 8;              // 用户输入，例如 "1"
 }

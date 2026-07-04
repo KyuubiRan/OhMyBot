@@ -12,6 +12,7 @@ using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Infrastructure.Messaging;
 using OhMyBot.Core.Integrations.Mihoyo;
 using OhMyBot.Core.Commanding.Notifications;
+using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Commanding.Routing;
 using OhMyBot.Core.Infrastructure.ScheduledTasks;
 using OhMyBot.Core.Infrastructure.Security;
@@ -33,6 +34,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<RabbitMqOptions>().BindConfiguration("RabbitMQ");
         services.AddOptions<EncryptionOptions>().BindConfiguration("Encryption");
         services.AddOptions<CallbackActionOptions>().BindConfiguration("CallbackActions");
+        services.AddOptions<QqMenuOptions>().BindConfiguration("QqMenu");
         services.AddOptions<AiRouterOptions>().BindConfiguration("AiRouter");
         services.AddOptions<KuroOptions>().BindConfiguration("Kuro");
         services.AddOptions<MihoyoOptions>().BindConfiguration("Mihoyo");
@@ -76,6 +78,8 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MihoyoResponseBuilder>();
         services.AddScoped<NotificationSubscriptionService>();
         services.AddSingleton<CallbackActionStore>();
+        services.AddSingleton<QqMenuStore>();
+        services.AddSingleton<QqMenuConverter>();
         services.AddSingleton<PlatformCommandDslRegistry>();
         services.AddScoped<PlatformCommandDslExecutor>();
         services.AddSingleton<RouteStore>();

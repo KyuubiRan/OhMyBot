@@ -136,6 +136,48 @@ public sealed class QQCommandGateway(
         return true;
     }
 
+    /// <summary>用户回复/发送序号选择菜单项。<paramref name="replyToMessageId"/> 为被回复的菜单消息 id（私聊裸数字可空）。</summary>
+    public Task<CommandResponse> ExecuteMenuSelectionAsync(
+        GatewayCommandRequest gatewayRequest,
+        string? replyToMessageId,
+        string selection,
+        string botInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        return commandRouterClient.ExecuteQqMenuSelectionAsync(new QqMenuSelectionRequest
+        {
+            Platform = BotPlatform.Qq,
+            BotInstanceId = botInstanceId,
+            ChatId = gatewayRequest.ChatId,
+            UserId = gatewayRequest.UserId,
+            MessageId = gatewayRequest.MessageId,
+            ReplyToMessageId = replyToMessageId ?? string.Empty,
+            ChatType = gatewayRequest.ChatType,
+            Selection = selection
+        }, cancellationToken);
+    }
+
+    /// <summary>把已发出的菜单消息绑定到其选项列表（存 Core Redis）。</summary>
+    public async Task BindMenuAsync(
+        string chatId,
+        string messageId,
+        string senderId,
+        BotChatType chatType,
+        string menuToken,
+        string botInstanceId,
+        CancellationToken cancellationToken = default)
+    {
+        await commandRouterClient.BindQqMenuAsync(new BindQqMenuRequest
+        {
+            BotInstanceId = botInstanceId,
+            ChatId = chatId,
+            MessageId = messageId,
+            SenderId = senderId,
+            ChatType = chatType,
+            MenuToken = menuToken
+        }, cancellationToken);
+    }
+
     private bool TryGetRoute(string command, out RouteDescriptor route)
     {
         lock (_cacheLock)

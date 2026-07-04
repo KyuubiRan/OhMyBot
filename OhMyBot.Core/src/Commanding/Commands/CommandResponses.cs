@@ -180,7 +180,11 @@ public static class CommandResponses
 public static class TelegramResponseExtensions
 {
     /// <summary>取第一条 Telegram 消息；presenter/回调据此追加按钮行。</summary>
-    public static TelegramMessage FirstTelegram(this CommandResponse response) => response.Telegram.Messages[0];
+    public static TelegramMessage FirstTelegram(this CommandResponse response)
+    {
+        EnsureTelegramShape(response);
+        return response.Telegram.Messages[0];
+    }
 
     /// <summary>把响应改为“编辑现有消息”：设置 edit id 并清掉回复目标。</summary>
     public static CommandResponse AsTelegramEdit(this CommandResponse response, string editMessageId)
@@ -198,7 +202,33 @@ public static class TelegramResponseExtensions
     /// <summary>追加一行按钮到第一条 Telegram 消息。</summary>
     public static CommandResponse AddButtonRow(this CommandResponse response, ResponseButtonRow row)
     {
+        EnsureTelegramShape(response);
         response.Telegram.Messages[0].ButtonRows.Add(row);
         return response;
+    }
+
+    /// <summary>
+    /// 保证响应带 Telegram 分支且至少有一条消息，供追加按钮使用。
+    /// QQ 交互命令会先经 <see cref="CommandResponses.Text"/> 产出 QQ 纯文本分支——这里把它就地迁移成
+    /// Telegram 形态（保留纯文本），以便复用同一套按钮 builder；随后由 QQ 菜单转换器在 gRPC 边界转回编号菜单。
+    /// 对已是 Telegram 形态的响应为无操作，不影响 Telegram 调用方。
+    /// </summary>
+    private static void EnsureTelegramShape(CommandResponse response)
+    {
+        if (response.PlatformResponseCase == CommandResponse.PlatformResponseOneofCase.Telegram
+            && response.Telegram.Messages.Count > 0)
+        {
+            return;
+        }
+
+        var text = response.PlatformResponseCase == CommandResponse.PlatformResponseOneofCase.Qq
+            ? response.Qq.Messages.FirstOrDefault()?.Text ?? string.Empty
+            : string.Empty;
+
+        // 赋值 Telegram 会自动清空 oneof 里的 Qq 分支。
+        response.Telegram = new TelegramResponse
+        {
+            Messages = { new TelegramMessage { Text = text, ParseMode = TelegramParseMode.None } }
+        };
     }
 }

@@ -30,7 +30,7 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
                                 Description = "绑定用户",
                                 Usage = "/ai router bind <email> <password>",
                                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                                SupportPlatforms = SupportedPlatforms.Telegram,
+                                SupportPlatforms = SupportedPlatforms.All,
                                 SupportChatTypes = SupportedChatTypes.Private,
                                 Handler = BindAsync
                             },
@@ -40,7 +40,7 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
                                 Description = "查看绑定账号",
                                 Usage = "/ai router list",
                                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                                SupportPlatforms = SupportedPlatforms.Telegram,
+                                SupportPlatforms = SupportedPlatforms.All,
                                 SupportChatTypes = SupportedChatTypes.Private,
                                 Handler = ListAsync
                             },
@@ -50,7 +50,7 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
                                 Description = "手动签到",
                                 Usage = "/ai router signin",
                                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                                SupportPlatforms = SupportedPlatforms.Telegram,
+                                SupportPlatforms = SupportedPlatforms.All,
                                 SupportChatTypes = SupportedChatTypes.Private,
                                 Handler = SignInAsync
                             },
@@ -60,7 +60,7 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
                                 Description = "自动签到管理",
                                 Usage = "/ai router autosign",
                                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                                SupportPlatforms = SupportedPlatforms.Telegram,
+                                SupportPlatforms = SupportedPlatforms.All,
                                 SupportChatTypes = SupportedChatTypes.Private,
                                 Handler = AutoSignAsync
                             },
@@ -70,7 +70,7 @@ public sealed class AiRouterCommandDslProvider(IServiceScopeFactory scopeFactory
                                 Description = "删除绑定",
                                 Usage = "/ai router delete",
                                 RequiredPrivilege = UserPrivilege.VerifiedUser,
-                                SupportPlatforms = SupportedPlatforms.Telegram,
+                                SupportPlatforms = SupportedPlatforms.All,
                                 SupportChatTypes = SupportedChatTypes.Private,
                                 Handler = DeleteAsync
                             }

@@ -12,6 +12,10 @@ public interface ICommandRouterClient
     Task<GetRoutesResponse> GetRoutesAsync(GetRoutesRequest request, CancellationToken cancellationToken = default);
 
     Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default);
+
+    Task<BindQqMenuResponse> BindQqMenuAsync(BindQqMenuRequest request, CancellationToken cancellationToken = default);
+
+    Task<CommandResponse> ExecuteQqMenuSelectionAsync(QqMenuSelectionRequest request, CancellationToken cancellationToken = default);
 }
 
 public sealed class CommandRouterClientAdapter(CommandRouter.CommandRouterClient client) : ICommandRouterClient
@@ -34,6 +38,16 @@ public sealed class CommandRouterClientAdapter(CommandRouter.CommandRouterClient
     public async Task<UserProfileResponse> RecordUserProfileAsync(UserProfileRequest request, CancellationToken cancellationToken = default)
     {
         return await client.RecordUserProfileAsync(request, cancellationToken: cancellationToken);
+    }
+
+    public async Task<BindQqMenuResponse> BindQqMenuAsync(BindQqMenuRequest request, CancellationToken cancellationToken = default)
+    {
+        return await client.BindQqMenuAsync(request, cancellationToken: cancellationToken);
+    }
+
+    public async Task<CommandResponse> ExecuteQqMenuSelectionAsync(QqMenuSelectionRequest request, CancellationToken cancellationToken = default)
+    {
+        return await client.ExecuteQqMenuSelectionAsync(request, cancellationToken: cancellationToken);
     }
 }
 
