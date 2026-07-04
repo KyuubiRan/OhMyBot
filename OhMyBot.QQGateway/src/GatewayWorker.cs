@@ -17,15 +17,16 @@ public sealed class GatewayWorker(
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         var botInstanceId = configuration["BotInstanceId"] ?? "qq-default";
-        var commands = await gateway.ReloadAsync(botInstanceId, stoppingToken);
-        logger.LogInformation("QQ gateway loaded {Count} commands from Core.", commands.Count);
 
         oneBotClient.OnEvent += updateHandler.Handle;
         oneBotClient.OnException += HandleOneBotException;
 
         try
         {
+            // NapCat 与 Core 任一尚未就绪时都等待重试，而不是让网关直接退出。
+            // 先连 NapCat（传输层自带自动重连），再从 Core 拉取路由；Core 恢复后自愈。
             await ConnectWithRetryAsync(stoppingToken);
+            await LoadRoutesWithRetryAsync(botInstanceId, stoppingToken);
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -36,6 +37,28 @@ public sealed class GatewayWorker(
             oneBotClient.OnEvent -= updateHandler.Handle;
             oneBotClient.OnException -= HandleOneBotException;
             await oneBotClient.StopAsync(CancellationToken.None);
+        }
+    }
+
+    private async Task LoadRoutesWithRetryAsync(string botInstanceId, CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var commands = await gateway.ReloadAsync(botInstanceId, stoppingToken);
+                logger.LogInformation("QQ gateway loaded {Count} commands from Core.", commands.Count);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "Failed to load routes from Core. Retrying in 5 seconds.");
+                await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken);
+            }
         }
     }
 
