@@ -2,7 +2,7 @@
 
 .Net 高性能 多功能 机器人
 
-目前已实现 Telegram 机器人，后续支持更多
+目前已实现 Telegram 与 QQ（基于 NapCat / OneBot v11）机器人，后续支持更多
 
 ## 功能
 
@@ -22,6 +22,7 @@
 - PostgreSQL 15.0+
 - Redis 7.0+ (可选，不使用 Redis 则降级为内存缓存)
 - RabbitMQ
+- Docker（可选，仅 QQ 网关需要，用于跑 NapCat；见 `OhMyBot.QQGateway/docker/`）
 
 **注:** *不支持 NativeAOT*
 
@@ -68,4 +69,17 @@
 - `Core:GrpcAddress | string` \[必填\] Core 服务的 gRPC 地址
 - `RabbitMQ` \[必填\] 与 Core 保持一致，用于接收通知
 
-> 用户权限由 Core 统一管理，通过 `/setpriv` 命令设置，无需在配置文件中指定主人 ID。
+QQ 网关需要一个 OneBot v11 实现（NapCat）。项目在 `OhMyBot.QQGateway/docker/` 附带了**仅含 NapCat** 的
+docker-compose（数据存 Docker 命名卷、固定设备 MAC/hostname 以免容器重建后重复扫码），编译后会拷到网关
+输出目录，可直接起：
+
+```bash
+cd OhMyBot.QQGateway/docker   # 或编译后到网关输出目录的 docker/ 下
+NAPCAT_UID=$(id -u) NAPCAT_GID=$(id -g) docker compose up -d
+```
+
+首次在 http://localhost:6099 扫码登录；网关通过 `ws://localhost:3001` 连接。QQ 无官方可点击按钮，
+交互式命令（签到面板、订阅管理等）改为「**编号文本菜单 + 回复序号**」：Core 把面板渲染成带编号的纯文本，
+用户回复该消息并发送序号（私聊也可直接发数字）来选择。
+
+> 用户权限由 Core 统一管理，通过 `/setpriv` 命令设置。

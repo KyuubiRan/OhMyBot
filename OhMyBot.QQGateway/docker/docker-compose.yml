@@ -1,0 +1,57 @@
+# OhMyBot QQ 网关本地 NapCat（仅 NapCat，不含数据库/中间件）
+#
+# 数据都放在 Docker 命名卷里（napcat-config / napcat-qq），不落在输出目录：
+#   docker compose down / up、dotnet clean 重新编译都不会丢登录态；只有 down -v 才清除。
+#   不管从源码目录还是输出目录启动，用的都是同一份卷（项目名固定为 ohmybot-napcat）。
+#
+# 用法（在本文件所在目录执行）：
+#   NAPCAT_UID=$(id -u) NAPCAT_GID=$(id -g) docker compose up -d
+#   首次登录：浏览器打开 http://localhost:6099 (WebUI) 扫码；OneBot 正向 WS 在 3001。
+#   停止：docker compose down          （保留卷/登录态）
+#   彻底清空：docker compose down -v    （删除卷，需重新扫码）
+#
+# QQGateway 通过 ws://localhost:3001 连接（见 appsettings 的 OneBot:Endpoint）。
+#
+# 设备一致性（关键）：
+#   QQ 用"设备指纹"识别登录设备，其中包含容器 MAC 与 hostname。docker compose down 会删除容器，
+#   up 时若不固定，Docker 会分配新的 MAC/hostname → 被判为新设备 → 需要重新扫码。
+#   因此固定了 hostname 与 mac_address（service 级 mac_address 需较新的 Docker / Engine 25+）。
+
+name: ohmybot-napcat
+
+services:
+  # 一次性把 onebot11.json 种子写入 config 卷（已存在则跳过），让 3001 正向 WS 开箱即用。
+  # 想重置默认配置：docker compose down -v 后重新 up，或手动删卷里的 onebot11.json。
+  napcat-seed:
+    image: busybox
+    restart: "no"
+    command: sh -c "[ -f /config/onebot11.json ] || cp /seed/onebot11.json /config/onebot11.json"
+    volumes:
+      - napcat-config:/config
+      - ./napcat-config/onebot11.json:/seed/onebot11.json:ro
+
+  napcat:
+    image: mlikiowa/napcat-docker:latest
+    container_name: ohmybot-napcat
+    restart: unless-stopped
+    # 固定 hostname + MAC，保持 QQ 设备指纹在容器重建后不变（否则每次 up 需重新扫码）。
+    hostname: ohmybot-napcat
+    mac_address: "02:42:ac:11:00:99"
+    depends_on:
+      napcat-seed:
+        condition: service_completed_successfully
+    environment:
+      # 让容器进程以宿主机当前用户身份运行（Linux 服务器上避免卷权限问题）。
+      # 传入：NAPCAT_UID=$(id -u) NAPCAT_GID=$(id -g) docker compose up -d
+      - NAPCAT_UID=${NAPCAT_UID:-1000}
+      - NAPCAT_GID=${NAPCAT_GID:-1000}
+    ports:
+      - "3001:3001"  # OneBot v11 正向 WebSocket 服务器 <- QQGateway 连这个
+      - "6099:6099"  # NapCat WebUI（扫码登录 / 图形化配置）
+    volumes:
+      - napcat-config:/app/napcat/config   # OneBot / NapCat 配置（含首登生成的账号专属配置）
+      - napcat-qq:/app/.config/QQ          # QQ 登录态 + 设备信息（免扫码，配合固定 MAC 保持一致）
+
+volumes:
+  napcat-config:
+  napcat-qq:

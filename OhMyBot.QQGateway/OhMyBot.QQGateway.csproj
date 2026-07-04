@@ -24,4 +24,11 @@
         <None Include="appsettings.template.json" />
     </ItemGroup>
 
+    <ItemGroup>
+        <!-- NapCat 本地部署文件随构建拷到输出目录（可直接在输出目录里 docker compose up）。 -->
+        <None Include="docker\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <None Include="docker\README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <None Include="docker\napcat-config\onebot11.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    </ItemGroup>
+
 </Project>

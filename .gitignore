@@ -15,3 +15,12 @@
 /OhMyBot.Tests/appsettings.Test.json
 /OhMyBot.Core/routes/route.json
 OhMyBot.sln.DotSettings.user
+
+# QQ 网关本地 NapCat：仅跟踪 compose/README/onebot11 种子；
+# 其余（napcat-qq 登录态、账号专属配置、webui.json/passkey.json 等运行时/敏感文件）一律排除。
+/OhMyBot.QQGateway/docker/*
+!/OhMyBot.QQGateway/docker/docker-compose.yml
+!/OhMyBot.QQGateway/docker/README.md
+!/OhMyBot.QQGateway/docker/napcat-config/
+/OhMyBot.QQGateway/docker/napcat-config/*
+!/OhMyBot.QQGateway/docker/napcat-config/onebot11.json
