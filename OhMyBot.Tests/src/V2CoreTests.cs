@@ -8,6 +8,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Admin;
 using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Infrastructure.Data;
 using OhMyBot.Core.Infrastructure.Data.Entities;
@@ -166,7 +167,9 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "link"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.LinkToken, response.DataKind);
+        StringAssert.Contains(response.TgText(), "绑定令牌");
+        StringAssert.Contains(response.TgText(), tokenStore.LastToken!);
+        StringAssert.Contains(response.TgText(), "有效期：5 分钟");
         Assert.AreEqual(TimeSpan.FromMinutes(5), tokenStore.LastTtl);
         Assert.HasCount(1, tokenStore.Tokens);
         Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
@@ -201,7 +204,7 @@ public class V2CoreTests
 
         Assert.AreNotEqual(0, response.Code);
         Assert.AreEqual("LinkTokenInvalid", response.ErrorCode);
-        Assert.AreEqual("绑定令牌不存在、已过期或已被使用，请重新获取。", response.Message);
+        Assert.AreEqual("绑定令牌不存在、已过期或已被使用，请重新获取。", response.QqText());
     }
 
     [TestMethod]
@@ -219,7 +222,7 @@ public class V2CoreTests
 
         Assert.AreNotEqual(0, sameUser.Code);
         Assert.AreEqual("LinkPlatformNotAllowed", sameUser.ErrorCode);
-        Assert.AreEqual("绑定令牌只能用于不同平台账号绑定。", sameUser.Message);
+        StringAssert.Contains(sameUser.TgText(), "绑定令牌只能用于不同平台账号绑定。");
         Assert.AreNotEqual(0, otherUser.Code);
         Assert.AreEqual("LinkPlatformNotAllowed", otherUser.ErrorCode);
         Assert.IsTrue(tokenStore.Tokens.ContainsKey(token));
@@ -241,7 +244,32 @@ public class V2CoreTests
 
         Assert.AreNotEqual(0, response.Code);
         Assert.AreEqual("LinkTokenInvalid", response.ErrorCode);
-        Assert.AreEqual("绑定令牌不存在、已过期或已被使用，请重新获取。", response.Message);
+        Assert.AreEqual("绑定令牌不存在、已过期或已被使用，请重新获取。", response.QqText());
+    }
+
+    [TestMethod]
+    public async Task HelpForUnknownCommandReturnsUnknownCommandMessage()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore());
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-user", "help", "doesnotexist"));
+
+        Assert.AreEqual(0, response.Code);
+        Assert.AreEqual("未知的命令「doesnotexist」，发送 /help 查看可用命令。", response.QqText());
+    }
+
+    [TestMethod]
+    public async Task HelpForLeafCommandShowsItsUsage()
+    {
+        await using var dbContext = CreateDbContext();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore());
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-user", "help", "ping"));
+
+        Assert.AreEqual(0, response.Code);
+        StringAssert.StartsWith(response.QqText(), "/ping - ");
+        StringAssert.Contains(response.QqText(), "\n用法: /ping");
     }
 
     [TestMethod]
@@ -365,7 +393,7 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(request);
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual("ok", response.Text.Text);
+        Assert.AreEqual("ok", response.TgText());
     }
 
     [TestMethod]
@@ -422,7 +450,7 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "owner"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual("secret", response.Text.Text);
+        Assert.AreEqual("secret", response.TgText());
         var profile = await dbContext.PlatformUserProfiles.SingleAsync();
         Assert.IsNull(profile.CoreUserId);
         Assert.AreEqual("tg-owner", profile.Uid);
@@ -454,7 +482,7 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "p"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.Ping, response.DataKind);
+        StringAssert.StartsWith(response.TgText(), "Pong");
     }
 
     [TestMethod]
@@ -498,7 +526,7 @@ public class V2CoreTests
 
         Assert.AreNotEqual(0, response.Code);
         Assert.AreEqual("CommandHandlerFailed", response.ErrorCode);
-        Assert.Contains("redis offline", response.Message);
+        StringAssert.Contains(response.TgText(), "redis offline");
     }
 
     [TestMethod]
@@ -545,9 +573,9 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "self", "info", "other"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
-        Assert.IsFalse(response.UserInfo.HasCoreUserId);
-        Assert.AreEqual("self", response.UserInfo.Identities.Single().Uid);
+        // 非管理员传入他人 uid 会被忽略，只能看到自己（"self"），且渲染文本中不含被查询的 "other"。
+        StringAssert.Contains(response.TgText(), "UID: `self`");
+        Assert.IsFalse(response.TgText().Contains("other", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -568,11 +596,8 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "target"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
-        Assert.IsTrue(response.UserInfo.HasCoreUserId);
-        Assert.IsTrue(response.UserInfo.CoreUserId > 0);
-        Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
-        Assert.AreEqual(BotPlatform.Telegram, response.UserInfo.Identities.Single().Platform);
+        // 管理员可查询他人（不同于非管理员）：渲染出目标 uid。
+        StringAssert.Contains(response.TgText(), "UID: `target`");
     }
 
     [TestMethod]
@@ -595,8 +620,9 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "@target_user"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
-        Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+        // 按 @username 查询解析到正确用户：渲染出目标 uid 和用户名。
+        StringAssert.Contains(response.TgText(), "UID: `target`");
+        StringAssert.Contains(response.TgText(), "用户名: `@target_user`");
     }
 
     [TestMethod]
@@ -628,13 +654,12 @@ public class V2CoreTests
         var byUsername = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "@target_user"));
 
         Assert.AreEqual(0, byUid.Code);
-        Assert.AreEqual(CommandResponseDataKind.UserInfo, byUid.DataKind);
-        Assert.IsFalse(byUid.UserInfo.HasCoreUserId);
-        Assert.AreEqual(UserPrivilege.User, byUid.UserInfo.Privilege);
-        Assert.AreEqual("target", byUid.UserInfo.Identities.Single().Uid);
-        Assert.AreEqual("User Target", byUid.UserInfo.Identities.Single().DisplayName);
+        // 无 CoreUser 的已记录档案：权限回退为 user，显示名由姓名拼出。
+        StringAssert.Contains(byUid.TgText(), "UID: `target`");
+        StringAssert.Contains(byUid.TgText(), "昵称: `User Target`");
+        StringAssert.Contains(byUid.TgText(), "权限: `user`");
         Assert.AreEqual(0, byUsername.Code);
-        Assert.AreEqual("target", byUsername.UserInfo.Identities.Single().Uid);
+        StringAssert.Contains(byUsername.TgText(), "UID: `target`");
     }
 
     [TestMethod]
@@ -665,9 +690,9 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "info", "tg-target"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(1, response.UserInfo.Identities.Count);
-        Assert.AreEqual(BotPlatform.Telegram, response.UserInfo.Identities.Single().Platform);
-        Assert.AreEqual("tg-target", response.UserInfo.Identities.Single().Uid);
+        // 已绑定用户只展示当前平台（Telegram）的档案，不泄露 QQ 侧 uid。
+        StringAssert.Contains(response.TgText(), "UID: `tg-target`");
+        Assert.IsFalse(response.TgText().Contains("qq-target", StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -690,8 +715,8 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(infoRequest);
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.UserInfo, response.DataKind);
-        Assert.AreEqual("target", response.UserInfo.Identities.Single().Uid);
+        // 管理员可查询回复目标用户：渲染出目标 uid。
+        StringAssert.Contains(response.TgText(), "UID: `target`");
     }
 
     [TestMethod]
@@ -741,10 +766,10 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "@target_user"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.Contains("`User Target` 当前权限: `user`", response.Text.Text);
+        StringAssert.Contains(response.TgText(), "`User Target` 当前权限: `user`");
         CollectionAssert.AreEqual(
             new[] { "user", "verified-user" },
-            response.ButtonRows.SelectMany(row => row.Buttons).Select(button => button.Text).ToArray());
+            response.TgButtonTexts().ToArray());
     }
 
     [TestMethod]
@@ -776,7 +801,7 @@ public class V2CoreTests
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminProfile.CoreUserId!.Value, UserPrivilege.Owner));
         var panel = await commandService.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "target"));
-        var adminButton = panel.ButtonRows.SelectMany(row => row.Buttons).Single(button => button.Text == "admin");
+        var adminButton = panel.TgButtonRows().SelectMany(row => row.Buttons).Single(button => button.Text == "admin");
         var callbackService = new CallbackExecutionService(
             serviceProvider.GetRequiredService<CoreIdentityService>(),
             callbackStore,
@@ -793,9 +818,11 @@ public class V2CoreTests
         });
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual("123", response.EditMessageId);
-        Assert.Contains("`User Target` 权限更新: `user` -> `admin`", response.Text.Text);
-        Assert.AreEqual(0, response.ButtonRows.Count);
+        Assert.AreEqual("123", response.TgSingle().EditMessageId);
+        // " -> " 在 MarkdownV2 中会被转义，故分段断言权限从 user 更新到 admin。
+        StringAssert.Contains(response.TgText(), "`User Target` 权限更新: `user`");
+        StringAssert.Contains(response.TgText(), "`admin`");
+        Assert.AreEqual(0, response.TgButtonRows().Count);
         var target = await dbContext.PlatformUserProfiles.Include(profile => profile.CoreUser).SingleAsync(profile => profile.Uid == "target");
         Assert.AreEqual(UserPrivilege.Admin, target.CoreUser!.Privilege);
     }
@@ -859,7 +886,7 @@ public class V2CoreTests
 
         CollectionAssert.AreEqual(
             new[] { "AI Router 自动签到", "库街区自动签到", "米游社自动签到" },
-            response.ButtonRows.SelectMany(row => row.Buttons).Select(button => button.Text).ToArray());
+            response.TgButtonTexts().ToArray());
     }
 
     [TestMethod]
@@ -879,7 +906,7 @@ public class V2CoreTests
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "target"));
 
-        Assert.IsFalse(response.ButtonRows.SelectMany(row => row.Buttons).Any(button => button.Text == "admin"));
+        Assert.IsFalse(response.TgButtonTexts().Contains("admin"));
     }
 
     [TestMethod]
@@ -1021,11 +1048,11 @@ public class V2CoreTests
             ],
             cancellationToken: CancellationToken.None);
 
-        var lastRow = response.ButtonRows.Last();
+        var lastRow = response.TgButtonRows().Last();
         CollectionAssert.AreEqual(
             new[] { "开启/关闭全部", "返回" },
             lastRow.Buttons.Select(button => button.Text).ToArray());
-        Assert.StartsWith("[关] ", response.ButtonRows[0].Buttons[0].Text);
+        Assert.StartsWith("[关] ", response.TgButtonRows()[0].Buttons[0].Text);
     }
 
     [TestMethod]
@@ -1095,17 +1122,18 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "help"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.IsFalse(response.Text.Text.Contains("可用命令：", StringComparison.Ordinal));
-        Assert.Contains("/help - 显示可用指令", response.Text.Text);
-        Assert.IsFalse(response.Text.Text.Contains("/help - 显示可用指令，目前支持的子命令有", StringComparison.Ordinal));
-        Assert.Contains("/ping", response.Text.Text);
-        Assert.Contains("/link", response.Text.Text);
-        Assert.Contains("/ai - AI 相关指令", response.Text.Text);
-        Assert.IsFalse(response.Text.Text.Contains("目前支持的子命令有", StringComparison.Ordinal));
-        Assert.IsFalse(response.Text.Text.Contains("/ai_router_auto_signin", StringComparison.Ordinal));
-        Assert.IsFalse(response.Text.Text.Contains("子命令：ai_router", StringComparison.Ordinal));
-        Assert.IsFalse(response.Text.Text.Contains("/owner", StringComparison.Ordinal));
-        Assert.IsFalse(response.Text.Text.Contains("权限：", StringComparison.Ordinal));
+        // 帮助文本现由 Core 按 Telegram MarkdownV2 渲染，故预期子串需同样转义。
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("可用命令："), StringComparison.Ordinal));
+        Assert.Contains(MarkdownV2.Escape("/help - 显示可用指令"), response.TgText());
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("/help - 显示可用指令，目前支持的子命令有"), StringComparison.Ordinal));
+        Assert.Contains(MarkdownV2.Escape("/ping"), response.TgText());
+        Assert.Contains(MarkdownV2.Escape("/link"), response.TgText());
+        Assert.Contains(MarkdownV2.Escape("/ai - AI 相关指令"), response.TgText());
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("目前支持的子命令有"), StringComparison.Ordinal));
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("/ai_router_auto_signin"), StringComparison.Ordinal));
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("子命令：ai_router"), StringComparison.Ordinal));
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("/owner"), StringComparison.Ordinal));
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("权限："), StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -1117,9 +1145,9 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.Contains("router - Router 平台相关指令", response.Text.Text);
-        Assert.IsFalse(response.Text.Text.Contains("/ai_router_auto_signin", StringComparison.Ordinal));
-        Assert.IsFalse(response.Text.Text.Contains("权限：", StringComparison.Ordinal));
+        Assert.Contains(MarkdownV2.Escape("router - Router 平台相关指令"), response.TgText());
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("/ai_router_auto_signin"), StringComparison.Ordinal));
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("权限："), StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -1131,11 +1159,11 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai", "router"));
 
         Assert.AreEqual(0, response.Code);
-        Assert.Contains("bind - 绑定用户", response.Text.Text);
-        Assert.Contains("autosign - 自动签到管理", response.Text.Text);
-        Assert.Contains("delete - 删除绑定", response.Text.Text);
-        Assert.IsFalse(response.Text.Text.Contains("/ping", StringComparison.Ordinal));
-        Assert.IsFalse(response.Text.Text.Contains("权限：", StringComparison.Ordinal));
+        Assert.Contains(MarkdownV2.Escape("bind - 绑定用户"), response.TgText());
+        Assert.Contains(MarkdownV2.Escape("autosign - 自动签到管理"), response.TgText());
+        Assert.Contains(MarkdownV2.Escape("delete - 删除绑定"), response.TgText());
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("/ping"), StringComparison.Ordinal));
+        Assert.IsFalse(response.TgText().Contains(MarkdownV2.Escape("权限："), StringComparison.Ordinal));
     }
 
     [TestMethod]
@@ -1149,8 +1177,8 @@ public class V2CoreTests
         var routerHelp = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help", "ai", "router"));
         var router = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "ai", "router"));
 
-        Assert.AreEqual(help.Text.Text, ai.Text.Text);
-        Assert.AreEqual(routerHelp.Text.Text, router.Text.Text);
+        Assert.AreEqual(help.TgText(), ai.TgText());
+        Assert.AreEqual(routerHelp.TgText(), router.TgText());
     }
 
     [TestMethod]
@@ -1231,7 +1259,7 @@ public class V2CoreTests
 
         Assert.AreEqual(0, response.Code);
         var aiHelp = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "help", "ai", "router"));
-        Assert.IsFalse(aiHelp.Text.Text.Contains("autosign", StringComparison.Ordinal));
+        Assert.IsFalse(aiHelp.TgText().Contains("autosign", StringComparison.Ordinal));
     }
 
     [TestMethod]

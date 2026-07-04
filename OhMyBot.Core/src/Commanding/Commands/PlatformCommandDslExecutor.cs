@@ -52,12 +52,34 @@ public sealed class PlatformCommandDslExecutor(RouteStore routeStore)
         var nodes = GetVisibleNodes(context, path, out var found);
         if (!found)
         {
-            var name = path.Count == 0 ? string.Empty : string.Join(' ', path);
-            return CommandResponses.Text($"未找到子命令：{name}", context);
+            return UnknownCommand(context, path);
+        }
+
+        // 解析到了某个命令，但它没有可见的子命令（叶子命令）：显示该命令自身的用法与说明，
+        // 而不是返回空消息。对当前用户不可见的命令按“未知命令”处理，避免泄露其存在。
+        if (path.Count > 0 && nodes.Count == 0)
+        {
+            return routeStore.TryGetNode(path, out var target) && CanUseCurrent(context, target)
+                ? CommandResponses.Text(RenderCommandDetail(target, path), context)
+                : UnknownCommand(context, path);
         }
 
         var text = string.Join('\n', nodes.Select(node => RenderHelpLine(node, path.Count == 0)));
         return CommandResponses.Text(text, context);
+    }
+
+    private static CommandResponse UnknownCommand(CommandContext context, IReadOnlyList<string> path)
+    {
+        var name = path.Count == 0 ? string.Empty : string.Join(' ', path);
+        return CommandResponses.Text($"未知的命令「{name}」，发送 /help 查看可用命令。", context);
+    }
+
+    private static string RenderCommandDetail(CommandDslNode node, IReadOnlyList<string> path)
+    {
+        var header = $"/{string.Join(' ', path)} - {node.Description}";
+        return string.IsNullOrWhiteSpace(node.Usage)
+            ? header
+            : $"{header}\n用法: {node.Usage}";
     }
 
     private bool TryResolvePath(IReadOnlyList<string> path, out CommandDslNode node, out int consumed)

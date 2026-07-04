@@ -1,7 +1,9 @@
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Data.Entities;
+using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Integrations.Mihoyo;
 using OhMyBot.Core.Commanding.Notifications;
@@ -130,8 +132,7 @@ public sealed class CallbackExecutionService(
         }
 
         var response = builder.BuildSignResult(context, await signService.SignInAsync(account, cancellationToken));
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -218,9 +219,8 @@ public sealed class CallbackExecutionService(
         }
 
         var response = CommandResponses.Text($"确认删除 AI Router 账号绑定？\n账号：`{account.DisplayName}`", context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AsTelegramEdit(editMessageId);
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -266,8 +266,7 @@ public sealed class CallbackExecutionService(
         if (!data.Confirm)
         {
             var canceled = CommandResponses.Text("删除操作已取消", context);
-            canceled.EditMessageId = editMessageId;
-            canceled.ReplyToMessageId = string.Empty;
+            canceled.AsTelegramEdit(editMessageId);
             return canceled;
         }
 
@@ -281,8 +280,7 @@ public sealed class CallbackExecutionService(
 
         var deleted = await accountService.DeleteAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
         var response = CommandResponses.Text(deleted ? $"已删除 AI Router 账号绑定：`{account.DisplayName}`" : "未找到指定 AI Router 账号", context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -476,8 +474,7 @@ public sealed class CallbackExecutionService(
             runAllWhenNoRequestedActions: true,
             cancellationToken: cancellationToken);
         var response = builder.BuildBbsSignResult(context, result);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -508,8 +505,7 @@ public sealed class CallbackExecutionService(
             data.GameIds,
             includeMissingConfigMessage: true,
             cancellationToken: cancellationToken));
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -579,8 +575,7 @@ public sealed class CallbackExecutionService(
             gameIds,
             includeMissingConfigMessage: true,
             cancellationToken: cancellationToken));
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -596,8 +591,7 @@ public sealed class CallbackExecutionService(
         if (accounts.Count <= 1)
         {
             var canceled = CommandResponses.Text("已取消游戏签到", context);
-            canceled.EditMessageId = editMessageId;
-            canceled.ReplyToMessageId = string.Empty;
+            canceled.AsTelegramEdit(editMessageId);
             return canceled;
         }
 
@@ -899,9 +893,8 @@ public sealed class CallbackExecutionService(
         }
 
         var response = CommandResponses.Text($"确认删除库街区账号绑定？\n账号：`{account.DisplayName}`", context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AsTelegramEdit(editMessageId);
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -947,8 +940,7 @@ public sealed class CallbackExecutionService(
         if (!data.Confirm)
         {
             var canceled = CommandResponses.Text("删除操作已取消", context);
-            canceled.EditMessageId = editMessageId;
-            canceled.ReplyToMessageId = string.Empty;
+            canceled.AsTelegramEdit(editMessageId);
             return canceled;
         }
 
@@ -962,8 +954,7 @@ public sealed class CallbackExecutionService(
 
         var deleted = await accountService.DeleteAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
         var response = CommandResponses.Text(deleted ? $"已删除库街区账号绑定：`{account.DisplayName}`" : "未找到指定库街区账号", context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -981,10 +972,6 @@ public sealed class CallbackExecutionService(
         var aiAccounts = await aiAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var kuroAccounts = await kuroAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var mihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyTypePanel, context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
-        response.NotifyTypePanel = new NotifyTypePanelData();
         var aiEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
             context.Identity.CoreUserId,
             context.Request.Platform,
@@ -1003,28 +990,21 @@ public sealed class CallbackExecutionService(
             NotificationTypes.MihoyoAutoSign,
             mihoyoAccounts.Select(account => account.Id).ToArray(),
             cancellationToken);
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
+        var items = new (string Type, string DisplayName, bool Enabled)[]
         {
-            Type = NotificationTypes.AiRouterAutoSign,
-            DisplayName = NotificationTypes.AiRouterAutoSignDisplayName,
-            Enabled = aiEnabled.Count > 0
-        });
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = NotificationTypes.KuroAutoSign,
-            DisplayName = NotificationTypes.KuroAutoSignDisplayName,
-            Enabled = kuroEnabled.Count > 0
-        });
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = NotificationTypes.MihoyoAutoSign,
-            DisplayName = NotificationTypes.MihoyoAutoSignDisplayName,
-            Enabled = mihoyoEnabled.Count > 0
-        });
-        var enabledNames = response.NotifyTypePanel.Items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
-        response.Message = "[消息订阅管理]\n当前已启用: " + (enabledNames.Length == 0 ? "无" : string.Join("、", enabledNames));
+            (NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName, aiEnabled.Count > 0),
+            (NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName, kuroEnabled.Count > 0),
+            (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0)
+        };
+        var enabledNames = items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
+        var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +
+            (enabledNames.Length == 0
+                ? "无"
+                : string.Join(MarkdownV2.Escape("、"), enabledNames.Select(MarkdownV2.CodeSpan)));
+        var response = CommandResponses.TelegramMarkdown(context.Identity, text, editMessageId: editMessageId);
+
         var row = new ResponseButtonRow();
-        foreach (var item in response.NotifyTypePanel.Items)
+        foreach (var item in items)
         {
             row.Buttons.Add(new ResponseButton
             {
@@ -1040,14 +1020,14 @@ public sealed class CallbackExecutionService(
 
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
 
         return response;
@@ -1088,8 +1068,7 @@ public sealed class CallbackExecutionService(
         var response = CommandResponses.Text(
             $"`{result.Target.DisplayName}` 权限更新: `{SetPrivilegeService.FormatPrivilege(result.Before)}` -> `{SetPrivilegeService.FormatPrivilege(result.After)}`",
             context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -1122,8 +1101,7 @@ public sealed class CallbackExecutionService(
             runAllWhenNoRequestedActions: true,
             cancellationToken: cancellationToken);
         var response = builder.BuildBbsSignResult(context, result);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -1154,8 +1132,7 @@ public sealed class CallbackExecutionService(
             data.GameKeys,
             includeMissingConfigMessage: true,
             cancellationToken: cancellationToken));
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -1225,8 +1202,7 @@ public sealed class CallbackExecutionService(
             gameKeys,
             includeMissingConfigMessage: true,
             cancellationToken: cancellationToken));
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
@@ -1242,8 +1218,7 @@ public sealed class CallbackExecutionService(
         if (accounts.Count <= 1)
         {
             var canceled = CommandResponses.Text("已取消游戏签到", context);
-            canceled.EditMessageId = editMessageId;
-            canceled.ReplyToMessageId = string.Empty;
+            canceled.AsTelegramEdit(editMessageId);
             return canceled;
         }
 
@@ -1546,9 +1521,8 @@ public sealed class CallbackExecutionService(
         }
 
         var response = CommandResponses.Text($"确认删除米游社账号绑定？\n账号：`{account.DisplayName}`", context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AsTelegramEdit(editMessageId);
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -1594,8 +1568,7 @@ public sealed class CallbackExecutionService(
         if (!data.Confirm)
         {
             var canceled = CommandResponses.Text("删除操作已取消", context);
-            canceled.EditMessageId = editMessageId;
-            canceled.ReplyToMessageId = string.Empty;
+            canceled.AsTelegramEdit(editMessageId);
             return canceled;
         }
 
@@ -1609,45 +1582,53 @@ public sealed class CallbackExecutionService(
 
         var deleted = await accountService.DeleteAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
         var response = CommandResponses.Text(deleted ? $"已删除米游社账号绑定：`{account.DisplayName}`" : "未找到指定米游社账号", context);
-        response.EditMessageId = editMessageId;
-        response.ReplyToMessageId = string.Empty;
+        response.AsTelegramEdit(editMessageId);
         return response;
     }
 
-    private static CommandResponse CallbackError(OhMyBot.Core.Infrastructure.Identity.ResolvedIdentity identity, string editMessageId, string message)
+    private static CommandResponse CallbackError(ResolvedIdentity identity, string editMessageId, string message)
     {
+        // 保持原行为：把面板编辑为错误文本，并以 toast 形式回应回调。
         return new CommandResponse
         {
             Code = 1,
             ErrorCode = "CallbackRejected",
-            Message = message,
             CallbackAnswerText = message,
             CallbackAnswerAlert = false,
-            EditMessageId = editMessageId,
-            Context = new CommandResponseContext
+            Context = ToContext(identity),
+            Telegram = new TelegramResponse
             {
-                CallerCoreUserId = identity.CoreUserId,
-                CallerPrivilege = identity.Privilege,
-                Platform = identity.Platform
+                Messages =
+                {
+                    new TelegramMessage
+                    {
+                        Text = $"错误：{message}（CallbackRejected）",
+                        ParseMode = TelegramParseMode.None,
+                        EditMessageId = editMessageId
+                    }
+                }
             }
         };
     }
 
     // 无渲染输出的空响应：用于忽略已消费/过期的回调点击，既不重放也不改动消息。
-    private static CommandResponse CallbackNoop(OhMyBot.Core.Infrastructure.Identity.ResolvedIdentity identity)
+    private static CommandResponse CallbackNoop(ResolvedIdentity identity)
     {
         return new CommandResponse
         {
             Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Message = string.Empty,
-            Text = new TextData { Text = string.Empty },
-            Context = new CommandResponseContext
-            {
-                CallerCoreUserId = identity.CoreUserId,
-                CallerPrivilege = identity.Privilege,
-                Platform = identity.Platform
-            }
+            Context = ToContext(identity),
+            Telegram = new TelegramResponse()
+        };
+    }
+
+    private static CommandResponseContext ToContext(ResolvedIdentity identity)
+    {
+        return new CommandResponseContext
+        {
+            CallerCoreUserId = identity.CoreUserId,
+            CallerPrivilege = identity.Privilege,
+            Platform = identity.Platform
         };
     }
 }

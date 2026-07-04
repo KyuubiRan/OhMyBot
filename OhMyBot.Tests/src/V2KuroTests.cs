@@ -11,8 +11,6 @@ using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Infrastructure.Security;
-using OhMyBot.TelegramGateway.Rendering;
-using Telegram.Bot.Types.Enums;
 
 namespace OhMyBot.Tests;
 
@@ -110,26 +108,17 @@ public class V2KuroTests
     }
 
     [TestMethod]
-    public void TelegramKuroRendererFormatsStructuredBindResult()
+    public void KuroBindResultFormatsStructuredMarkdown()
     {
-        var renderer = new KuroTelegramRenderer();
-        var response = new CommandResponse
+        var builder = CreateBuilder();
+        var account = new KuroAccount
         {
-            Code = 0,
-            DataKind = CommandResponseDataKind.KuroBindResult,
-            KuroBindResult = new KuroBindResultData
-            {
-                UpdatedExisting = false,
-                Account = new KuroAccountItem
-                {
-                    Id = 10,
-                    BbsUserId = 1001,
-                    DisplayName = "库洛_账号",
-                    AutoSignEnabled = true
-                }
-            }
+            Id = 10,
+            BbsUserId = 1001,
+            DisplayName = "库洛_账号",
+            AutoSignEnabled = true
         };
-        response.KuroBindResult.Account.Roles.Add(new KuroGameRoleItem
+        account.Roles.Add(new KuroGameRole
         {
             GameId = 3,
             GameName = "鸣潮",
@@ -138,12 +127,13 @@ public class V2KuroTests
             GameLevel = "77"
         });
 
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
+        var response = builder.BuildBindResult(CreateContext(), new KuroBindResult(account, UpdatedExisting: false));
 
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("库街区账号绑定成功", message.Text);
-        Assert.Contains("库洛_账号", message.Text);
-        Assert.Contains("鸣潮", message.Text);
+        // 意图：绑定结果渲染为 Telegram MarkdownV2，正文含成功提示、账号名与游戏名
+        Assert.AreEqual(TelegramParseMode.MarkdownV2, response.TgSingle().ParseMode);
+        Assert.Contains("库街区账号绑定成功", response.TgText());
+        Assert.Contains("库洛_账号", response.TgText());
+        Assert.Contains("鸣潮", response.TgText());
     }
 
     [TestMethod]
@@ -167,9 +157,9 @@ public class V2KuroTests
 
         var response = await builder.BuildAutoSignPanelAsync(CreateContext(), accounts);
 
-        Assert.Contains("第 1/2 页", response.Message);
-        Assert.IsTrue(response.ButtonRows.SelectMany(row => row.Buttons).Any(button => button.Text == "下一页"));
-        Assert.IsFalse(response.ButtonRows.SelectMany(row => row.Buttons).Any(button => button.Text.Contains("Kuro9", StringComparison.Ordinal)));
+        Assert.Contains("第 1/2 页", response.TgText());
+        Assert.IsTrue(response.TgButtonTexts().Any(text => text == "下一页"));
+        Assert.IsFalse(response.TgButtonTexts().Any(text => text.Contains("Kuro9", StringComparison.Ordinal)));
     }
 
     [TestMethod]
@@ -201,9 +191,9 @@ public class V2KuroTests
         }
 
         var response = await builder.BuildAutoSignGamePanelAsync(CreateContext(), [account], account.Id);
-        var buttons = response.ButtonRows.SelectMany(row => row.Buttons).Select(button => button.Text).ToArray();
+        var buttons = response.TgButtonTexts().ToArray();
 
-        Assert.Contains("第 1/2 页", response.Message);
+        Assert.Contains("第 1/2 页", response.TgText());
         CollectionAssert.Contains(buttons, "下一页");
         CollectionAssert.Contains(buttons, "开启/关闭全部");
         CollectionAssert.Contains(buttons, "返回");
@@ -228,13 +218,13 @@ public class V2KuroTests
 
         CollectionAssert.AreEqual(
             new[] { "Kuro1", "Kuro2" },
-            response.ButtonRows[0].Buttons.Select(button => button.Text.Replace("[开] ", string.Empty, StringComparison.Ordinal).Replace("[关] ", string.Empty, StringComparison.Ordinal)).ToArray());
+            response.TgButtonRows()[0].Buttons.Select(button => button.Text.Replace("[开] ", string.Empty, StringComparison.Ordinal).Replace("[关] ", string.Empty, StringComparison.Ordinal)).ToArray());
         CollectionAssert.AreEqual(
             new[] { "Kuro3" },
-            response.ButtonRows[1].Buttons.Select(button => button.Text.Replace("[开] ", string.Empty, StringComparison.Ordinal).Replace("[关] ", string.Empty, StringComparison.Ordinal)).ToArray());
+            response.TgButtonRows()[1].Buttons.Select(button => button.Text.Replace("[开] ", string.Empty, StringComparison.Ordinal).Replace("[关] ", string.Empty, StringComparison.Ordinal)).ToArray());
         CollectionAssert.AreEqual(
             new[] { "开启/关闭全部", "返回" },
-            response.ButtonRows[^1].Buttons.Select(button => button.Text).ToArray());
+            response.TgButtonRows()[^1].Buttons.Select(button => button.Text).ToArray());
     }
 
     [TestMethod]
@@ -249,12 +239,12 @@ public class V2KuroTests
         var response = await builder.BuildGameSignPanelAsync(CreateContext(), account, [3L]);
 
         // 意图：每个已同步游戏一个开关，√/× 反映勾选状态，底部提供「签到」「返回」
-        Assert.HasCount(3, response.ButtonRows);
-        Assert.AreEqual("[×] 战双帕弥什", response.ButtonRows[0].Buttons[0].Text);
-        Assert.AreEqual("[√] 鸣潮", response.ButtonRows[1].Buttons[0].Text);
+        Assert.HasCount(3, response.TgButtonRows());
+        Assert.AreEqual("[×] 战双帕弥什", response.TgButtonRows()[0].Buttons[0].Text);
+        Assert.AreEqual("[√] 鸣潮", response.TgButtonRows()[1].Buttons[0].Text);
         CollectionAssert.AreEqual(
             new[] { "签到", "返回" },
-            response.ButtonRows[^1].Buttons.Select(button => button.Text).ToArray());
+            response.TgButtonRows()[^1].Buttons.Select(button => button.Text).ToArray());
     }
 
     [TestMethod]
@@ -268,11 +258,11 @@ public class V2KuroTests
         };
 
         var multi = await builder.BuildGameSignSelectionAsync(CreateContext(), many);
-        Assert.HasCount(3, multi.ButtonRows);
-        Assert.AreEqual("全部签到", multi.ButtonRows[^1].Buttons[0].Text);
+        Assert.HasCount(3, multi.TgButtonRows());
+        Assert.AreEqual("全部签到", multi.TgButtonRows()[^1].Buttons[0].Text);
 
         var single = await builder.BuildGameSignSelectionAsync(CreateContext(), [many[0]]);
-        Assert.HasCount(1, single.ButtonRows);
+        Assert.HasCount(1, single.TgButtonRows());
     }
 
     private static KuroResponseBuilder CreateBuilder()

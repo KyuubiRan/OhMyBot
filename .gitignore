@@ -13,4 +13,5 @@
 /OhMyBot.TelegramGateway/appsettings.json
 /OhMyBot.QQGateway/appsettings.json
 /OhMyBot.Tests/appsettings.Test.json
+/OhMyBot.Core/routes/route.json
 OhMyBot.sln.DotSettings.user

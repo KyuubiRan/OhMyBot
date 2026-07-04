@@ -31,26 +31,11 @@ enum UserPrivilege {
   USER_PRIVILEGE_OWNER = 100;
 }
 
-enum CommandResponseDataKind {
-  COMMAND_RESPONSE_DATA_KIND_UNSPECIFIED = 0;
-  COMMAND_RESPONSE_DATA_KIND_TEXT = 1;
-  COMMAND_RESPONSE_DATA_KIND_PING = 2;
-  COMMAND_RESPONSE_DATA_KIND_LINK_TOKEN = 3;
-  COMMAND_RESPONSE_DATA_KIND_LINK_RESULT = 4;
-  COMMAND_RESPONSE_DATA_KIND_USER_INFO = 5;
-  COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_ACCOUNT_LIST = 6;
-  COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_BIND_RESULT = 7;
-  COMMAND_RESPONSE_DATA_KIND_AI_ROUTER_SIGN_RESULT = 8;
-  COMMAND_RESPONSE_DATA_KIND_NOTIFY_TYPE_PANEL = 9;
-  COMMAND_RESPONSE_DATA_KIND_NOTIFY_ACCOUNT_PANEL = 10;
-  COMMAND_RESPONSE_DATA_KIND_KURO_ACCOUNT_LIST = 11;
-  COMMAND_RESPONSE_DATA_KIND_KURO_BIND_RESULT = 12;
-  COMMAND_RESPONSE_DATA_KIND_KURO_BBS_SIGN_RESULT = 13;
-  COMMAND_RESPONSE_DATA_KIND_KURO_GAME_SIGN_RESULT = 14;
-  COMMAND_RESPONSE_DATA_KIND_MIHOYO_ACCOUNT_LIST = 15;
-  COMMAND_RESPONSE_DATA_KIND_MIHOYO_BIND_RESULT = 16;
-  COMMAND_RESPONSE_DATA_KIND_MIHOYO_BBS_SIGN_RESULT = 17;
-  COMMAND_RESPONSE_DATA_KIND_MIHOYO_GAME_SIGN_RESULT = 18;
+// Telegram parse mode。Core 已把 text 按该模式转义好，网关直接透传给 SDK。
+enum TelegramParseMode {
+  TELEGRAM_PARSE_MODE_NONE = 0;
+  TELEGRAM_PARSE_MODE_MARKDOWN_V2 = 1;
+  TELEGRAM_PARSE_MODE_HTML = 2;
 }
 
 message CommandRequest {
@@ -156,219 +141,38 @@ message CommandResponseContext {
   BotPlatform platform = 3;
 }
 
-message TextData {
+// 一条已按 Telegram 渲染好的最终消息（text 已按 parse_mode 转义）。
+message TelegramMessage {
+  string text = 1;
+  TelegramParseMode parse_mode = 2;
+  repeated ResponseButtonRow button_rows = 3;
+  string reply_to_message_id = 4;
+  optional string edit_message_id = 5;
+  // 扩展点（暂未实现）：媒体 segment（image/file/video/mention）。
+}
+
+message TelegramResponse {
+  repeated TelegramMessage messages = 1; // 空 = 静默不发
+}
+
+// 一条已按 QQ 渲染好的最终消息（纯文本，无 Markdown、无按钮）。
+message QqMessage {
   string text = 1;
 }
 
-message PingData {
-  int64 elapsed_ms = 1;
-}
-
-message LinkTokenData {
-  string token = 1;
-  int32 ttl_seconds = 2;
-}
-
-message LinkResultData {
-  string status = 1;
-  int64 core_user_id = 2;
-}
-
-message PlatformIdentityData {
-  BotPlatform platform = 1;
-  string uid = 2;
-  string display_name = 3;
-  string username = 4;
-}
-
-message UserInfoData {
-  bool self = 1;
-  UserPrivilege privilege = 2;
-  optional int64 core_user_id = 3;
-  repeated PlatformIdentityData identities = 4;
-}
-
-message AiRouterAccountItem {
-  int64 id = 1;
-  string login_email = 2;
-  string display_name = 3;
-  bool auto_sign_enabled = 4;
-  bool notification_enabled = 5;
-}
-
-message AiRouterAccountListData {
-  repeated AiRouterAccountItem accounts = 1;
-}
-
-message AiRouterBindResultData {
-  int64 account_id = 1;
-  string login_email = 2;
-  string display_name = 3;
-}
-
-message AiRouterSignResultData {
-  string login_email = 1;
-  string display_name = 2;
-  string status = 3;
-  string message = 4;
-  string today_reward = 5;
-  int64 current_streak = 6;
-  string total_reward = 7;
-  int64 month_signed_days = 8;
-  bool token_refreshed = 9;
-  int64 occurred_at_unix_seconds = 10;
-  bool auto_sign = 11;
-}
-
-message NotifyTypeItem {
-  string type = 1;
-  string display_name = 2;
-  bool enabled = 3;
-}
-
-message NotifyTypePanelData {
-  repeated NotifyTypeItem items = 1;
-}
-
-message NotifyAccountPanelData {
-  string type = 1;
-  string display_name = 2;
-  repeated AiRouterAccountItem accounts = 3;
-  repeated KuroAccountItem kuro_accounts = 4;
-  repeated MihoyoAccountItem mihoyo_accounts = 5;
-}
-
-message KuroGameRoleItem {
-  int64 id = 1;
-  int64 game_id = 2;
-  string game_name = 3;
-  string server_id = 4;
-  string server_name = 5;
-  int64 role_id = 6;
-  string role_name = 7;
-  string game_level = 8;
-  bool auto_sign_enabled = 9;
-}
-
-message KuroAccountItem {
-  int64 id = 1;
-  int64 bbs_user_id = 2;
-  string display_name = 3;
-  bool auto_sign_enabled = 4;
-  int64 bbs_task_flags = 5;
-  bool notification_enabled = 6;
-  repeated KuroGameRoleItem roles = 7;
-}
-
-message KuroAccountListData {
-  repeated KuroAccountItem accounts = 1;
-}
-
-message KuroBindResultData {
-  KuroAccountItem account = 1;
-  bool updated_existing = 2;
-}
-
-message KuroBbsTaskProgressItem {
-  string remark = 1;
-  int64 complete_times = 2;
-  int64 need_action_times = 3;
-  int64 gain_gold = 4;
-  bool finished = 5;
-}
-
-message KuroBbsSignResultData {
-  KuroAccountItem account = 1;
-  repeated KuroBbsTaskProgressItem progress = 2;
-  repeated string lines = 3;
-  bool auto_sign = 4;
-  int64 occurred_at_unix_seconds = 5;
-}
-
-message KuroGameSignResultData {
-  KuroAccountItem account = 1;
-  repeated string lines = 2;
-  bool auto_sign = 3;
-  int64 occurred_at_unix_seconds = 4;
-}
-
-message MihoyoGameRoleItem {
-  int64 id = 1;
-  string game_biz = 2;
-  string game_name = 3;
-  string region = 4;
-  int64 game_uid = 5;
-  string nickname = 6;
-  string level = 7;
-  bool auto_sign_enabled = 8;
-}
-
-message MihoyoAccountItem {
-  int64 id = 1;
-  int64 stuid = 2;
-  string display_name = 3;
-  // 0 = CN, 1 = OS
-  int32 region = 4;
-  bool auto_sign_enabled = 5;
-  int64 bbs_task_flags = 6;
-  bool notification_enabled = 7;
-  repeated MihoyoGameRoleItem roles = 8;
-}
-
-message MihoyoAccountListData {
-  repeated MihoyoAccountItem accounts = 1;
-}
-
-message MihoyoBindResultData {
-  MihoyoAccountItem account = 1;
-  bool updated_existing = 2;
-}
-
-message MihoyoBbsSignResultData {
-  MihoyoAccountItem account = 1;
-  repeated string lines = 2;
-  bool auto_sign = 3;
-  int64 occurred_at_unix_seconds = 4;
-}
-
-message MihoyoGameSignResultData {
-  MihoyoAccountItem account = 1;
-  repeated string lines = 2;
-  bool auto_sign = 3;
-  int64 occurred_at_unix_seconds = 4;
+message QqResponse {
+  repeated QqMessage messages = 1; // 空 = 静默不发
 }
 
 message CommandResponse {
   int32 code = 1;
   string error_code = 2;
-  string message = 3;
-  CommandResponseDataKind data_kind = 4;
-  CommandResponseContext context = 5;
-  repeated ResponseButton buttons = 6;
-  string reply_to_message_id = 7;
-  optional string edit_message_id = 8;
-  repeated ResponseButtonRow button_rows = 9;
-  string callback_answer_text = 10;
-  bool callback_answer_alert = 11;
-  oneof data {
-    TextData text = 20;
-    PingData ping = 21;
-    LinkTokenData link_token = 22;
-    LinkResultData link_result = 23;
-    UserInfoData user_info = 24;
-    AiRouterAccountListData ai_router_account_list = 25;
-    AiRouterBindResultData ai_router_bind_result = 26;
-    AiRouterSignResultData ai_router_sign_result = 27;
-    NotifyTypePanelData notify_type_panel = 28;
-    NotifyAccountPanelData notify_account_panel = 29;
-    KuroAccountListData kuro_account_list = 30;
-    KuroBindResultData kuro_bind_result = 31;
-    KuroBbsSignResultData kuro_bbs_sign_result = 32;
-    KuroGameSignResultData kuro_game_sign_result = 33;
-    MihoyoAccountListData mihoyo_account_list = 34;
-    MihoyoBindResultData mihoyo_bind_result = 35;
-    MihoyoBbsSignResultData mihoyo_bbs_sign_result = 36;
-    MihoyoGameSignResultData mihoyo_game_sign_result = 37;
+  CommandResponseContext context = 3;
+  string callback_answer_text = 4;   // 回调用，非 per-message
+  bool callback_answer_alert = 5;
+  oneof platform_response {           // 空 = 静默不发
+    TelegramResponse telegram = 30;
+    QqResponse qq = 31;
   }
 }
 

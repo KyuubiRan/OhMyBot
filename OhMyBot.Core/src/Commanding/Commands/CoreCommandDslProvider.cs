@@ -1,10 +1,13 @@
 using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Options;
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Callbacks;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Data;
 using OhMyBot.Core.Infrastructure.Data.Entities;
+using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Infrastructure.Linking;
 
 namespace OhMyBot.Core.Commanding.Commands;
@@ -55,7 +58,7 @@ public sealed class CoreCommandDslProvider(
                 Name = "help",
                 Description = "显示可用指令",
                 Usage = "/help [子命令]",
-                Handler = _ => Task.FromResult(CommandResponses.Text(string.Empty))
+                Handler = context => Task.FromResult(CommandResponses.Silent(context))
             }
         ];
     }
@@ -64,8 +67,9 @@ public sealed class CoreCommandDslProvider(
     {
         var elapsed = timeProvider.GetElapsedTime(context.StartedAt);
         var elapsedMs = elapsed.Ticks / TimeSpan.TicksPerMillisecond;
-        var response = CommandResponses.Ok(CommandResponseDataKind.Ping, context);
-        response.Ping = new PingData { ElapsedMs = elapsedMs };
+        var response = context.Request.Platform == BotPlatform.Qq
+            ? CommandResponses.Qq(context.Identity, $"Pong！Core 响应耗时 {elapsedMs}ms")
+            : CommandResponses.TelegramPlain(context.Identity, $"Pong！Core：{elapsedMs}ms", context.Request.MessageId);
         return Task.FromResult(response);
     }
 
@@ -89,13 +93,15 @@ public sealed class CoreCommandDslProvider(
                 timeProvider.GetUtcNow());
 
             await linkTokenStore.SetAsync(token, payload, _linkTokenOptions.TokenTtl, cancellationToken);
-            var response = CommandResponses.Ok(CommandResponseDataKind.LinkToken, context);
-            response.LinkToken = new LinkTokenData
-            {
-                Token = token,
-                TtlSeconds = (int)_linkTokenOptions.TokenTtl.TotalSeconds
-            };
-            return response;
+            var ttlSeconds = (int)_linkTokenOptions.TokenTtl.TotalSeconds;
+            return currentIdentity.Platform == BotPlatform.Qq
+                ? CommandResponses.Qq(
+                    currentIdentity,
+                    $"绑定令牌：{token}\n有效期 {ttlSeconds / 60} 分钟。请在另一平台发送 /link {token} 完成绑定。")
+                : CommandResponses.TelegramMarkdown(
+                    currentIdentity,
+                    $"绑定令牌：{MarkdownV2.CodeSpan(token)}\n有效期：{ttlSeconds / 60:F0} 分钟",
+                    context.Request.MessageId);
         }
 
         var incomingToken = request.Args[0].Trim();
@@ -138,13 +144,9 @@ public sealed class CoreCommandDslProvider(
         await MergeUsersAsync(dbContext, mergedUser, retainedUser, cancellationToken);
         await identityService.CacheUserIdentitiesAsync(retainedUser, cancellationToken);
         await linkTokenStore.RemoveAsync(incomingToken, cancellationToken);
-        var linkResponse = CommandResponses.Ok(CommandResponseDataKind.LinkResult, context);
-        linkResponse.LinkResult = new LinkResultData
-        {
-            Status = "linked",
-            CoreUserId = retainedUser.Id
-        };
-        return linkResponse;
+        return currentIdentity.Platform == BotPlatform.Qq
+            ? CommandResponses.Qq(currentIdentity, "绑定成功。")
+            : CommandResponses.TelegramPlain(currentIdentity, "账号绑定成功。", context.Request.MessageId);
     }
 
     private async Task<CommandResponse> InfoAsync(CommandContext context)
@@ -156,37 +158,12 @@ public sealed class CoreCommandDslProvider(
             ? context.Request.Args[0].Trim()
             : context.Request.ReplyToUserId.Trim();
 
-        UserInfoData? data;
-        if (callerIsAdmin && !string.IsNullOrWhiteSpace(requestedUser))
-        {
-            var targetProfile = await FindProfileAsync(
-                dbContext,
-                context.Request.Platform,
-                requestedUser,
-                context.CancellationToken);
-            data = await BuildPlatformUserInfoDataAsync(
-                dbContext,
-                targetProfile,
-                self: false,
-                includeCoreUserId: true,
-                context.CancellationToken);
-        }
-        else
-        {
-            var currentProfile = await FindProfileAsync(
-                dbContext,
-                context.Request.Platform,
-                context.Identity.PlatformUserId,
-                context.CancellationToken);
-            data = await BuildPlatformUserInfoDataAsync(
-                dbContext,
-                currentProfile,
-                self: true,
-                includeCoreUserId: callerIsAdmin,
-                context.CancellationToken);
-        }
+        var profile = callerIsAdmin && !string.IsNullOrWhiteSpace(requestedUser)
+            ? await FindProfileAsync(dbContext, context.Request.Platform, requestedUser, context.CancellationToken)
+            : await FindProfileAsync(dbContext, context.Request.Platform, context.Identity.PlatformUserId, context.CancellationToken);
 
-        if (data is null)
+        var view = await BuildUserInfoViewAsync(dbContext, profile, context.CancellationToken);
+        if (view is null)
         {
             return CommandResponses.Error(
                 "UserNotFound",
@@ -196,10 +173,66 @@ public sealed class CoreCommandDslProvider(
                 context);
         }
 
-        var response = CommandResponses.Ok(CommandResponseDataKind.UserInfo, context);
-        response.UserInfo = data;
-        return response;
+        return RenderUserInfo(context, view);
     }
+
+    private static CommandResponse RenderUserInfo(CommandContext context, UserInfoView view)
+    {
+        if (context.Request.Platform == BotPlatform.Qq)
+        {
+            var identity = view.Identities.FirstOrDefault(item => item.Platform == BotPlatform.Qq)
+                ?? view.Identities.FirstOrDefault();
+            var lines = new List<string>();
+            if (identity is not null && !string.IsNullOrWhiteSpace(identity.Uid))
+            {
+                lines.Add($"UID: {identity.Uid}");
+            }
+
+            if (identity is not null && !string.IsNullOrWhiteSpace(identity.Username))
+            {
+                lines.Add($"用户名: {FormatUsername(identity.Username)}");
+            }
+
+            if (identity is not null && !string.IsNullOrWhiteSpace(identity.DisplayName))
+            {
+                lines.Add($"昵称: {identity.DisplayName}");
+            }
+
+            lines.Add($"权限: {UserPrivilegeNames.Format(view.Privilege)}");
+            return CommandResponses.Qq(context.Identity, string.Join('\n', lines));
+        }
+
+        var telegramIdentity = view.Identities.FirstOrDefault(item => item.Platform == BotPlatform.Telegram)
+            ?? view.Identities.FirstOrDefault();
+        var markdownLines = new List<string>();
+        if (telegramIdentity is not null && !string.IsNullOrWhiteSpace(telegramIdentity.Uid))
+        {
+            markdownLines.Add($"UID: {MarkdownV2.CodeSpan(telegramIdentity.Uid)}");
+        }
+
+        if (telegramIdentity is not null && !string.IsNullOrWhiteSpace(telegramIdentity.Username))
+        {
+            markdownLines.Add($"用户名: {MarkdownV2.CodeSpan(FormatUsername(telegramIdentity.Username))}");
+        }
+
+        if (telegramIdentity is not null && !string.IsNullOrWhiteSpace(telegramIdentity.DisplayName))
+        {
+            markdownLines.Add($"昵称: {MarkdownV2.CodeSpan(telegramIdentity.DisplayName)}");
+        }
+
+        markdownLines.Add($"权限: {MarkdownV2.CodeSpan(UserPrivilegeNames.Format(view.Privilege))}");
+        return CommandResponses.TelegramMarkdown(context.Identity, string.Join('\n', markdownLines), context.Request.MessageId);
+    }
+
+    private static string FormatUsername(string username)
+    {
+        var normalized = username.Trim();
+        return normalized.StartsWith('@') ? normalized : $"@{normalized}";
+    }
+
+    private sealed record UserInfoView(UserPrivilege Privilege, IReadOnlyList<IdentityView> Identities);
+
+    private sealed record IdentityView(BotPlatform Platform, string Uid, string DisplayName, string Username);
 
     private async Task<CommandResponse> SetPrivilegeAsync(CommandContext context)
     {
@@ -237,6 +270,12 @@ public sealed class CoreCommandDslProvider(
             $"`{target.DisplayName}` 当前权限: `{SetPrivilegeService.FormatPrivilege(target.CurrentPrivilege)}`",
             context);
 
+        // QQ 无按钮：仅展示当前权限文本；Telegram 追加权限选择按钮。
+        if (context.Request.Platform == BotPlatform.Qq)
+        {
+            return response;
+        }
+
         foreach (var row in allowedPrivileges.Chunk(2))
         {
             var buttonRow = new ResponseButtonRow();
@@ -255,7 +294,7 @@ public sealed class CoreCommandDslProvider(
                 });
             }
 
-            response.ButtonRows.Add(buttonRow);
+            response.AddButtonRow(buttonRow);
         }
 
         return response;
@@ -297,22 +336,18 @@ public sealed class CoreCommandDslProvider(
         return Convert.ToHexString(bytes).ToLowerInvariant();
     }
 
-    private static PlatformIdentityData ToIdentityData(PlatformUserProfile profile)
+    private static IdentityView ToIdentityView(PlatformUserProfile profile)
     {
-        return new PlatformIdentityData
-        {
-            Platform = profile.Platform,
-            Uid = profile.Uid,
-            DisplayName = FirstNonEmpty(FormatProfileDisplayName(profile), profile.Uid),
-            Username = profile.Username ?? string.Empty
-        };
+        return new IdentityView(
+            profile.Platform,
+            profile.Uid,
+            FirstNonEmpty(FormatProfileDisplayName(profile), profile.Uid),
+            profile.Username ?? string.Empty);
     }
 
-    private static async Task<UserInfoData?> BuildPlatformUserInfoDataAsync(
+    private static async Task<UserInfoView?> BuildUserInfoViewAsync(
         OhMyBotV2DbContext dbContext,
         PlatformUserProfile? profile,
-        bool self,
-        bool includeCoreUserId,
         CancellationToken cancellationToken)
     {
         if (profile is null)
@@ -323,19 +358,10 @@ public sealed class CoreCommandDslProvider(
         CoreUser? coreUser = profile.CoreUserId is null
             ? null
             : await LoadUserAsync(dbContext, profile.CoreUserId.Value, cancellationToken);
-        var data = new UserInfoData
-        {
-            Self = self,
-            Privilege = coreUser?.Privilege ?? UserPrivilege.User
-        };
-        data.Identities.Add(ToIdentityData(profile));
 
-        if (includeCoreUserId && coreUser is not null)
-        {
-            data.CoreUserId = coreUser.Id;
-        }
-
-        return data;
+        return new UserInfoView(
+            coreUser?.Privilege ?? UserPrivilege.User,
+            [ToIdentityView(profile)]);
     }
 
     private static string FormatProfileDisplayName(PlatformUserProfile profile)

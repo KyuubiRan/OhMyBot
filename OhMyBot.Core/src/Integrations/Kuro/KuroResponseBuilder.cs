@@ -2,6 +2,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Commanding.Notifications;
 
@@ -20,25 +21,17 @@ public sealed class KuroResponseBuilder(
         IReadOnlyList<KuroAccount> accounts,
         CancellationToken cancellationToken = default)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.KuroAccountList, context);
-        response.KuroAccountList = new KuroAccountListData();
-        response.KuroAccountList.Accounts.AddRange(accounts.Select(account => ToItem(account, notificationEnabled: false)));
-        response.Message = accounts.Count == 0
-            ? "尚未绑定库街区账号"
-            : "[库街区]\n已绑定账号：\n" + string.Join('\n', accounts.Select(account => $"- #{account.Id} {account.DisplayName} ({account.BbsUserId})：自动签到{(account.AutoSignEnabled ? "开启" : "关闭")}"));
+        var markdown = RenderAccountListMarkdown(accounts);
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity, markdown, replyToMessageId: context.Request.MessageId);
         return await Task.FromResult(response);
     }
 
     public CommandResponse BuildBindResult(CommandContext context, KuroBindResult result)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.KuroBindResult, context);
-        response.KuroBindResult = new KuroBindResultData
-        {
-            Account = ToItem(result.Account, notificationEnabled: false),
-            UpdatedExisting = result.UpdatedExisting
-        };
-        response.Message = result.UpdatedExisting ? "库街区账号已更新" : "库街区账号绑定成功";
-        return response;
+        var markdown = RenderBindResultMarkdown(result);
+        return CommandResponses.TelegramMarkdown(
+            context.Identity, markdown, replyToMessageId: context.Request.MessageId);
     }
 
     public CommandResponse BuildBbsSignResult(
@@ -46,24 +39,10 @@ public sealed class KuroResponseBuilder(
         KuroBbsSignResult result,
         bool autoSign = false)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.KuroBbsSignResult, context);
-        response.KuroBbsSignResult = new KuroBbsSignResultData
-        {
-            Account = ToItem(result.Account, notificationEnabled: false),
-            AutoSign = autoSign,
-            OccurredAtUnixSeconds = timeProvider.GetUtcNow().ToUnixTimeSeconds()
-        };
-        response.KuroBbsSignResult.Progress.AddRange(result.Progress.Select(item => new KuroBbsTaskProgressItem
-        {
-            Remark = item.Remark,
-            CompleteTimes = item.CompleteTimes,
-            NeedActionTimes = item.NeedActionTimes,
-            GainGold = item.GainGold,
-            Finished = item.Finished
-        }));
-        response.KuroBbsSignResult.Lines.AddRange(result.Lines);
-        response.Message = string.Join('\n', result.Lines);
-        return response;
+        var title = autoSign ? "[库街区-自动社区签到]" : "[库街区-手动社区签到]";
+        var markdown = RenderSignResultMarkdown(title, result.Account, result.Lines);
+        return CommandResponses.TelegramMarkdown(
+            context.Identity, markdown, replyToMessageId: context.Request.MessageId);
     }
 
     public CommandResponse BuildGameSignResult(
@@ -71,16 +50,10 @@ public sealed class KuroResponseBuilder(
         KuroGameSignResult result,
         bool autoSign = false)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.KuroGameSignResult, context);
-        response.KuroGameSignResult = new KuroGameSignResultData
-        {
-            Account = ToItem(result.Account, notificationEnabled: false),
-            AutoSign = autoSign,
-            OccurredAtUnixSeconds = timeProvider.GetUtcNow().ToUnixTimeSeconds()
-        };
-        response.KuroGameSignResult.Lines.AddRange(result.Lines);
-        response.Message = string.Join('\n', result.Lines);
-        return response;
+        var title = autoSign ? "[库街区-自动游戏签到]" : "[库街区-手动游戏签到]";
+        var markdown = RenderSignResultMarkdown(title, result.Account, result.Lines);
+        return CommandResponses.TelegramMarkdown(
+            context.Identity, markdown, replyToMessageId: context.Request.MessageId);
     }
 
     public async Task<CommandResponse> BuildBbsSignSelectionAsync(
@@ -94,14 +67,14 @@ public sealed class KuroResponseBuilder(
         ApplyEdit(response, editMessageId);
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "kuro-bbs-sign-select", $"{account.DisplayName} #{account.Id}",
                 new KuroBbsSignCallbackData(account.Id, actions.ToArray()), cancellationToken)));
         }
 
         if (accounts.Count > 1)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "kuro-bbs-sign-all", "全部签到", new KuroBbsSignAllCallbackData(), cancellationToken)));
         }
 
@@ -118,14 +91,14 @@ public sealed class KuroResponseBuilder(
         ApplyEdit(response, editMessageId);
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "kuro-game-sign-panel", $"{account.DisplayName} #{account.Id}",
                 new KuroGameSignPanelCallbackData(account.Id), cancellationToken)));
         }
 
         if (accounts.Count > 1)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "kuro-game-sign-all", "全部签到", new KuroGameSignAllCallbackData(), cancellationToken)));
         }
 
@@ -165,12 +138,12 @@ public sealed class KuroResponseBuilder(
         foreach (var gameId in available)
         {
             var name = KuroGameNames.Format(gameId, account.Roles.FirstOrDefault(role => role.GameId == gameId)?.GameName ?? string.Empty);
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "kuro-game-sign-panel", $"{(selectedSet.Contains(gameId) ? "[√]" : "[×]")} {name}",
                 new KuroGameSignPanelCallbackData(account.Id, Toggle: gameId), cancellationToken)));
         }
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -253,6 +226,59 @@ public sealed class KuroResponseBuilder(
         return details.Length == 0 ? $"- {gameName}" : $"- {gameName}：{string.Join("、", details)}";
     }
 
+    // ---- Telegram MarkdownV2 富文本（原 TelegramGateway KuroTelegramRenderer 逻辑迁入） ----
+
+    private static string RenderAccountListMarkdown(IReadOnlyList<KuroAccount> accounts)
+    {
+        if (accounts.Count == 0)
+        {
+            return "尚未绑定库街区账号";
+        }
+
+        var lines = new List<string> { MarkdownV2.Escape("[库街区]"), "已绑定账号：" };
+        foreach (var account in accounts)
+        {
+            lines.Add($"\\- `#{account.Id}` `{MarkdownV2.Code(account.DisplayName)}` \\({account.BbsUserId}\\)：自动签到{MarkdownV2.Escape(account.AutoSignEnabled ? "开启" : "关闭")}");
+            foreach (var role in account.Roles)
+            {
+                lines.Add($"  \\- {MarkdownV2.Escape(role.GameName)} / `{MarkdownV2.Code(role.RoleName)}`：{MarkdownV2.Escape(role.AutoSignEnabled ? "自动签到开启" : "自动签到关闭")}");
+            }
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private static string RenderBindResultMarkdown(KuroBindResult result)
+    {
+        var account = result.Account;
+        var lines = new List<string>
+        {
+            MarkdownV2.Escape(result.UpdatedExisting ? "库街区账号已更新" : "库街区账号绑定成功"),
+            $"账号：`#{account.Id}` `{MarkdownV2.Code(account.DisplayName)}`",
+            $"UID：`{account.BbsUserId}`"
+        };
+        if (account.Roles.Count > 0)
+        {
+            lines.Add("角色：");
+            lines.AddRange(account.Roles.Select(role => $"\\- {MarkdownV2.Escape(role.GameName)} / `{MarkdownV2.Code(role.RoleName)}` \\(Lv\\.{MarkdownV2.Escape(role.GameLevel)}\\)"));
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private string RenderSignResultMarkdown(string title, KuroAccount account, IReadOnlyList<string> resultLines)
+    {
+        var lines = new List<string>
+        {
+            MarkdownV2.Escape(title),
+            $"账号：`#{account.Id}` `{MarkdownV2.Code(account.DisplayName)}`"
+        };
+        lines.AddRange(resultLines.Select(MarkdownV2.Escape));
+        var occurredAt = timeProvider.GetUtcNow().ToLocalTime();
+        lines.Add($"时间：{MarkdownV2.Escape(occurredAt.ToString("yyyy-MM-dd HH:mm:ss"))}");
+        return string.Join('\n', lines);
+    }
+
     private async Task<ResponseButton> ButtonAsync(
         CommandContext context, string actionType, string text, object data, CancellationToken cancellationToken)
     {
@@ -274,8 +300,7 @@ public sealed class KuroResponseBuilder(
     {
         if (!string.IsNullOrWhiteSpace(editMessageId))
         {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
+            response.AsTelegramEdit(editMessageId);
         }
     }
 
@@ -287,7 +312,7 @@ public sealed class KuroResponseBuilder(
         var response = CommandResponses.Text("请选择要删除的库街区账号：", context);
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(new ResponseButtonRow
+            response.AddButtonRow(new ResponseButtonRow
             {
                 Buttons =
                 {
@@ -318,11 +343,7 @@ public sealed class KuroResponseBuilder(
     {
         page = NormalizePage(page, accounts.Count, AccountsPerPage);
         var response = CommandResponses.Text(BuildAutoSignText(accounts, page), context);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        ApplyEdit(response, editMessageId);
 
         await AddPagedAccountButtonsAsync(
             response,
@@ -360,13 +381,9 @@ public sealed class KuroResponseBuilder(
         }
 
         var response = CommandResponses.Text(BuildAutoSignAccountDetailText(account), context);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        ApplyEdit(response, editMessageId);
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -383,7 +400,7 @@ public sealed class KuroResponseBuilder(
                 }
             }
         });
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -411,7 +428,7 @@ public sealed class KuroResponseBuilder(
                 }
             }
         });
-        response.ButtonRows.Add(await BackRowAsync(context, "返回账号列表", "kuro-autosign-root-menu", new KuroAutoSignMenuCallbackData(0, "root"), cancellationToken));
+        response.AddButtonRow(await BackRowAsync(context, "返回账号列表", "kuro-autosign-root-menu", new KuroAutoSignMenuCallbackData(0, "root"), cancellationToken));
         return response;
     }
 
@@ -429,13 +446,9 @@ public sealed class KuroResponseBuilder(
         }
 
         var response = CommandResponses.Text(BuildAutoSignBbsText(account), context);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        ApplyEdit(response, editMessageId);
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -443,7 +456,7 @@ public sealed class KuroResponseBuilder(
                 await TaskButtonAsync(context, account, KuroBbsTaskFlags.ViewPosts, "浏览", cancellationToken)
             }
         });
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -451,7 +464,7 @@ public sealed class KuroResponseBuilder(
                 await TaskButtonAsync(context, account, KuroBbsTaskFlags.SharePosts, "分享", cancellationToken)
             }
         });
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -468,7 +481,7 @@ public sealed class KuroResponseBuilder(
                 }
             }
         });
-        response.ButtonRows.Add(await BackRowAsync(context, "返回", "kuro-autosign-account-menu", new KuroAutoSignMenuCallbackData(account.Id, "account"), cancellationToken));
+        response.AddButtonRow(await BackRowAsync(context, "返回", "kuro-autosign-account-menu", new KuroAutoSignMenuCallbackData(account.Id, "account"), cancellationToken));
         return response;
     }
 
@@ -489,11 +502,7 @@ public sealed class KuroResponseBuilder(
         var orderedRoles = account.Roles.OrderBy(role => role.GameId).ThenBy(role => role.RoleId).ToArray();
         page = NormalizePage(page, orderedRoles.Length, RolesPerPage);
         var response = CommandResponses.Text(BuildAutoSignGameText(account, page), context);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        ApplyEdit(response, editMessageId);
 
         await AddPagedRoleButtonsAsync(response, context, account, orderedRoles, page, RolesPerPage, cancellationToken);
         await AddPageNavigationButtonsAsync(
@@ -506,7 +515,7 @@ public sealed class KuroResponseBuilder(
             totalCount: orderedRoles.Length,
             pageSize: RolesPerPage,
             cancellationToken);
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -523,7 +532,7 @@ public sealed class KuroResponseBuilder(
                 }
             }
         });
-        response.ButtonRows.Add(await BackRowAsync(context, "返回", "kuro-autosign-account-menu", new KuroAutoSignMenuCallbackData(account.Id, "account"), cancellationToken));
+        response.AddButtonRow(await BackRowAsync(context, "返回", "kuro-autosign-account-menu", new KuroAutoSignMenuCallbackData(account.Id, "account"), cancellationToken));
         return response;
     }
 
@@ -554,14 +563,14 @@ public sealed class KuroResponseBuilder(
 
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
     }
 
@@ -591,7 +600,7 @@ public sealed class KuroResponseBuilder(
 
             if (row.Buttons.Count == 1)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
@@ -647,7 +656,7 @@ public sealed class KuroResponseBuilder(
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
     }
 
@@ -689,22 +698,21 @@ public sealed class KuroResponseBuilder(
             NotificationTypes.KuroAutoSign,
             accounts.Select(account => account.Id).ToArray(),
             cancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyTypePanel, context);
-        response.NotifyTypePanel = new NotifyTypePanelData();
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = NotificationTypes.KuroAutoSign,
-            DisplayName = NotificationTypes.KuroAutoSignDisplayName,
-            Enabled = enabled.Count > 0
-        });
-        response.Message = "[消息订阅管理]\n当前已启用: " + (enabled.Count > 0 ? $"`{NotificationTypes.KuroAutoSignDisplayName}`" : "无");
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        var enabledMarks = enabled.Count > 0
+            ? new[] { $"`{MarkdownV2.Code(NotificationTypes.KuroAutoSignDisplayName)}`" }
+            : [];
+        var markdown = string.Join('\n',
+            MarkdownV2.Escape("[消息订阅管理]"),
+            MarkdownV2.Escape("当前已启用：") + (enabledMarks.Length == 0
+                ? MarkdownV2.Escape("无")
+                : string.Join(MarkdownV2.Escape("、"), enabledMarks)));
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity,
+            markdown,
+            replyToMessageId: editMessageId is null ? context.Request.MessageId : null,
+            editMessageId: editMessageId);
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -736,19 +744,20 @@ public sealed class KuroResponseBuilder(
             NotificationTypes.KuroAutoSign,
             accounts.Select(account => account.Id).ToArray(),
             cancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyAccountPanel, context);
-        response.NotifyAccountPanel = new NotifyAccountPanelData
-        {
-            Type = NotificationTypes.KuroAutoSign,
-            DisplayName = NotificationTypes.KuroAutoSignDisplayName
-        };
-        response.NotifyAccountPanel.KuroAccounts.AddRange(accounts.Select(account => ToItem(account, enabled.Contains(account.Id))));
-        response.Message = $"[{NotificationTypes.KuroAutoSignDisplayName}]\n当前已启用: " + FormatEnabledAccounts(accounts, enabled);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        var enabledMarks = accounts
+            .Where(account => enabled.Contains(account.Id))
+            .Select(account => $"`{MarkdownV2.Code(account.DisplayName)}`")
+            .ToArray();
+        var markdown = string.Join('\n',
+            MarkdownV2.Escape($"[{NotificationTypes.KuroAutoSignDisplayName}]"),
+            MarkdownV2.Escape("当前已启用：") + (enabledMarks.Length == 0
+                ? MarkdownV2.Escape("无")
+                : string.Join(MarkdownV2.Escape("、"), enabledMarks)));
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity,
+            markdown,
+            replyToMessageId: editMessageId is null ? context.Request.MessageId : null,
+            editMessageId: editMessageId);
 
         var row = new ResponseButtonRow();
         foreach (var account in accounts)
@@ -767,17 +776,17 @@ public sealed class KuroResponseBuilder(
 
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -806,35 +815,6 @@ public sealed class KuroResponseBuilder(
             }
         });
         return response;
-    }
-
-    public static KuroAccountItem ToItem(KuroAccount account, bool notificationEnabled)
-    {
-        var item = new KuroAccountItem
-        {
-            Id = account.Id,
-            BbsUserId = account.BbsUserId,
-            DisplayName = account.DisplayName,
-            AutoSignEnabled = account.AutoSignEnabled,
-            BbsTaskFlags = account.BbsTaskFlags,
-            NotificationEnabled = notificationEnabled
-        };
-        item.Roles.AddRange(account.Roles
-            .OrderBy(role => role.GameId)
-            .ThenBy(role => role.RoleId)
-            .Select(role => new KuroGameRoleItem
-            {
-                Id = role.Id,
-                GameId = role.GameId,
-                GameName = role.GameName,
-                ServerId = role.ServerId,
-                ServerName = role.ServerName,
-                RoleId = role.RoleId,
-                RoleName = role.RoleName,
-                GameLevel = role.GameLevel,
-                AutoSignEnabled = role.AutoSignEnabled
-            }));
-        return item;
     }
 
     private async Task<ResponseButton> TaskButtonAsync(
@@ -919,12 +899,6 @@ public sealed class KuroResponseBuilder(
         if ((flags & KuroBbsTaskFlags.LikePosts) != 0) enabled.Add("点赞");
         if ((flags & KuroBbsTaskFlags.SharePosts) != 0) enabled.Add("分享");
         return enabled.Count == 0 ? "无" : string.Join("、", enabled);
-    }
-
-    private static string FormatEnabledAccounts(IReadOnlyList<KuroAccount> accounts, IReadOnlySet<long> enabled)
-    {
-        var names = accounts.Where(account => enabled.Contains(account.Id)).Select(account => account.DisplayName).ToArray();
-        return names.Length == 0 ? "无" : string.Join("、", names);
     }
 
     private static int NormalizePage(int page, int totalCount, int pageSize)

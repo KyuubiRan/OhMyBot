@@ -220,15 +220,16 @@ public sealed class TelegramCommandGateway(
         return new CommandResponse
         {
             Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Message = text,
-            Text = new TextData { Text = text }
+            Telegram = new TelegramResponse
+            {
+                Messages = { new TelegramMessage { Text = text, ParseMode = TelegramParseMode.None } }
+            }
         };
     }
 
     private static CommandResponse EmptyResponse()
     {
-        return new CommandResponse();
+        return new CommandResponse { Telegram = new TelegramResponse() };
     }
 
     private static CommandResponse ResponseError(string code, string message)
@@ -237,7 +238,10 @@ public sealed class TelegramCommandGateway(
         {
             Code = 1,
             ErrorCode = code,
-            Message = message
+            Telegram = new TelegramResponse
+            {
+                Messages = { new TelegramMessage { Text = $"错误：{message}（{code}）", ParseMode = TelegramParseMode.None } }
+            }
         };
     }
 }

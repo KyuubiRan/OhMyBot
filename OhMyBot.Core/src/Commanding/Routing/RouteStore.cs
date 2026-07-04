@@ -1,3 +1,4 @@
+using System.Text.Encodings.Web;
 using System.Text.Json;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts;
@@ -15,7 +16,9 @@ public sealed class RouteStore(
     private readonly RouteOptions _options = options.Value;
     private readonly JsonSerializerOptions _jsonOptions = new(JsonSerializerDefaults.Web)
     {
-        WriteIndented = true
+        WriteIndented = true,
+        // route.json 是本地配置文件，非 HTML 上下文：让中文等非 ASCII 原样输出，保持人类可读。
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping
     };
     private IReadOnlyDictionary<string, RouteEntry> _routes = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyDictionary<string, RouteEntry> _routeLookup = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);

@@ -156,10 +156,9 @@ public class V2MihoyoTests
 
         var response = await builder.BuildNotifyAccountPanelAsync(CreateContext(), accounts);
 
-        Assert.AreEqual(CommandResponseDataKind.NotifyAccountPanel, response.DataKind);
-        Assert.HasCount(1, response.NotifyAccountPanel.MihoyoAccounts);
-        Assert.IsTrue(response.NotifyAccountPanel.MihoyoAccounts[0].NotificationEnabled);
-        StringAssert.Contains(response.Message, "tester");
+        // 意图：账号出现在面板中，且其订阅开关按钮反映“已启用”状态
+        Assert.AreEqual("[开] tester", response.TgButtonRows()[0].Buttons[0].Text);
+        StringAssert.Contains(response.TgText(), "tester");
     }
 
     private static MihoyoHttpClient CreateClient(HttpMessageHandler handler)
@@ -188,13 +187,13 @@ public class V2MihoyoTests
         var response = await builder.BuildGameSignPanelAsync(CreateContext(), account, ["genshin"]);
 
         // 意图：每个已同步游戏一个开关，√/× 反映勾选状态，底部提供「签到」「返回」
-        Assert.HasCount(3, response.ButtonRows);
-        Assert.AreEqual("[√] 原神", response.ButtonRows[0].Buttons[0].Text);
-        Assert.AreEqual("[×] 崩坏：星穹铁道", response.ButtonRows[1].Buttons[0].Text);
-        Assert.AreEqual("签到", response.ButtonRows[2].Buttons[0].Text);
-        Assert.AreEqual("返回", response.ButtonRows[2].Buttons[1].Text);
-        // 意图：面板正文展示各游戏角色的昵称/UID/等级，便于确认签到对象
-        StringAssert.Contains(response.Text.Text, "阿光(188888888) Lv.60");
+        Assert.HasCount(3, response.TgButtonRows());
+        Assert.AreEqual("[√] 原神", response.TgButtonRows()[0].Buttons[0].Text);
+        Assert.AreEqual("[×] 崩坏：星穹铁道", response.TgButtonRows()[1].Buttons[0].Text);
+        Assert.AreEqual("签到", response.TgButtonRows()[2].Buttons[0].Text);
+        Assert.AreEqual("返回", response.TgButtonRows()[2].Buttons[1].Text);
+        // 意图：面板正文展示各游戏角色的昵称/UID/等级，便于确认签到对象（MarkdownV2 转义括号与点号）
+        StringAssert.Contains(response.TgText(), "阿光\\(188888888\\) Lv\\.60");
     }
 
     [TestMethod]
@@ -205,8 +204,8 @@ public class V2MihoyoTests
 
         var response = await builder.BuildGameSignPanelAsync(CreateContext(), account, []);
 
-        Assert.IsEmpty(response.ButtonRows);
-        StringAssert.Contains(response.Text.Text, "game init");
+        Assert.IsEmpty(response.TgButtonRows());
+        StringAssert.Contains(response.TgText(), "game init");
     }
 
     [TestMethod]
@@ -221,12 +220,12 @@ public class V2MihoyoTests
 
         var multi = await builder.BuildGameSignSelectionAsync(CreateContext(), many);
         // 两个账号 + 「全部签到」
-        Assert.HasCount(3, multi.ButtonRows);
-        Assert.AreEqual("全部签到", multi.ButtonRows[^1].Buttons[0].Text);
+        Assert.HasCount(3, multi.TgButtonRows());
+        Assert.AreEqual("全部签到", multi.TgButtonRows()[^1].Buttons[0].Text);
 
         var single = await builder.BuildGameSignSelectionAsync(CreateContext(), [many[0]]);
         // 单账号无需「全部签到」
-        Assert.HasCount(1, single.ButtonRows);
+        Assert.HasCount(1, single.TgButtonRows());
     }
 
     [TestMethod]

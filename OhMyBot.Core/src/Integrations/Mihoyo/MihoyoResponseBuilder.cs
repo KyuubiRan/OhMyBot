@@ -2,6 +2,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Commanding.Notifications;
 
@@ -20,54 +21,31 @@ public sealed class MihoyoResponseBuilder(
         IReadOnlyList<MihoyoAccount> accounts,
         CancellationToken cancellationToken = default)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.MihoyoAccountList, context);
-        response.MihoyoAccountList = new MihoyoAccountListData();
-        response.MihoyoAccountList.Accounts.AddRange(accounts.Select(account => ToItem(account, notificationEnabled: false)));
-        response.Message = accounts.Count == 0
-            ? "尚未绑定米游社账号"
-            : "[米游社]\n已绑定账号：\n" + string.Join('\n', accounts.Select(account =>
-                $"- #{account.Id} {account.DisplayName} [{RegionLabel(account.Region)}]：自动签到{(account.AutoSignEnabled ? "开启" : "关闭")}"));
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity, RenderAccountList(accounts), replyToMessageId: context.Request.MessageId);
         return Task.FromResult(response);
     }
 
     public CommandResponse BuildBindResult(CommandContext context, MihoyoBindResult result)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.MihoyoBindResult, context);
-        response.MihoyoBindResult = new MihoyoBindResultData
-        {
-            Account = ToItem(result.Account, notificationEnabled: false),
-            UpdatedExisting = result.UpdatedExisting
-        };
-        response.Message = result.UpdatedExisting ? "米游社账号已更新" : "米游社账号绑定成功";
-        return response;
+        return CommandResponses.TelegramMarkdown(
+            context.Identity, RenderBindResult(result), replyToMessageId: context.Request.MessageId);
     }
 
     public CommandResponse BuildBbsSignResult(CommandContext context, MihoyoBbsSignResult result, bool autoSign = false)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.MihoyoBbsSignResult, context);
-        response.MihoyoBbsSignResult = new MihoyoBbsSignResultData
-        {
-            Account = ToItem(result.Account, notificationEnabled: false),
-            AutoSign = autoSign,
-            OccurredAtUnixSeconds = timeProvider.GetUtcNow().ToUnixTimeSeconds()
-        };
-        response.MihoyoBbsSignResult.Lines.AddRange(result.Lines);
-        response.Message = string.Join('\n', result.Lines);
-        return response;
+        return CommandResponses.TelegramMarkdown(
+            context.Identity,
+            RenderSignResult(string.Empty, result.Account, result.Lines, autoSign),
+            replyToMessageId: context.Request.MessageId);
     }
 
     public CommandResponse BuildGameSignResult(CommandContext context, MihoyoGameSignResult result, bool autoSign = false)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.MihoyoGameSignResult, context);
-        response.MihoyoGameSignResult = new MihoyoGameSignResultData
-        {
-            Account = ToItem(result.Account, notificationEnabled: false),
-            AutoSign = autoSign,
-            OccurredAtUnixSeconds = timeProvider.GetUtcNow().ToUnixTimeSeconds()
-        };
-        response.MihoyoGameSignResult.Lines.AddRange(result.Lines);
-        response.Message = string.Join('\n', result.Lines);
-        return response;
+        return CommandResponses.TelegramMarkdown(
+            context.Identity,
+            RenderSignResult("游戏", result.Account, result.Lines, autoSign),
+            replyToMessageId: context.Request.MessageId);
     }
 
     public async Task<CommandResponse> BuildBbsSignSelectionAsync(
@@ -82,14 +60,14 @@ public sealed class MihoyoResponseBuilder(
         var cnAccounts = accounts.Where(account => account.Region == MihoyoRegion.Cn).ToArray();
         foreach (var account in cnAccounts)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-bbs-sign-select", $"{account.DisplayName} #{account.Id}",
                 new MihoyoBbsSignCallbackData(account.Id, actions.ToArray()), cancellationToken)));
         }
 
         if (cnAccounts.Length > 1)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-bbs-sign-all", "全部签到",
                 new MihoyoBbsSignAllCallbackData(), cancellationToken)));
         }
@@ -107,14 +85,14 @@ public sealed class MihoyoResponseBuilder(
         ApplyEdit(response, editMessageId);
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-game-sign-panel", $"{account.DisplayName} #{account.Id} [{RegionLabel(account.Region)}]",
                 new MihoyoGameSignPanelCallbackData(account.Id), cancellationToken)));
         }
 
         if (accounts.Count > 1)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-game-sign-all", "全部签到",
                 new MihoyoGameSignAllCallbackData(), cancellationToken)));
         }
@@ -155,12 +133,12 @@ public sealed class MihoyoResponseBuilder(
         foreach (var key in available)
         {
             var game = MihoyoGameCatalog.FindByKey(key)!;
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-game-sign-panel", $"{(selectedSet.Contains(key) ? "[√]" : "[×]")} {game.Name}",
                 new MihoyoGameSignPanelCallbackData(account.Id, Toggle: key), cancellationToken)));
         }
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -248,7 +226,7 @@ public sealed class MihoyoResponseBuilder(
         var response = CommandResponses.Text("请选择要删除的米游社账号：", context);
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-delete-select", $"{account.DisplayName} #{account.Id} [{RegionLabel(account.Region)}]",
                 new MihoyoAccountCallbackData(account.Id), cancellationToken)));
         }
@@ -275,14 +253,14 @@ public sealed class MihoyoResponseBuilder(
                 new MihoyoAutoSignMenuCallbackData(account.Id, "account"), cancellationToken));
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
 
         await AddPageNavigationAsync(response, context, "mihoyo-autosign-root-menu", 0, "root", page, accounts.Count, AccountsPerPage, cancellationToken);
@@ -305,7 +283,7 @@ public sealed class MihoyoResponseBuilder(
         var response = CommandResponses.Text(BuildAutoSignAccountDetailText(account), context);
         ApplyEdit(response, editMessageId);
 
-        response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+        response.AddButtonRow(SingleButtonRow(await ButtonAsync(
             context, "mihoyo-auto-sign-toggle", account.AutoSignEnabled ? "[开] 总开关" : "[关] 总开关",
             new MihoyoAutoSignCallbackData(account.Id), cancellationToken)));
 
@@ -320,9 +298,9 @@ public sealed class MihoyoResponseBuilder(
         menuRow.Buttons.Add(await ButtonAsync(
             context, "mihoyo-autosign-game-menu", "游戏角色",
             new MihoyoAutoSignMenuCallbackData(account.Id, "game"), cancellationToken));
-        response.ButtonRows.Add(menuRow);
+        response.AddButtonRow(menuRow);
 
-        response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+        response.AddButtonRow(SingleButtonRow(await ButtonAsync(
             context, "mihoyo-autosign-root-menu", "返回账号列表",
             new MihoyoAutoSignMenuCallbackData(0, "root"), cancellationToken)));
         return response;
@@ -344,7 +322,7 @@ public sealed class MihoyoResponseBuilder(
         var response = CommandResponses.Text(BuildAutoSignBbsText(account), context);
         ApplyEdit(response, editMessageId);
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -352,7 +330,7 @@ public sealed class MihoyoResponseBuilder(
                 await TaskButtonAsync(context, account, MihoyoBbsTaskFlags.ViewPosts, "浏览", cancellationToken)
             }
         });
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -360,10 +338,10 @@ public sealed class MihoyoResponseBuilder(
                 await TaskButtonAsync(context, account, MihoyoBbsTaskFlags.SharePosts, "分享", cancellationToken)
             }
         });
-        response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+        response.AddButtonRow(SingleButtonRow(await ButtonAsync(
             context, "mihoyo-bbs-task-toggle-all", "开启/关闭全部",
             new MihoyoBbsTaskToggleAllCallbackData(account.Id), cancellationToken)));
-        response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+        response.AddButtonRow(SingleButtonRow(await ButtonAsync(
             context, "mihoyo-autosign-account-menu", "返回",
             new MihoyoAutoSignMenuCallbackData(account.Id, "account"), cancellationToken)));
         return response;
@@ -390,16 +368,16 @@ public sealed class MihoyoResponseBuilder(
 
         foreach (var role in orderedRoles.Skip(page * RolesPerPage).Take(RolesPerPage))
         {
-            response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+            response.AddButtonRow(SingleButtonRow(await ButtonAsync(
                 context, "mihoyo-game-auto-sign-toggle", $"{(role.AutoSignEnabled ? "[开]" : "[关]")} {FormatRole(role)}",
                 new MihoyoGameAutoSignCallbackData(role.Id, account.Id, page), cancellationToken)));
         }
 
         await AddPageNavigationAsync(response, context, "mihoyo-autosign-game-menu", account.Id, "game", page, orderedRoles.Length, RolesPerPage, cancellationToken);
-        response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+        response.AddButtonRow(SingleButtonRow(await ButtonAsync(
             context, "mihoyo-game-auto-sign-toggle-all", "开启/关闭全部",
             new MihoyoGameAutoSignToggleAllCallbackData(account.Id, page), cancellationToken)));
-        response.ButtonRows.Add(SingleButtonRow(await ButtonAsync(
+        response.AddButtonRow(SingleButtonRow(await ButtonAsync(
             context, "mihoyo-autosign-account-menu", "返回",
             new MihoyoAutoSignMenuCallbackData(account.Id, "account"), cancellationToken)));
         return response;
@@ -417,15 +395,11 @@ public sealed class MihoyoResponseBuilder(
             NotificationTypes.MihoyoAutoSign,
             accounts.Select(account => account.Id).ToArray(),
             cancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyAccountPanel, context);
-        response.NotifyAccountPanel = new NotifyAccountPanelData
-        {
-            Type = NotificationTypes.MihoyoAutoSign,
-            DisplayName = NotificationTypes.MihoyoAutoSignDisplayName
-        };
-        response.NotifyAccountPanel.MihoyoAccounts.AddRange(accounts.Select(account => ToItem(account, enabled.Contains(account.Id))));
-        response.Message = $"[{NotificationTypes.MihoyoAutoSignDisplayName}]\n当前已启用: " + FormatEnabledAccounts(accounts, enabled);
-        ApplyEdit(response, editMessageId);
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity,
+            RenderNotifyAccountPanel(accounts, enabled),
+            replyToMessageId: editMessageId is null ? context.Request.MessageId : null,
+            editMessageId: editMessageId);
 
         var row = new ResponseButtonRow();
         foreach (var account in accounts)
@@ -435,17 +409,17 @@ public sealed class MihoyoResponseBuilder(
                 new NotifyAccountCallbackData(NotificationTypes.MihoyoAutoSign, account.Id, ToggleAll: false), cancellationToken));
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -457,33 +431,85 @@ public sealed class MihoyoResponseBuilder(
         return response;
     }
 
-    public static MihoyoAccountItem ToItem(MihoyoAccount account, bool notificationEnabled)
+    // ---- Telegram MarkdownV2 渲染（原先在 TelegramGateway 的 renderer 内） ----
+
+    private static string RenderAccountList(IReadOnlyList<MihoyoAccount> accounts)
     {
-        var item = new MihoyoAccountItem
+        if (accounts.Count == 0)
         {
-            Id = account.Id,
-            Stuid = account.Stuid,
-            DisplayName = account.DisplayName,
-            Region = (int)account.Region,
-            AutoSignEnabled = account.AutoSignEnabled,
-            BbsTaskFlags = account.BbsTaskFlags,
-            NotificationEnabled = notificationEnabled
-        };
-        item.Roles.AddRange(account.Roles
-            .OrderBy(role => role.GameBiz)
-            .ThenBy(role => role.GameUid)
-            .Select(role => new MihoyoGameRoleItem
+            return "尚未绑定米游社账号";
+        }
+
+        var lines = new List<string> { MarkdownV2.Escape("[米游社]"), "已绑定账号：" };
+        foreach (var account in accounts)
+        {
+            lines.Add($"\\- `#{account.Id}` `{MarkdownV2.Code(account.DisplayName)}` \\[{MarkdownV2.Escape(RegionLabel(account.Region))}\\]：自动签到{MarkdownV2.Escape(account.AutoSignEnabled ? "开启" : "关闭")}");
+            foreach (var role in OrderRoles(account))
             {
-                Id = role.Id,
-                GameBiz = role.GameBiz,
-                GameName = role.GameName,
-                Region = role.Region,
-                GameUid = role.GameUid,
-                Nickname = role.Nickname,
-                Level = role.Level,
-                AutoSignEnabled = role.AutoSignEnabled
-            }));
-        return item;
+                lines.Add($"  \\- {MarkdownV2.Escape(role.GameName)}{MarkdownV2.Escape(FormatRoleSuffix(role))}：{MarkdownV2.Escape(role.AutoSignEnabled ? "自动签到开启" : "自动签到关闭")}");
+            }
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private static string RenderBindResult(MihoyoBindResult result)
+    {
+        var account = result.Account;
+        var lines = new List<string>
+        {
+            MarkdownV2.Escape(result.UpdatedExisting ? "米游社账号已更新" : "米游社账号绑定成功"),
+            $"账号：`#{account.Id}` `{MarkdownV2.Code(account.DisplayName)}` \\[{MarkdownV2.Escape(RegionLabel(account.Region))}\\]",
+            $"UID：`{account.Stuid}`"
+        };
+        if (account.Roles.Count > 0)
+        {
+            lines.Add("角色：");
+            lines.AddRange(OrderRoles(account).Select(role => $"\\- {MarkdownV2.Escape(role.GameName)}{MarkdownV2.Escape(FormatRoleSuffix(role))}"));
+        }
+
+        return string.Join('\n', lines);
+    }
+
+    private string RenderSignResult(string kind, MihoyoAccount account, IReadOnlyList<string> resultLines, bool autoSign)
+    {
+        var title = $"[米游社-{(autoSign ? "自动" : "手动")}{kind}签到]";
+        var lines = new List<string>
+        {
+            MarkdownV2.Escape(title),
+            $"账号：`#{account.Id}` `{MarkdownV2.Code(account.DisplayName)}` \\[{MarkdownV2.Escape(RegionLabel(account.Region))}\\]"
+        };
+        lines.AddRange(resultLines.Select(MarkdownV2.Escape));
+        var occurredAt = timeProvider.GetUtcNow().ToLocalTime();
+        lines.Add($"时间：{MarkdownV2.Escape(occurredAt.ToString("yyyy-MM-dd HH:mm:ss"))}");
+        return string.Join('\n', lines);
+    }
+
+    private static string RenderNotifyAccountPanel(IReadOnlyList<MihoyoAccount> accounts, IReadOnlySet<long> enabled)
+    {
+        var enabledNames = accounts
+            .Where(account => enabled.Contains(account.Id))
+            .Select(account => $"`{MarkdownV2.Code(account.DisplayName)}`")
+            .ToArray();
+        return string.Join('\n',
+            MarkdownV2.Escape($"[{NotificationTypes.MihoyoAutoSignDisplayName}]"),
+            MarkdownV2.Escape("当前已启用：") + (enabledNames.Length == 0 ? MarkdownV2.Escape("无") : string.Join(MarkdownV2.Escape("、"), enabledNames)));
+    }
+
+    private static IEnumerable<MihoyoGameRole> OrderRoles(MihoyoAccount account)
+    {
+        return account.Roles.OrderBy(role => role.GameBiz).ThenBy(role => role.GameUid);
+    }
+
+    private static string FormatRoleSuffix(MihoyoGameRole role)
+    {
+        if (role.GameUid <= 0)
+        {
+            return string.Empty;
+        }
+
+        var level = string.IsNullOrWhiteSpace(role.Level) ? string.Empty : $" Lv.{role.Level}";
+        return $" / {role.Nickname} ({role.GameUid}){level}";
     }
 
     private async Task<ResponseButton> TaskButtonAsync(
@@ -542,7 +568,7 @@ public sealed class MihoyoResponseBuilder(
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
     }
 
@@ -555,8 +581,7 @@ public sealed class MihoyoResponseBuilder(
     {
         if (!string.IsNullOrWhiteSpace(editMessageId))
         {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
+            response.AsTelegramEdit(editMessageId);
         }
     }
 
@@ -649,12 +674,6 @@ public sealed class MihoyoResponseBuilder(
     private static string RegionLabel(MihoyoRegion region)
     {
         return region == MihoyoRegion.Cn ? "国服" : "国际服";
-    }
-
-    private static string FormatEnabledAccounts(IReadOnlyList<MihoyoAccount> accounts, IReadOnlySet<long> enabled)
-    {
-        var names = accounts.Where(account => enabled.Contains(account.Id)).Select(account => account.DisplayName).ToArray();
-        return names.Length == 0 ? "无" : string.Join("、", names);
     }
 
     private static int NormalizePage(int page, int totalCount, int pageSize)

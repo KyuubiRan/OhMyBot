@@ -1,6 +1,7 @@
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Commanding.Notifications;
 
@@ -11,30 +12,41 @@ public sealed class AiRouterResponseBuilder(
     NotificationSubscriptionService subscriptionService,
     TimeProvider timeProvider)
 {
-    public async Task<CommandResponse> BuildAccountListAsync(
+    public Task<CommandResponse> BuildAccountListAsync(
         CommandContext context,
         IReadOnlyList<AiRouterAccount> accounts,
         CancellationToken cancellationToken = default)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.AiRouterAccountList, context);
-        response.AiRouterAccountList = new AiRouterAccountListData();
-        response.AiRouterAccountList.Accounts.AddRange(accounts.Select(account => ToItem(account, notificationEnabled: false)));
-        response.Message = accounts.Count == 0
-            ? "尚未绑定 AI Router 账号"
-            : "[AI Router]\n已绑定账号：\n" + string.Join('\n', accounts.Select(account => $"- {account.DisplayName} ({account.LoginEmail})：自动签到{(account.AutoSignEnabled ? "开启" : "关闭")}"));
-        return await Task.FromResult(response);
+        string markdown;
+        if (accounts.Count == 0)
+        {
+            markdown = "尚未绑定 AI Router 账号";
+        }
+        else
+        {
+            var lines = new List<string> { MarkdownV2.Escape("[AI Router]"), "已绑定账号：" };
+            lines.AddRange(accounts.Select(account =>
+                $"\\- {MarkdownV2.CodeSpan(account.DisplayName)} \\({MarkdownV2.Code(account.LoginEmail)}\\)：自动签到{MarkdownV2.Escape(account.AutoSignEnabled ? "开启" : "关闭")}"));
+            markdown = string.Join('\n', lines);
+        }
+
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity,
+            markdown,
+            replyToMessageId: context.Request.MessageId);
+        return Task.FromResult(response);
     }
 
     public CommandResponse BuildBindResult(CommandContext context, AiRouterBindResult result)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.AiRouterBindResult, context, "绑定成功！");
-        response.AiRouterBindResult = new AiRouterBindResultData
-        {
-            AccountId = result.Id,
-            LoginEmail = result.LoginEmail,
-            DisplayName = result.DisplayName
-        };
-        return response;
+        var markdown = string.Join('\n',
+            MarkdownV2.Escape("绑定成功！"),
+            $"账号：{MarkdownV2.CodeSpan(result.DisplayName)}",
+            $"邮箱：{MarkdownV2.CodeSpan(result.LoginEmail)}");
+        return CommandResponses.TelegramMarkdown(
+            context.Identity,
+            markdown,
+            replyToMessageId: context.Request.MessageId);
     }
 
     public CommandResponse BuildSignResult(
@@ -42,9 +54,35 @@ public sealed class AiRouterResponseBuilder(
         AiRouterSignResult result,
         bool autoSign = false)
     {
-        var response = CommandResponses.Ok(CommandResponseDataKind.AiRouterSignResult, context);
-        response.AiRouterSignResult = ToSignData(result, autoSign, timeProvider.GetUtcNow());
-        return response;
+        var title = autoSign ? "[AI Router-自动签到]" : "[AI Router-手动签到]";
+        var status = result.Type switch
+        {
+            AiRouterSignResultType.Success => "签到成功",
+            AiRouterSignResultType.AlreadySigned => "今日已签到",
+            _ => "签到失败"
+        };
+        var lines = new List<string>
+        {
+            MarkdownV2.Escape(title),
+            $"账号：{MarkdownV2.CodeSpan(result.DisplayName)}",
+            $"邮箱：{MarkdownV2.CodeSpan(result.LoginEmail)}",
+            $"结果：{MarkdownV2.Escape(status)}",
+            $"说明：{MarkdownV2.Escape(result.Message)}"
+        };
+
+        if (result.SignIn is { } signIn)
+        {
+            lines.Add($"今日奖励：{MarkdownV2.Escape(signIn.TodayReward.ToString("F2"))}");
+            lines.Add($"连续签到：{signIn.CurrentStreak} 天");
+            lines.Add($"累计奖励：{MarkdownV2.Escape(signIn.TotalReward.ToString("F2"))}");
+            lines.Add($"本月签到：{signIn.MonthSignedDays} 天");
+        }
+
+        lines.Add($"时间：{MarkdownV2.Escape(timeProvider.GetUtcNow().ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss"))}");
+        return CommandResponses.TelegramMarkdown(
+            context.Identity,
+            string.Join('\n', lines),
+            replyToMessageId: context.Request.MessageId);
     }
 
     public async Task<CommandResponse> BuildSignSelectionAsync(
@@ -56,13 +94,12 @@ public sealed class AiRouterResponseBuilder(
         var response = CommandResponses.Text("请选择要签到的 AI Router 账号：", context);
         if (!string.IsNullOrWhiteSpace(editMessageId))
         {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
+            response.AsTelegramEdit(editMessageId);
         }
 
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(new ResponseButtonRow
+            response.AddButtonRow(new ResponseButtonRow
             {
                 Buttons =
                 {
@@ -83,7 +120,7 @@ public sealed class AiRouterResponseBuilder(
 
         if (accounts.Count > 1)
         {
-            response.ButtonRows.Add(new ResponseButtonRow
+            response.AddButtonRow(new ResponseButtonRow
             {
                 Buttons =
                 {
@@ -127,8 +164,7 @@ public sealed class AiRouterResponseBuilder(
         var response = CommandResponses.Text(string.Join('\n', lines), context);
         if (!string.IsNullOrWhiteSpace(editMessageId))
         {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
+            response.AsTelegramEdit(editMessageId);
         }
 
         return response;
@@ -143,8 +179,7 @@ public sealed class AiRouterResponseBuilder(
         var response = CommandResponses.Text(BuildAutoSignText(accounts), context);
         if (!string.IsNullOrWhiteSpace(editMessageId))
         {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
+            response.AsTelegramEdit(editMessageId);
         }
 
         await AddAccountToggleButtonsAsync(
@@ -165,7 +200,7 @@ public sealed class AiRouterResponseBuilder(
         var response = CommandResponses.Text("请选择要删除的 AI Router 账号：", context);
         foreach (var account in accounts)
         {
-            response.ButtonRows.Add(new ResponseButtonRow
+            response.AddButtonRow(new ResponseButtonRow
             {
                 Buttons =
                 {
@@ -199,22 +234,18 @@ public sealed class AiRouterResponseBuilder(
             NotificationTypes.AiRouterAutoSign,
             accounts.Select(account => account.Id).ToArray(),
             cancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyTypePanel, context);
-        response.NotifyTypePanel = new NotifyTypePanelData();
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = NotificationTypes.AiRouterAutoSign,
-            DisplayName = NotificationTypes.AiRouterAutoSignDisplayName,
-            Enabled = enabled.Count > 0
-        });
-        response.Message = "[消息订阅管理]\n当前已启用: " + (enabled.Count > 0 ? $"`{NotificationTypes.AiRouterAutoSignDisplayName}`" : "无");
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        var markdown = string.Join('\n',
+            MarkdownV2.Escape("[消息订阅管理]"),
+            MarkdownV2.Escape("当前已启用：") + (enabled.Count > 0
+                ? MarkdownV2.CodeSpan(NotificationTypes.AiRouterAutoSignDisplayName)
+                : MarkdownV2.Escape("无")));
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity,
+            markdown,
+            replyToMessageId: editMessageId is null ? context.Request.MessageId : null,
+            editMessageId: editMessageId);
 
-        response.ButtonRows.Add(new ResponseButtonRow
+        response.AddButtonRow(new ResponseButtonRow
         {
             Buttons =
             {
@@ -246,19 +277,20 @@ public sealed class AiRouterResponseBuilder(
             NotificationTypes.AiRouterAutoSign,
             accounts.Select(account => account.Id).ToArray(),
             cancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyAccountPanel, context);
-        response.NotifyAccountPanel = new NotifyAccountPanelData
-        {
-            Type = NotificationTypes.AiRouterAutoSign,
-            DisplayName = NotificationTypes.AiRouterAutoSignDisplayName
-        };
-        response.NotifyAccountPanel.Accounts.AddRange(accounts.Select(account => ToItem(account, enabled.Contains(account.Id))));
-        response.Message = $"[{NotificationTypes.AiRouterAutoSignDisplayName}]\n当前已启用: " + FormatEnabledAccounts(accounts, enabled);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.EditMessageId = editMessageId;
-            response.ReplyToMessageId = string.Empty;
-        }
+        var enabledMarks = accounts
+            .Where(account => enabled.Contains(account.Id))
+            .Select(account => MarkdownV2.CodeSpan(account.DisplayName))
+            .ToArray();
+        var markdown = string.Join('\n',
+            MarkdownV2.Escape($"[{NotificationTypes.AiRouterAutoSignDisplayName}]"),
+            MarkdownV2.Escape("当前已启用：") + (enabledMarks.Length == 0
+                ? MarkdownV2.Escape("无")
+                : string.Join(MarkdownV2.Escape("、"), enabledMarks)));
+        var response = CommandResponses.TelegramMarkdown(
+            context.Identity,
+            markdown,
+            replyToMessageId: editMessageId is null ? context.Request.MessageId : null,
+            editMessageId: editMessageId);
 
         await AddAccountToggleButtonsAsync(
             response,
@@ -284,32 +316,6 @@ public sealed class AiRouterResponseBuilder(
                 }
             ]);
         return response;
-    }
-
-    public static AiRouterSignResultData ToSignData(
-        AiRouterSignResult result,
-        bool autoSign,
-        DateTimeOffset occurredAt)
-    {
-        return new AiRouterSignResultData
-        {
-            LoginEmail = result.LoginEmail,
-            DisplayName = result.DisplayName,
-            Status = result.Type switch
-            {
-                AiRouterSignResultType.Success => "success",
-                AiRouterSignResultType.AlreadySigned => "already_signed",
-                _ => "failed"
-            },
-            Message = result.Message,
-            TodayReward = result.SignIn?.TodayReward.ToString("F2") ?? string.Empty,
-            CurrentStreak = result.SignIn?.CurrentStreak ?? 0,
-            TotalReward = result.SignIn?.TotalReward.ToString("F2") ?? string.Empty,
-            MonthSignedDays = result.SignIn?.MonthSignedDays ?? 0,
-            TokenRefreshed = result.TokenRefreshed,
-            OccurredAtUnixSeconds = occurredAt.ToUnixTimeSeconds(),
-            AutoSign = autoSign
-        };
     }
 
     private async Task AddAccountToggleButtonsAsync(
@@ -340,14 +346,14 @@ public sealed class AiRouterResponseBuilder(
 
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
 
         if (includeAll)
@@ -355,7 +361,7 @@ public sealed class AiRouterResponseBuilder(
             object allCallbackData = actionType == "notify-account-toggle"
                 ? new NotifyAccountCallbackData(NotificationTypes.AiRouterAutoSign, 0, ToggleAll: true)
                 : new AiRouterAutoSignCallbackData(0, ToggleAll: true);
-            response.ButtonRows.Add(new ResponseButtonRow
+            response.AddButtonRow(new ResponseButtonRow
             {
                 Buttons =
                 {
@@ -374,7 +380,7 @@ public sealed class AiRouterResponseBuilder(
             });
             if (extraAllRowButtons is { Count: > 0 })
             {
-                response.ButtonRows[^1].Buttons.AddRange(extraAllRowButtons);
+                response.FirstTelegram().ButtonRows[^1].Buttons.AddRange(extraAllRowButtons);
             }
         }
     }
@@ -383,27 +389,6 @@ public sealed class AiRouterResponseBuilder(
     {
         var enabled = accounts.Where(account => account.AutoSignEnabled).Select(account => $"`{account.DisplayName}`").ToArray();
         return "点击下方按钮进行开/关签到功能\n当前已启用: " + (enabled.Length == 0 ? "无" : string.Join(", ", enabled));
-    }
-
-    private static string FormatEnabledAccounts(IReadOnlyList<AiRouterAccount> accounts, HashSet<long> enabled)
-    {
-        var names = accounts
-            .Where(account => enabled.Contains(account.Id))
-            .Select(account => $"`{account.DisplayName}`")
-            .ToArray();
-        return names.Length == 0 ? "无" : string.Join(", ", names);
-    }
-
-    private static AiRouterAccountItem ToItem(AiRouterAccount account, bool notificationEnabled)
-    {
-        return new AiRouterAccountItem
-        {
-            Id = account.Id,
-            LoginEmail = account.LoginEmail,
-            DisplayName = account.DisplayName,
-            AutoSignEnabled = account.AutoSignEnabled,
-            NotificationEnabled = notificationEnabled
-        };
     }
 }
 

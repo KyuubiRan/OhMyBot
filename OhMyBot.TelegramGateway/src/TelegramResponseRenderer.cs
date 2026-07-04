@@ -1,5 +1,4 @@
 using OhMyBot.Contracts.Grpc;
-using OhMyBot.TelegramGateway.Rendering;
 using Telegram.Bot;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -7,9 +6,9 @@ using Telegram.Bot.Types.ReplyMarkups;
 
 namespace OhMyBot.TelegramGateway;
 
-public sealed class TelegramResponseRenderer(
-    ITelegramBotClient botClient,
-    IEnumerable<ITelegramCommandResultRenderer> renderers)
+// 通用发送器：Core 已产出最终 Telegram 内容（MarkdownV2/纯文本 + 按钮 + 回复/编辑），
+// 网关只负责把每条 TelegramMessage 发出去，不再做任何按命令/按类型的渲染。
+public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
 {
     public async Task RenderAsync(
         ChatId chatId,
@@ -17,68 +16,52 @@ public sealed class TelegramResponseRenderer(
         int? fallbackReplyToMessageId,
         CancellationToken cancellationToken = default)
     {
-        var outgoingMessages = renderers
-            .First(renderer => renderer.CanRender(response))
-            .Render(response)
-            .Select(message => string.IsNullOrWhiteSpace(response.EditMessageId) ? message : WithEditMessageId(message, response.EditMessageId))
-            .Where(message => message is not TelegramTextMessage textMessage || !string.IsNullOrWhiteSpace(textMessage.Text))
-            .ToArray();
-
-        if (outgoingMessages.Length == 0)
+        if (response.PlatformResponseCase != CommandResponse.PlatformResponseOneofCase.Telegram)
         {
             return;
         }
 
-        var replyParameters = CreateReplyParameters(response.ReplyToMessageId, fallbackReplyToMessageId);
-        var replyMarkup = CreateReplyMarkup(response);
-
-        for (var i = 0; i < outgoingMessages.Length; i++)
+        foreach (var message in response.Telegram.Messages)
         {
-            await RenderMessageAsync(
-                botClient,
-                chatId,
-                outgoingMessages[i],
-                i == 0 ? replyParameters : null,
-                i == 0 ? replyMarkup : null,
-                cancellationToken);
+            if (string.IsNullOrWhiteSpace(message.Text))
+            {
+                continue;
+            }
+
+            var parseMode = ToParseMode(message.ParseMode);
+            var replyMarkup = CreateReplyMarkup(message.ButtonRows);
+
+            if (!string.IsNullOrWhiteSpace(message.EditMessageId) && int.TryParse(message.EditMessageId, out var editMessageId))
+            {
+                await botClient.EditMessageText(
+                    chatId,
+                    editMessageId,
+                    message.Text,
+                    parseMode: parseMode,
+                    replyMarkup: replyMarkup,
+                    cancellationToken: cancellationToken);
+            }
+            else
+            {
+                await botClient.SendMessage(
+                    chatId,
+                    message.Text,
+                    parseMode: parseMode,
+                    replyParameters: CreateReplyParameters(message.ReplyToMessageId, fallbackReplyToMessageId),
+                    replyMarkup: replyMarkup,
+                    cancellationToken: cancellationToken);
+            }
         }
     }
 
-    private static async Task RenderMessageAsync(
-        ITelegramBotClient botClient,
-        ChatId chatId,
-        TelegramOutgoingMessage message,
-        ReplyParameters? replyParameters,
-        InlineKeyboardMarkup? replyMarkup,
-        CancellationToken cancellationToken)
+    private static ParseMode ToParseMode(TelegramParseMode parseMode)
     {
-        switch (message)
+        return parseMode switch
         {
-            case TelegramTextMessage textMessage:
-                if (textMessage.EditMessageId is { } editMessageId)
-                {
-                    await botClient.EditMessageText(
-                        chatId,
-                        editMessageId,
-                        textMessage.Text,
-                        parseMode: textMessage.ParseMode,
-                        replyMarkup: replyMarkup,
-                        cancellationToken: cancellationToken);
-                }
-                else
-                {
-                    await botClient.SendMessage(
-                        chatId,
-                        textMessage.Text,
-                        parseMode: textMessage.ParseMode,
-                        replyParameters: replyParameters,
-                        replyMarkup: replyMarkup,
-                        cancellationToken: cancellationToken);
-                }
-                return;
-            default:
-                throw new NotSupportedException($"Telegram outgoing message type is not supported yet: {message.GetType().Name}.");
-        }
+            TelegramParseMode.MarkdownV2 => ParseMode.MarkdownV2,
+            TelegramParseMode.Html => ParseMode.Html,
+            _ => ParseMode.None
+        };
     }
 
     private static ReplyParameters? CreateReplyParameters(string replyToMessageId, int? fallbackReplyToMessageId)
@@ -101,28 +84,16 @@ public sealed class TelegramResponseRenderer(
             };
     }
 
-    private static InlineKeyboardMarkup? CreateReplyMarkup(CommandResponse response)
+    private static InlineKeyboardMarkup? CreateReplyMarkup(IEnumerable<ResponseButtonRow> buttonRows)
     {
-        var rows = response.ButtonRows.Count > 0
-            ? response.ButtonRows
-                .Select(row => row.Buttons
-                    .Where(button => !string.IsNullOrWhiteSpace(button.Text) && !string.IsNullOrWhiteSpace(button.Payload))
-                    .Select(button => InlineKeyboardButton.WithCallbackData(button.Text, button.Payload))
-                    .ToArray())
-                .Where(row => row.Length > 0)
-                .ToArray()
-            : response.Buttons
+        var rows = buttonRows
+            .Select(row => row.Buttons
                 .Where(button => !string.IsNullOrWhiteSpace(button.Text) && !string.IsNullOrWhiteSpace(button.Payload))
-                .Select(button => new[] { InlineKeyboardButton.WithCallbackData(button.Text, button.Payload) })
-                .ToArray();
+                .Select(button => InlineKeyboardButton.WithCallbackData(button.Text, button.Payload))
+                .ToArray())
+            .Where(row => row.Length > 0)
+            .ToArray();
 
         return rows.Length == 0 ? null : new InlineKeyboardMarkup(rows);
-    }
-
-    private static TelegramOutgoingMessage WithEditMessageId(TelegramOutgoingMessage message, string editMessageId)
-    {
-        return message is TelegramTextMessage textMessage && int.TryParse(editMessageId, out var parsed)
-            ? textMessage with { EditMessageId = parsed }
-            : message;
     }
 }

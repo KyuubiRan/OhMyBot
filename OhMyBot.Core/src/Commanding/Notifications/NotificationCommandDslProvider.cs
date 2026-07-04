@@ -2,6 +2,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Integrations.Mihoyo;
 
@@ -37,9 +38,6 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
         var aiAccounts = await aiAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
         var kuroAccounts = await kuroAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
         var mihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
-        var response = CommandResponses.Ok(CommandResponseDataKind.NotifyTypePanel, context);
-        response.NotifyTypePanel = new NotifyTypePanelData();
-
         var aiEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
             context.Identity.CoreUserId,
             context.Request.Platform,
@@ -59,29 +57,21 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
             mihoyoAccounts.Select(account => account.Id).ToArray(),
             context.CancellationToken);
 
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
+        var items = new (string Type, string DisplayName, bool Enabled)[]
         {
-            Type = NotificationTypes.AiRouterAutoSign,
-            DisplayName = NotificationTypes.AiRouterAutoSignDisplayName,
-            Enabled = aiEnabled.Count > 0
-        });
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = NotificationTypes.KuroAutoSign,
-            DisplayName = NotificationTypes.KuroAutoSignDisplayName,
-            Enabled = kuroEnabled.Count > 0
-        });
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = NotificationTypes.MihoyoAutoSign,
-            DisplayName = NotificationTypes.MihoyoAutoSignDisplayName,
-            Enabled = mihoyoEnabled.Count > 0
-        });
-        var enabledNames = response.NotifyTypePanel.Items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
-        response.Message = "[消息订阅管理]\n当前已启用: " + (enabledNames.Length == 0 ? "无" : string.Join("、", enabledNames));
+            (NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName, aiEnabled.Count > 0),
+            (NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName, kuroEnabled.Count > 0),
+            (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0)
+        };
+        var enabledNames = items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
+        var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +
+            (enabledNames.Length == 0
+                ? "无"
+                : string.Join(MarkdownV2.Escape("、"), enabledNames.Select(MarkdownV2.CodeSpan)));
+        var response = CommandResponses.TelegramMarkdown(context.Identity, text, context.Request.MessageId);
 
         var row = new ResponseButtonRow();
-        foreach (var item in response.NotifyTypePanel.Items)
+        foreach (var item in items)
         {
             row.Buttons.Add(new ResponseButton
             {
@@ -97,14 +87,14 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
 
             if (row.Buttons.Count == 2)
             {
-                response.ButtonRows.Add(row);
+                response.AddButtonRow(row);
                 row = new ResponseButtonRow();
             }
         }
 
         if (row.Buttons.Count > 0)
         {
-            response.ButtonRows.Add(row);
+            response.AddButtonRow(row);
         }
 
         return response;

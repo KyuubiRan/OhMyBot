@@ -166,15 +166,13 @@ public sealed class QQCommandGateway(
         return new CommandResponse
         {
             Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Message = text,
-            Text = new TextData { Text = text }
+            Qq = new QqResponse { Messages = { new QqMessage { Text = text } } }
         };
     }
 
     private static CommandResponse EmptyResponse()
     {
-        return new CommandResponse();
+        return new CommandResponse { Qq = new QqResponse() };
     }
 
     private static CommandResponse ResponseError(string code, string message)
@@ -183,7 +181,7 @@ public sealed class QQCommandGateway(
         {
             Code = 1,
             ErrorCode = code,
-            Message = message
+            Qq = new QqResponse { Messages = { new QqMessage { Text = message } } }
         };
     }
 }

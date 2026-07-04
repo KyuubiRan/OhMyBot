@@ -1,71 +1,72 @@
 using OhMyBot.Contracts.Grpc;
+using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Identity;
 
 namespace OhMyBot.Core.Commanding.Commands;
 
+/// <summary>
+/// 平台感知的响应工厂。Core 直接产出各平台的最终内容：Telegram 走 MarkdownV2 + 按钮，
+/// QQ 走纯文本。网关只负责把 <see cref="CommandResponse"/> 的对应分支发出去。
+/// </summary>
 public static class CommandResponses
 {
-    public static CommandResponse Ok(
-        CommandResponseDataKind dataKind,
-        CommandContext context,
-        string? message = null)
-    {
-        return Ok(dataKind, context.Identity, context.Request.MessageId, message);
-    }
-
-    public static CommandResponse Ok(
-        CommandResponseDataKind dataKind,
-        ResolvedIdentity identity,
-        string? replyToMessageId = null,
-        string? message = null)
-    {
-        return new CommandResponse
-        {
-            Code = 0,
-            Message = message ?? string.Empty,
-            DataKind = dataKind,
-            Context = ToContext(identity),
-            ReplyToMessageId = replyToMessageId ?? string.Empty
-        };
-    }
+    // ---- 通用文本：按调用方平台自动渲染 ----
 
     public static CommandResponse Text(string text, CommandContext context)
+        => Text(text, context.Identity, context.Request.MessageId);
+
+    public static CommandResponse Text(string text, ResolvedIdentity identity, string? replyToMessageId = null)
     {
-        var response = Ok(CommandResponseDataKind.Text, context, text);
-        response.Text = new TextData { Text = text };
+        var response = Envelope(identity);
+        if (identity.Platform == BotPlatform.Qq)
+        {
+            response.Qq = new QqResponse();
+            var plain = MarkdownV2.StripMarks(text);
+            if (!string.IsNullOrEmpty(plain))
+            {
+                response.Qq.Messages.Add(new QqMessage { Text = plain });
+            }
+        }
+        else
+        {
+            response.Telegram = new TelegramResponse();
+            if (!string.IsNullOrEmpty(text))
+            {
+                response.Telegram.Messages.Add(new TelegramMessage
+                {
+                    Text = MarkdownV2.Inline(text),
+                    ParseMode = TelegramParseMode.MarkdownV2,
+                    ReplyToMessageId = replyToMessageId ?? string.Empty
+                });
+            }
+        }
+
         return response;
     }
 
-    public static CommandResponse Text(string text)
+    // ---- 静默：空分支，网关不发送 ----
+
+    public static CommandResponse Silent(CommandContext context) => Silent(context.Identity);
+
+    public static CommandResponse Silent(ResolvedIdentity identity)
     {
-        return new CommandResponse
+        var response = Envelope(identity);
+        if (identity.Platform == BotPlatform.Qq)
         {
-            Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Message = text,
-            Text = new TextData { Text = text }
-        };
+            response.Qq = new QqResponse();
+        }
+        else
+        {
+            response.Telegram = new TelegramResponse();
+        }
+
+        return response;
     }
 
-    // 不产生任何回复：Code=0 且无内容，网关渲染为空消息直接跳过发送。
-    // 用于未知子命令等场景，行为对齐未知主命令（静默不响应）。
-    public static CommandResponse Silent(CommandContext context)
-    {
-        return new CommandResponse
-        {
-            Code = 0,
-            Context = ToContext(context.Identity)
-        };
-    }
+    // ---- 错误 ----
 
-    public static CommandResponse Error(
-        string errorCode,
-        string message,
-        CommandContext context,
-        int code = 1)
-    {
-        return Error(errorCode, message, context.Identity, context.Request.MessageId, code);
-    }
+    public static CommandResponse Error(string errorCode, string message, CommandContext context, int code = 1)
+        => Error(errorCode, message, context.Identity, context.Request.MessageId, code);
 
     public static CommandResponse Error(
         string errorCode,
@@ -73,14 +74,94 @@ public static class CommandResponses
         ResolvedIdentity identity,
         string? replyToMessageId = null,
         int code = 1)
+    {
+        var response = Envelope(identity, code, errorCode);
+        if (identity.Platform == BotPlatform.Qq)
+        {
+            response.Qq = new QqResponse();
+            var text = string.IsNullOrWhiteSpace(message) ? errorCode : message;
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                response.Qq.Messages.Add(new QqMessage { Text = text });
+            }
+        }
+        else
+        {
+            response.Telegram = new TelegramResponse();
+            response.Telegram.Messages.Add(new TelegramMessage
+            {
+                Text = $"错误：{message}（{errorCode}）",
+                ParseMode = TelegramParseMode.None,
+                ReplyToMessageId = replyToMessageId ?? string.Empty
+            });
+        }
+
+        return response;
+    }
+
+    // ---- Telegram 富内容构造（文本须由调用方按 MarkdownV2 转义好） ----
+
+    public static CommandResponse TelegramMarkdown(
+        ResolvedIdentity identity,
+        string markdown,
+        string? replyToMessageId = null,
+        string? editMessageId = null)
+        => TelegramMessageResponse(identity, markdown, TelegramParseMode.MarkdownV2, replyToMessageId, editMessageId);
+
+    public static CommandResponse TelegramPlain(
+        ResolvedIdentity identity,
+        string text,
+        string? replyToMessageId = null,
+        string? editMessageId = null)
+        => TelegramMessageResponse(identity, text, TelegramParseMode.None, replyToMessageId, editMessageId);
+
+    // ---- QQ 纯文本构造 ----
+
+    public static CommandResponse Qq(ResolvedIdentity identity, params string[] texts)
+    {
+        var response = Envelope(identity);
+        response.Qq = new QqResponse();
+        foreach (var text in texts)
+        {
+            if (!string.IsNullOrWhiteSpace(text))
+            {
+                response.Qq.Messages.Add(new QqMessage { Text = text });
+            }
+        }
+
+        return response;
+    }
+
+    private static CommandResponse TelegramMessageResponse(
+        ResolvedIdentity identity,
+        string text,
+        TelegramParseMode parseMode,
+        string? replyToMessageId,
+        string? editMessageId)
+    {
+        var message = new TelegramMessage
+        {
+            Text = text,
+            ParseMode = parseMode,
+            ReplyToMessageId = replyToMessageId ?? string.Empty
+        };
+        if (!string.IsNullOrWhiteSpace(editMessageId))
+        {
+            message.EditMessageId = editMessageId;
+        }
+
+        var response = Envelope(identity);
+        response.Telegram = new TelegramResponse { Messages = { message } };
+        return response;
+    }
+
+    private static CommandResponse Envelope(ResolvedIdentity identity, int code = 0, string errorCode = "")
     {
         return new CommandResponse
         {
             Code = code,
             ErrorCode = errorCode,
-            Message = message,
-            Context = ToContext(identity),
-            ReplyToMessageId = replyToMessageId ?? string.Empty
+            Context = ToContext(identity)
         };
     }
 
@@ -92,5 +173,32 @@ public static class CommandResponses
             CallerPrivilege = identity.Privilege,
             Platform = identity.Platform
         };
+    }
+}
+
+/// <summary>Telegram 响应的便捷操作，主要给回调路径（编辑消息、追加按钮）用。</summary>
+public static class TelegramResponseExtensions
+{
+    /// <summary>取第一条 Telegram 消息；presenter/回调据此追加按钮行。</summary>
+    public static TelegramMessage FirstTelegram(this CommandResponse response) => response.Telegram.Messages[0];
+
+    /// <summary>把响应改为“编辑现有消息”：设置 edit id 并清掉回复目标。</summary>
+    public static CommandResponse AsTelegramEdit(this CommandResponse response, string editMessageId)
+    {
+        if (response.Telegram is { Messages.Count: > 0 })
+        {
+            var message = response.Telegram.Messages[0];
+            message.EditMessageId = editMessageId;
+            message.ReplyToMessageId = string.Empty;
+        }
+
+        return response;
+    }
+
+    /// <summary>追加一行按钮到第一条 Telegram 消息。</summary>
+    public static CommandResponse AddButtonRow(this CommandResponse response, ResponseButtonRow row)
+    {
+        response.Telegram.Messages[0].ButtonRows.Add(row);
+        return response;
     }
 }

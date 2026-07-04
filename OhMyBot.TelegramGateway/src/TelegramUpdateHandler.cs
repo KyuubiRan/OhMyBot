@@ -167,12 +167,6 @@ public sealed class TelegramUpdateHandler(
             await RecordUserProfileSafeAsync(gatewayRequest, cancellationToken);
             await RecordCommandTargetProfileAsync(message, text, cancellationToken);
             var response = await commandGateway.ExecuteAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
-            if (processingMessageId is not null && string.IsNullOrWhiteSpace(response.EditMessageId))
-            {
-                response.EditMessageId = processingMessageId.Value.ToString();
-                response.ReplyToMessageId = string.Empty;
-            }
-
             await responseRenderer.RenderAsync(message.Chat.Id, response, message.MessageId, cancellationToken);
         }
         catch (OperationCanceledException)
@@ -252,15 +246,23 @@ public sealed class TelegramUpdateHandler(
     {
         try
         {
+            var failureMessage = new TelegramMessage
+            {
+                Text = "执行失败：" + exception.GetBaseException().Message,
+                ParseMode = TelegramParseMode.None
+            };
+            if (editMessageId is not null)
+            {
+                failureMessage.EditMessageId = editMessageId.Value.ToString();
+            }
+
             await responseRenderer.RenderAsync(
                 chatId,
                 new CommandResponse
                 {
                     Code = 1,
                     ErrorCode = "GatewayExecutionFailed",
-                    Message = "执行失败：" + exception.GetBaseException().Message,
-                    EditMessageId = editMessageId?.ToString() ?? string.Empty,
-                    ReplyToMessageId = string.Empty
+                    Telegram = new TelegramResponse { Messages = { failureMessage } }
                 },
                 fallbackReplyToMessageId,
                 cancellationToken);

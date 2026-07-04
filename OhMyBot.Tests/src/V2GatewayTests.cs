@@ -2,8 +2,6 @@ using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.QQGateway;
 using OhMyBot.TelegramGateway;
-using OhMyBot.TelegramGateway.Rendering;
-using Telegram.Bot.Types.Enums;
 using GatewayCommandRequest = OhMyBot.TelegramGateway.GatewayCommandRequest;
 using ICommandRouterClient = OhMyBot.TelegramGateway.ICommandRouterClient;
 
@@ -115,7 +113,7 @@ public class V2GatewayTests
             "message",
             "!p"), "tg");
 
-        Assert.AreEqual(CommandResponseDataKind.Unspecified, ignored.DataKind);
+        Assert.HasCount(0, ignored.TgMessages());
         Assert.IsNotNull(client.LastRequest);
         Assert.AreEqual("ping", client.LastRequest.Command);
     }
@@ -267,296 +265,27 @@ public class V2GatewayTests
             "/unknown"), "tg");
 
         Assert.AreEqual(0, response.Code);
-        Assert.AreEqual(CommandResponseDataKind.Unspecified, response.DataKind);
-        Assert.AreEqual(string.Empty, response.Message);
+        Assert.HasCount(0, response.TgMessages());
         Assert.IsNull(client.LastRequest);
     }
 
     [TestMethod]
-    public void TelegramPingRendererUsesStructuredData()
-    {
-        var renderer = new PingTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.Ping,
-            Ping = new PingData { ElapsedMs = 12 }
-        };
-
-        var message = renderer.Render(response).Single();
-
-        var textMessage = Assert.IsInstanceOfType<TelegramTextMessage>(message);
-        Assert.AreEqual(default, textMessage.ParseMode);
-        Assert.AreEqual("Pong！Core：12ms", textMessage.Text);
-    }
-
-    [TestMethod]
-    public void TelegramLinkRendererFormatsTokenAsMarkdown()
-    {
-        var renderer = new LinkTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.LinkToken,
-            LinkToken = new LinkTokenData
-            {
-                Token = "abc_def",
-                TtlSeconds = 300
-            }
-        };
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("绑定令牌：`abc\\_def`", message.Text);
-        Assert.Contains("有效期：5 分钟", message.Text);
-    }
-
-    [TestMethod]
-    public void TelegramUserInfoRendererFormatsTelegramUserInfo()
-    {
-        var renderer = new UserInfoTelegramRenderer();
-        var userResponse = CreateUserInfoResponse(includeCoreUserId: false);
-        var adminResponse = CreateUserInfoResponse(includeCoreUserId: true);
-
-        var userMessage = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(userResponse).Single()).Text;
-        var adminTextMessage = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(adminResponse).Single());
-
-        Assert.IsFalse(userMessage.Contains("ID: 42", StringComparison.Ordinal));
-        Assert.IsFalse(adminTextMessage.Text.Contains("ID: 42", StringComparison.Ordinal));
-        Assert.AreEqual(ParseMode.MarkdownV2, adminTextMessage.ParseMode);
-        Assert.Contains("UID: `123456`", adminTextMessage.Text);
-        Assert.Contains("用户名: `@tester`", adminTextMessage.Text);
-        Assert.Contains("昵称: `User Test`", adminTextMessage.Text);
-    }
-
-    [TestMethod]
-    public void TelegramUserInfoRendererFormatsVerifiedUserPrivilege()
-    {
-        var renderer = new UserInfoTelegramRenderer();
-        var response = CreateUserInfoResponse(includeCoreUserId: false);
-        response.UserInfo.Privilege = UserPrivilege.VerifiedUser;
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single()).Text;
-
-        Assert.Contains("权限: `verified-user`", message);
-    }
-
-    [TestMethod]
-    public void TelegramUserInfoRendererOmitsUsernameWhenMissing()
-    {
-        var renderer = new UserInfoTelegramRenderer();
-        var response = CreateUserInfoResponse(includeCoreUserId: false);
-        response.UserInfo.Identities.Single().Username = string.Empty;
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single()).Text;
-
-        Assert.IsFalse(message.Contains("用户名:", StringComparison.Ordinal));
-    }
-
-    [TestMethod]
-    public void QQUserInfoRendererMatchesTelegramFieldLayout()
+    public void QQResponseRendererReturnsMessageTexts()
     {
         var renderer = new QQResponseRenderer();
-        var data = new UserInfoData { Privilege = UserPrivilege.Owner, CoreUserId = 42 };
-        data.Identities.Add(new PlatformIdentityData
-        {
-            Platform = BotPlatform.Qq,
-            Uid = "123456",
-            DisplayName = "群昵称",
-            Username = string.Empty
-        });
         var response = new CommandResponse
         {
-            Code = 0,
-            DataKind = CommandResponseDataKind.UserInfo,
-            UserInfo = data
-        };
-
-        var text = renderer.Render(response).Single();
-
-        // 与 Telegram 字段对齐的纯文本：UID / 昵称 / 权限；QQ 无 username 故省略；不再出现 Core ID。
-        Assert.AreEqual("UID: 123456\n昵称: 群昵称\n权限: owner", text);
-        Assert.IsFalse(text.Contains("Core ID", StringComparison.Ordinal));
-        Assert.IsFalse(text.Contains("用户名", StringComparison.Ordinal));
-    }
-
-    [TestMethod]
-    public void QQUserInfoRendererPrefixesUsernameWithAt()
-    {
-        var renderer = new QQResponseRenderer();
-        var data = new UserInfoData { Privilege = UserPrivilege.User };
-        data.Identities.Add(new PlatformIdentityData
-        {
-            Platform = BotPlatform.Qq,
-            Uid = "123456",
-            DisplayName = "n",
-            Username = "tester"
-        });
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.UserInfo,
-            UserInfo = data
-        };
-
-        var text = renderer.Render(response).Single();
-
-        Assert.Contains("用户名: @tester", text);
-    }
-
-    [TestMethod]
-    public void TelegramAiRouterRendererFormatsStructuredSignResult()
-    {
-        var renderer = new AiRouterTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.AiRouterSignResult,
-            AiRouterSignResult = new AiRouterSignResultData
+            Qq = new QqResponse
             {
-                DisplayName = "Account1",
-                LoginEmail = "a@example.com",
-                Status = "success",
-                Message = "签到成功",
-                TodayReward = "1.00",
-                CurrentStreak = 2,
-                TotalReward = "3.00",
-                MonthSignedDays = 4,
-                OccurredAtUnixSeconds = 1
+                Messages =
+                {
+                    new QqMessage { Text = "第一条" },
+                    new QqMessage { Text = "第二条" }
+                }
             }
         };
 
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("Account1", message.Text);
-        Assert.Contains("a@example.com", message.Text);
-        Assert.Contains("签到成功", message.Text);
-    }
-
-    [TestMethod]
-    public void TelegramNotifyRendererFormatsTypePanel()
-    {
-        var renderer = new NotifyTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.NotifyTypePanel,
-            NotifyTypePanel = new NotifyTypePanelData()
-        };
-        response.NotifyTypePanel.Items.Add(new NotifyTypeItem
-        {
-            Type = "ai-router-auto-sign",
-            DisplayName = "AI Router 自动签到",
-            Enabled = true
-        });
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("消息订阅管理", message.Text);
-        Assert.Contains("AI Router 自动签到", message.Text);
-    }
-
-    [TestMethod]
-    public void TelegramNotifyRendererUsesKuroAccountsForEnabledList()
-    {
-        var renderer = new NotifyTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.NotifyAccountPanel,
-            NotifyAccountPanel = new NotifyAccountPanelData
-            {
-                Type = "kuro-auto-sign",
-                DisplayName = "库街区自动签到"
-            }
-        };
-        response.NotifyAccountPanel.KuroAccounts.Add(new KuroAccountItem
-        {
-            Id = 10,
-            DisplayName = "库洛_账号",
-            NotificationEnabled = true
-        });
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("库街区自动签到", message.Text);
-        Assert.Contains("库洛_账号", message.Text);
-        Assert.IsFalse(message.Text.Contains("当前已启用：无", StringComparison.Ordinal));
-    }
-
-    [TestMethod]
-    public void TelegramFallbackRendererUsesMarkdownForButtonTextPanels()
-    {
-        var renderer = new FallbackTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Text = new TextData
-            {
-                Text = "点击下方按钮进行开/关签到功能\n当前已启用: `Kyuubiran`"
-            }
-        };
-        response.ButtonRows.Add(new ResponseButtonRow
-        {
-            Buttons =
-            {
-                new ResponseButton { Text = "[开] Kyuubiran", Payload = "payload" }
-            }
-        });
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("当前已启用", message.Text);
-        Assert.Contains("`Kyuubiran`", message.Text);
-    }
-
-    [TestMethod]
-    public void TelegramFallbackRendererUsesMarkdownForCodeSpansWithoutButtons()
-    {
-        var renderer = new FallbackTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Text = new TextData
-            {
-                Text = "`アネモネリア` 权限更新: `user` -> `verified-user`"
-            }
-        };
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("`アネモネリア`", message.Text);
-        Assert.Contains("\\-\\>", message.Text);
-    }
-
-    [TestMethod]
-    public void TelegramHelpRendererUsesMarkdownAndEscapesText()
-    {
-        var renderer = new HelpTelegramRenderer();
-        var response = new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.Text,
-            Text = new TextData
-            {
-                Text = "/help - 显示可用指令\nrouter - Router 平台相关指令"
-            }
-        };
-
-        var message = Assert.IsInstanceOfType<TelegramTextMessage>(renderer.Render(response).Single());
-
-        Assert.AreEqual(ParseMode.MarkdownV2, message.ParseMode);
-        Assert.Contains("/help \\- 显示可用指令", message.Text);
-        Assert.Contains("`router` \\- Router 平台相关指令", message.Text);
-        Assert.IsFalse(message.Text.Contains("`/help`", StringComparison.Ordinal));
+        CollectionAssert.AreEqual(new[] { "第一条", "第二条" }, renderer.Render(response).ToArray());
     }
 
     private static GetRoutesResponse CreateMixedRoutes()
@@ -616,33 +345,6 @@ public class V2GatewayTests
             Enabled = true
         });
         return response;
-    }
-
-    private static CommandResponse CreateUserInfoResponse(bool includeCoreUserId)
-    {
-        var data = new UserInfoData
-        {
-            Privilege = UserPrivilege.Admin
-        };
-        data.Identities.Add(new PlatformIdentityData
-        {
-            Platform = BotPlatform.Telegram,
-            Uid = "123456",
-            DisplayName = "User Test",
-            Username = "tester"
-        });
-
-        if (includeCoreUserId)
-        {
-            data.CoreUserId = 42;
-        }
-
-        return new CommandResponse
-        {
-            Code = 0,
-            DataKind = CommandResponseDataKind.UserInfo,
-            UserInfo = data
-        };
     }
 
     private sealed class FakeTelegramClient : ICommandRouterClient

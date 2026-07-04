@@ -4,7 +4,6 @@ using Microsoft.Extensions.Hosting;
 using System.Net;
 using OhMyBot.Contracts.Messaging;
 using OhMyBot.TelegramGateway;
-using OhMyBot.TelegramGateway.Rendering;
 using Telegram.Bot;
 
 var builder = Host.CreateApplicationBuilder(args);
@@ -49,15 +48,6 @@ builder.Services.AddSingleton<ITelegramBotClient>(_ =>
     return new TelegramBotClient(token, httpClient);
 });
 builder.Services.AddSingleton<TelegramCommandGateway>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, PingTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, UserInfoTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, LinkTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, AiRouterTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, KuroTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, MihoyoTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, NotifyTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, HelpTelegramRenderer>();
-builder.Services.AddSingleton<ITelegramCommandResultRenderer, FallbackTelegramRenderer>();
 builder.Services.AddSingleton<TelegramResponseRenderer>();
 builder.Services.AddSingleton<TelegramUpdateHandler>();
 builder.Services.AddHostedService<GatewayWorker>();
