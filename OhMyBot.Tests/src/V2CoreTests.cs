@@ -10,6 +10,7 @@ using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Commands;
 using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Commanding.Callbacks;
+using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Infrastructure.Data;
 using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Infrastructure.Identity;
@@ -907,6 +908,103 @@ public class V2CoreTests
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "target"));
 
         Assert.IsFalse(response.TgButtonTexts().Contains("admin"));
+    }
+
+    [TestMethod]
+    public async Task SetPrivilegeCreatesTargetWhenUidUnknown()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var serviceProvider = CreateCallbackServiceProvider(dbContext, identityCache, callbackStore);
+        var commandService = CreateCommandService(
+            dbContext,
+            new FakeLinkTokenStore(),
+            registry: CreateBuiltInCommandRegistry(dbContext, new FakeLinkTokenStore(), identityCache, callbackStore),
+            identityCache: identityCache);
+        await commandService.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        var adminProfile = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "admin");
+        adminProfile.CoreUser!.Privilege = UserPrivilege.Owner;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminProfile.CoreUserId!.Value, UserPrivilege.Owner));
+
+        // 目标 999999 从未发过消息、库里没有任何档案。setpriv 不应报“未找到”，而应给出权限选择。
+        var panel = await commandService.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "999999"));
+
+        Assert.AreEqual(0, panel.Code);
+        var adminButton = panel.TgButtonRows().SelectMany(row => row.Buttons).Single(button => button.Text == "admin");
+        var callbackService = new CallbackExecutionService(
+            serviceProvider.GetRequiredService<CoreIdentityService>(),
+            callbackStore,
+            serviceProvider.GetRequiredService<IServiceScopeFactory>(),
+            TimeProvider.System);
+
+        var response = await callbackService.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            ChatId = "chat",
+            UserId = "admin",
+            MessageId = "123",
+            Payload = adminButton.Payload
+        });
+
+        // 点选权限那一刻才就地建档：新目标以所选权限落库，后续其发消息再补齐昵称/用户名。
+        Assert.AreEqual(0, response.Code);
+        var target = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "999999");
+        Assert.AreEqual(UserPrivilege.Admin, target.CoreUser!.Privilege);
+    }
+
+    [TestMethod]
+    public async Task SetPrivilegeRejectsUnknownNonNumericTarget()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "ping"));
+        var adminProfile = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "admin");
+        adminProfile.CoreUser!.Privilege = UserPrivilege.Owner;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminProfile.CoreUserId!.Value, UserPrivilege.Owner));
+
+        // 非数字目标（且无 @）：拿不到真实 uid，仍报“未找到”，避免凭空建脏档；不落库。
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "admin", "setpriv", "notauser"));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("UserNotFound", response.ErrorCode);
+        Assert.IsFalse(await dbContext.PlatformUserProfiles.AnyAsync(profile => profile.Uid == "notauser"));
+    }
+
+    [TestMethod]
+    public async Task QqSetPrivilegeUnknownUidBuildsNumberedMenu()
+    {
+        await using var dbContext = CreateDbContext();
+        var identityCache = new FakeIdentityCache();
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), identityCache: identityCache);
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-admin", "ping"));
+        var adminProfile = await dbContext.PlatformUserProfiles
+            .Include(profile => profile.CoreUser)
+            .SingleAsync(profile => profile.Uid == "qq-admin");
+        adminProfile.CoreUser!.Privilege = UserPrivilege.Owner;
+        await dbContext.SaveChangesAsync();
+        await identityCache.SetAsync(BotPlatform.Qq, "qq-admin", new CachedIdentity(adminProfile.CoreUserId!.Value, UserPrivilege.Owner));
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-admin", "setpriv", "888888"));
+
+        // QQ 无原生按钮：命令产出 Telegram 形态按钮，经 QqMenuConverter 在 gRPC 边界转成回复序号的编号菜单，
+        // 从而让 QQ 侧 setpriv 真正可改权限（而非过去的只读）。
+        var converter = new QqMenuConverter(new QqMenuStore(new FakeDistributedCache(), Options.Create(new QqMenuOptions())));
+        var qq = await converter.ToQqAsync(response, BotChatType.Private);
+
+        var menu = qq.Qq.Messages.Single();
+        Assert.IsFalse(string.IsNullOrEmpty(menu.MenuToken));
+        StringAssert.Contains(menu.Text, "1. ");
+        StringAssert.Contains(menu.Text, "admin");
     }
 
     [TestMethod]

@@ -251,7 +251,18 @@ public sealed class CoreCommandDslProvider(
         var target = await service.FindTargetAsync(context.Request.Platform, requestedUser, context.CancellationToken);
         if (target is null)
         {
-            return CommandResponses.Error("UserNotFound", $"未找到用户：{requestedUser}", context);
+            // uid 不存在：纯数字 uid 允许就地授权（选完权限、apply 时才建档），@用户名无法凭空建档，仍报未找到。
+            if (!IsNumericUid(requestedUser))
+            {
+                return CommandResponses.Error("UserNotFound", $"未找到用户：{requestedUser}", context);
+            }
+
+            target = new SetPrivilegeTarget(
+                context.Request.Platform,
+                requestedUser,
+                requestedUser,
+                CoreUserId: null,
+                CurrentPrivilege: UserPrivilege.User);
         }
 
         if (target.CoreUserId is not null
@@ -270,12 +281,7 @@ public sealed class CoreCommandDslProvider(
             $"`{target.DisplayName}` 当前权限: `{SetPrivilegeService.FormatPrivilege(target.CurrentPrivilege)}`",
             context);
 
-        // QQ 无按钮：仅展示当前权限文本；Telegram 追加权限选择按钮。
-        if (context.Request.Platform == BotPlatform.Qq)
-        {
-            return response;
-        }
-
+        // 追加权限选择按钮；QQ 无原生按钮，会在 gRPC 边界由 QqMenuConverter 转成回复序号的编号菜单。
         foreach (var row in allowedPrivileges.Chunk(2))
         {
             var buttonRow = new ResponseButtonRow();
@@ -334,6 +340,12 @@ public sealed class CoreCommandDslProvider(
         Span<byte> bytes = stackalloc byte[16];
         RandomNumberGenerator.Fill(bytes);
         return Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    // 纯数字 uid（QQ/Telegram 的平台 uid 形态）；@用户名等非数字 token 不允许就地建档。
+    private static bool IsNumericUid(string value)
+    {
+        return value.Length > 0 && value.All(char.IsDigit);
     }
 
     private static IdentityView ToIdentityView(PlatformUserProfile profile)

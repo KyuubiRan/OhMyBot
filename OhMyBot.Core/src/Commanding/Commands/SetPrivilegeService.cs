@@ -58,9 +58,24 @@ public sealed class SetPrivilegeService(
                 item => item.Platform == platform && item.Uid == targetUid,
                 cancellationToken);
 
+        var now = timeProvider.GetUtcNow();
         if (target is null)
         {
-            return SetPrivilegeResult.Missing();
+            // uid 不存在则就地建档（仅纯数字 uid，避免把 @用户名/误输入建成脏档）。
+            // 昵称/用户名此刻留空，等该用户后续有消息进来时由 record 路由补齐。
+            if (!IsCreatableUid(targetUid))
+            {
+                return SetPrivilegeResult.Missing();
+            }
+
+            target = new PlatformUserProfile
+            {
+                Platform = platform,
+                Uid = targetUid,
+                CreatedAt = now,
+                UpdatedAt = now
+            };
+            dbContext.PlatformUserProfiles.Add(target);
         }
 
         var currentPrivilege = target.CoreUser?.Privilege ?? UserPrivilege.User;
@@ -69,7 +84,6 @@ public sealed class SetPrivilegeService(
             return SetPrivilegeResult.Rejected(ToTarget(target), currentPrivilege, newPrivilege);
         }
 
-        var now = timeProvider.GetUtcNow();
         if (target.CoreUser is null)
         {
             target.CoreUser = new CoreUser
@@ -128,6 +142,12 @@ public sealed class SetPrivilegeService(
                 new CachedIdentity(user.Id, user.Privilege),
                 cancellationToken);
         }
+    }
+
+    // 仅纯数字 uid 允许就地建档：QQ/Telegram 的平台 uid 都是数字，@用户名或误输入不该造档。
+    private static bool IsCreatableUid(string uid)
+    {
+        return !string.IsNullOrEmpty(uid) && uid.All(char.IsDigit);
     }
 
     private static SetPrivilegeTarget ToTarget(PlatformUserProfile profile)
