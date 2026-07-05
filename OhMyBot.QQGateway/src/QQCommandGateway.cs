@@ -11,6 +11,8 @@ public sealed class QQCommandGateway(
 {
     private const int QQPlatformFlag = 2;
     private readonly string[] _commandPrefixes = GatewayCommandParser.NormalizePrefixes(options?.Value.CommandPrefixes);
+    private readonly RecordedProfileCache _recordedProfiles =
+        new(TimeProvider.System, options?.Value.ProfileRecordDedupTtl ?? TimeSpan.FromMinutes(30));
     private readonly Lock _cacheLock = new();
     private IReadOnlyDictionary<string, RouteDescriptor> _routes = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
     private long _version;
@@ -123,7 +125,7 @@ public sealed class QQCommandGateway(
         string botInstanceId,
         CancellationToken cancellationToken = default)
     {
-        await commandRouterClient.RecordUserProfileAsync(new UserProfileRequest
+        var request = new UserProfileRequest
         {
             Platform = BotPlatform.Qq,
             BotInstanceId = botInstanceId,
@@ -132,8 +134,23 @@ public sealed class QQCommandGateway(
             FirstName = gatewayRequest.FirstName ?? string.Empty,
             LastName = gatewayRequest.LastName ?? string.Empty,
             Nickname = gatewayRequest.Nickname ?? gatewayRequest.DisplayName ?? string.Empty
-        }, cancellationToken);
+        };
+
+        // 本地去重：同一 uid 且档案未变、TTL 内则跳过对 Core 的 gRPC（活跃群防刷屏）。成功后才落表。
+        var signature = ProfileSignature(request);
+        if (!_recordedProfiles.ShouldRecord(request.Uid, signature))
+        {
+            return true;
+        }
+
+        await commandRouterClient.RecordUserProfileAsync(request, cancellationToken);
+        _recordedProfiles.MarkRecorded(request.Uid, signature);
         return true;
+    }
+
+    private static string ProfileSignature(UserProfileRequest request)
+    {
+        return string.Join('\u001f', request.Username, request.FirstName, request.LastName, request.Nickname);
     }
 
     /// <summary>用户回复/发送序号选择菜单项。<paramref name="replyToMessageId"/> 为被回复的菜单消息 id（私聊裸数字可空）。</summary>

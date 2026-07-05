@@ -100,14 +100,16 @@ public sealed class QQUpdateHandler(
                 return;
             }
 
+            // 记录发送者档案（供 /info、setpriv 按 uid 查到未主动用过命令的人）。
+            // Core 侧 RecordAsync 有缓存去重，相同档案不落库，只有新用户/改名才写；代价仅每条消息一次 gRPC。
+            await RecordUserProfileSafeAsync(request);
+
             var (command, _) = GatewayCommandParser.Parse(text, _commandPrefixes);
             if (string.IsNullOrEmpty(command))
             {
-                // 非命令、非菜单选择：不记录、不响应，避免群聊刷屏拖垮 Core。
+                // 非命令消息只记录、不响应，避免群聊刷屏拖垮 Core。
                 return;
             }
-
-            await RecordUserProfileSafeAsync(request);
 
             var response = await gateway.ExecuteAsync(request, _options.BotInstanceId);
             await SendResponseAsync(response, chatType, chatId, request.UserId, request.MessageId);

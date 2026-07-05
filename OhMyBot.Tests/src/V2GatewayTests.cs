@@ -423,4 +423,52 @@ public class V2GatewayTests
             return Task.FromResult(new CommandResponse());
         }
     }
+
+    // 网关侧档案去重的行为约束：未变则省下 gRPC，改名/超时则重新记录。QQ 与 TG 的 RecordedProfileCache
+    // 为逐字节相同的副本，测其一即代表两者。
+    [TestMethod]
+    public void RecordedProfileCacheSkipsUnchangedWithinTtlAndRefreshesOnChangeOrExpiry()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var cache = new OhMyBot.QQGateway.RecordedProfileCache(clock, TimeSpan.FromMinutes(30));
+
+        // 首次：应记录。
+        Assert.IsTrue(cache.ShouldRecord("100", "alice"));
+        cache.MarkRecorded("100", "alice");
+
+        // 相同 uid + 相同签名、TTL 内：跳过（这正是省下的那次 gRPC）。
+        Assert.IsFalse(cache.ShouldRecord("100", "alice"));
+
+        // 档案变化（改名/改群名片）：立即失效并重新记录。
+        Assert.IsTrue(cache.ShouldRecord("100", "alice-renamed"));
+        cache.MarkRecorded("100", "alice-renamed");
+        Assert.IsFalse(cache.ShouldRecord("100", "alice-renamed"));
+
+        // 不同用户：各自独立。
+        Assert.IsTrue(cache.ShouldRecord("200", "bob"));
+
+        // TTL 到期后：即便未变也放行一次（顺带刷新，兜底 Core 侧记录被清）。
+        clock.Advance(TimeSpan.FromMinutes(31));
+        Assert.IsTrue(cache.ShouldRecord("100", "alice-renamed"));
+    }
+
+    [TestMethod]
+    public void RecordedProfileCacheOnlyCommitsAfterMarkRecorded()
+    {
+        var clock = new MutableTimeProvider(new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero));
+        var cache = new OhMyBot.QQGateway.RecordedProfileCache(clock, TimeSpan.FromMinutes(30));
+
+        // 只 ShouldRecord 不 MarkRecorded（模拟 gRPC 失败）：下次仍应记录，不会因为查过一次就被跳过。
+        Assert.IsTrue(cache.ShouldRecord("100", "alice"));
+        Assert.IsTrue(cache.ShouldRecord("100", "alice"));
+    }
+
+    private sealed class MutableTimeProvider(DateTimeOffset start) : TimeProvider
+    {
+        private DateTimeOffset _now = start;
+
+        public override DateTimeOffset GetUtcNow() => _now;
+
+        public void Advance(TimeSpan delta) => _now += delta;
+    }
 }

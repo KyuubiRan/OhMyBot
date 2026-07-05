@@ -12,6 +12,8 @@ public sealed class TelegramCommandGateway(
 {
     private const int TelegramPlatformFlag = 1;
     private readonly string[] _commandPrefixes = GatewayCommandParser.NormalizePrefixes(options?.Value.CommandPrefixes);
+    private readonly RecordedProfileCache _recordedProfiles =
+        new(TimeProvider.System, options?.Value.ProfileRecordDedupTtl ?? TimeSpan.FromMinutes(30));
     private readonly Lock _cacheLock = new();
     private IReadOnlyDictionary<string, RouteDescriptor> _routes = new Dictionary<string, RouteDescriptor>(StringComparer.OrdinalIgnoreCase);
     private long _version;
@@ -170,24 +172,39 @@ public sealed class TelegramCommandGateway(
         string botInstanceId,
         CancellationToken cancellationToken = default)
     {
+        var request = new UserProfileRequest
+        {
+            Platform = BotPlatform.Telegram,
+            BotInstanceId = botInstanceId,
+            Uid = gatewayRequest.UserId,
+            Username = gatewayRequest.Username ?? string.Empty,
+            FirstName = gatewayRequest.FirstName ?? string.Empty,
+            LastName = gatewayRequest.LastName ?? string.Empty,
+            Nickname = gatewayRequest.Nickname ?? string.Empty
+        };
+
+        // 本地去重：同一 uid 且档案未变、TTL 内则跳过对 Core 的 gRPC。成功后才落表，失败下条消息自然重试。
+        var signature = ProfileSignature(request);
+        if (!_recordedProfiles.ShouldRecord(request.Uid, signature))
+        {
+            return true;
+        }
+
         try
         {
-            await commandRouterClient.RecordUserProfileAsync(new UserProfileRequest
-            {
-                Platform = BotPlatform.Telegram,
-                BotInstanceId = botInstanceId,
-                Uid = gatewayRequest.UserId,
-                Username = gatewayRequest.Username ?? string.Empty,
-                FirstName = gatewayRequest.FirstName ?? string.Empty,
-                LastName = gatewayRequest.LastName ?? string.Empty,
-                Nickname = gatewayRequest.Nickname ?? string.Empty
-            }, cancellationToken);
+            await commandRouterClient.RecordUserProfileAsync(request, cancellationToken);
+            _recordedProfiles.MarkRecorded(request.Uid, signature);
             return true;
         }
         catch (RpcException)
         {
             return false;
         }
+    }
+
+    private static string ProfileSignature(UserProfileRequest request)
+    {
+        return string.Join('\u001f', request.Username, request.FirstName, request.LastName, request.Nickname);
     }
 
     private bool TryGetRoute(string command, out RouteDescriptor route)
