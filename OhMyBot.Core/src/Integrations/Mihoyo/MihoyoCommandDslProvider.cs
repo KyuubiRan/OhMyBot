@@ -67,21 +67,8 @@ public sealed class MihoyoCommandDslProvider(IServiceScopeFactory scopeFactory) 
         };
     }
 
-    private static readonly Dictionary<string, MihoyoRegion> RegionKeywords = new(StringComparer.OrdinalIgnoreCase)
-    {
-        ["cn"] = MihoyoRegion.Cn,
-        ["国服"] = MihoyoRegion.Cn,
-        ["mihoyo"] = MihoyoRegion.Cn,
-        ["miyoushe"] = MihoyoRegion.Cn,
-        ["米游社"] = MihoyoRegion.Cn,
-        ["os"] = MihoyoRegion.Os,
-        ["国际服"] = MihoyoRegion.Os,
-        ["hoyolab"] = MihoyoRegion.Os,
-        ["global"] = MihoyoRegion.Os
-    };
-
     private static readonly string BindUsage = string.Join('\n',
-        "用法：/mihoyo bind [cn|os] <cookie>（默认国服 cn；国际服请加 os）",
+        "用法：/mihoyo bind <cookie>（自动识别国服 / 国际服）",
         string.Empty,
         "一键获取 Cookie：",
         "1. 浏览器登录对应网站（登录后保持在该页面）",
@@ -90,7 +77,7 @@ public sealed class MihoyoCommandDslProvider(IServiceScopeFactory scopeFactory) 
         "2. 按 F12 打开开发者工具，切到 Console（控制台）",
         "3. 粘贴下面这行并回车，Cookie 会自动复制到剪贴板：",
         "`copy(document.cookie)`",
-        "4. 回到这里发送 /mihoyo bind 后面粘贴刚复制的 Cookie（国际服写成 /mihoyo bind os 粘贴）",
+        "4. 回到这里发送 /mihoyo bind 后面粘贴刚复制的 Cookie",
         string.Empty,
         "注：国服游戏签到只需 cookie_token；若 Cookie 中含 stoken，则可自动续期并执行米游社任务。国际服需含 ltoken。");
 
@@ -102,26 +89,13 @@ public sealed class MihoyoCommandDslProvider(IServiceScopeFactory scopeFactory) 
             return CommandResponses.Text(BindUsage, context);
         }
 
-        var region = MihoyoRegion.Cn;
-        var cookieStart = 0;
-        if (RegionKeywords.TryGetValue(args[0], out var parsedRegion))
-        {
-            region = parsedRegion;
-            cookieStart = 1;
-        }
-
-        if (args.Count <= cookieStart)
-        {
-            return CommandResponses.Text(BindUsage, context);
-        }
-
         await using var scope = scopeFactory.CreateAsyncScope();
         var service = scope.ServiceProvider.GetRequiredService<MihoyoAccountService>();
         var builder = scope.ServiceProvider.GetRequiredService<MihoyoResponseBuilder>();
         var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
-        // Cookie 可能含空格，合并剩余参数
-        var cookie = string.Join(' ', args.Skip(cookieStart));
-        var result = await service.BindAsync(context.Identity.CoreUserId, cookie, region, context.CancellationToken);
+        // Cookie 可能含空格，合并全部参数
+        var cookie = string.Join(' ', args);
+        var result = await service.BindAsync(context.Identity.CoreUserId, cookie, context.CancellationToken);
         await subscriptionService.EnableAsync(
             context.Identity.CoreUserId,
             context.Request.Platform,

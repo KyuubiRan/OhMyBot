@@ -25,7 +25,7 @@ public sealed partial class MihoyoAccountService(
     [GeneratedRegex(@"cookie_token=([^;]*)")]
     private static partial Regex CookieTokenRegex();
 
-    public async Task<MihoyoBindResult> BindAsync(long coreUserId, string cookieInput, MihoyoRegion region, CancellationToken cancellationToken = default)
+    public async Task<MihoyoBindResult> BindAsync(long coreUserId, string cookieInput, CancellationToken cancellationToken = default)
     {
         var cookie = NormalizeCookie(cookieInput);
         if (cookie.Length == 0)
@@ -42,44 +42,10 @@ public sealed partial class MihoyoAccountService(
         var mid = MidRegex().Match(cookie) is { Success: true } midMatch ? midMatch.Groups[1].Value : string.Empty;
         var stoken = StokenRegex().Match(cookie) is { Success: true } stokenMatch ? stokenMatch.Groups[1].Value : string.Empty;
 
-        if (region == MihoyoRegion.Cn)
-        {
-            if (!string.IsNullOrEmpty(stoken))
-            {
-                if (stoken.StartsWith("v2_", StringComparison.Ordinal) && string.IsNullOrEmpty(mid))
-                {
-                    throw new InvalidOperationException("v2 版 stoken 需要 mid 参数，请抓取包含 mid 的 Cookie");
-                }
-
-                // 有 stoken：刷新 cookie_token 校验有效性并写入最新 token
-                var stokenCookie = BuildStokenCookie(stuid, stoken, mid);
-                var tokenResponse = await client.RefreshCookieTokenAsync(stokenCookie, cancellationToken);
-                if (!tokenResponse.Ok || string.IsNullOrEmpty(tokenResponse.Data?.CookieToken))
-                {
-                    throw new InvalidOperationException($"stoken 校验失败（code={tokenResponse.Retcode}, msg={tokenResponse.Message}），请重新抓取 Cookie");
-                }
-
-                cookie = SetCookieToken(cookie, tokenResponse.Data.CookieToken);
-            }
-            else
-            {
-                // 无 stoken：仅能用 cookie_token 做游戏签到，且无法自动续期、无法做社区任务
-                if (!CookieTokenRegex().IsMatch(cookie))
-                {
-                    throw new InvalidOperationException("国服 Cookie 缺少 cookie_token，请重新抓取登录后的 Cookie（建议包含 stoken 以支持自动续期和社区任务）");
-                }
-
-                var probe = await client.GetGameRolesAsync(cookie, "hk4e_cn", cancellationToken);
-                if (probe.Retcode == MihoyoHttpClient.CookieExpiredCode)
-                {
-                    throw new InvalidOperationException("cookie_token 已失效，且 Cookie 中没有 stoken 无法自动刷新；请重新抓取 Cookie（建议包含 stoken）");
-                }
-            }
-        }
-        else if (!cookie.Contains("ltoken", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("国际服 Cookie 缺少 ltoken，请从 HoYoLAB 重新抓取 Cookie");
-        }
+        // 自动识别国服/国际服：优先用 token 探测国服，失败再探测国际服，都失败才报错。
+        // 国服探测成功时可能已刷新 cookie_token，用返回的 cookie。
+        var (region, resolvedCookie) = await ResolveRegionAsync(cookie, stuid, stoken, mid, cancellationToken);
+        cookie = resolvedCookie;
 
         var now = timeProvider.GetUtcNow();
         var existing = await dbContext.MihoyoAccounts
@@ -115,6 +81,103 @@ public sealed partial class MihoyoAccountService(
 
         await dbContext.SaveChangesAsync(cancellationToken);
         return new MihoyoBindResult(existing, updatedExisting);
+    }
+
+    /// <summary>
+    /// 用 Cookie 探测账号归属：优先国服（stoken 刷 cookie_token / 或 cookie_token 拉角色），
+    /// 失败再探测国际服（HoYoLAB getUserGameRolesByCookie），都失败则抛出。
+    /// 返回的 Cookie 在国服 stoken 场景下已写入刷新后的 cookie_token。
+    /// </summary>
+    private async Task<(MihoyoRegion Region, string Cookie)> ResolveRegionAsync(
+        string cookie, long stuid, string stoken, string mid, CancellationToken cancellationToken)
+    {
+        var cn = await TryResolveCnAsync(cookie, stuid, stoken, mid, cancellationToken);
+        if (cn.Success)
+        {
+            return (MihoyoRegion.Cn, cn.Cookie);
+        }
+
+        if (await IsValidOsCookieAsync(cookie, cancellationToken))
+        {
+            return (MihoyoRegion.Os, cookie);
+        }
+
+        // 都失败：优先抛出国服探测得到的具体原因（如 stoken 校验失败），否则给通用提示
+        throw new InvalidOperationException(cn.Error
+            ?? "无法确认账号归属：该 Cookie 既无法访问国服，也无法访问国际服，请重新抓取有效 Cookie（国服需含 cookie_token 或 stoken，国际服需含 ltoken）");
+    }
+
+    /// <summary>尝试将 Cookie 作为国服账号验证。返回是否成功、（可能刷新过的）Cookie、以及失败时的国服特定原因。</summary>
+    private async Task<(bool Success, string Cookie, string? Error)> TryResolveCnAsync(
+        string cookie, long stuid, string stoken, string mid, CancellationToken cancellationToken)
+    {
+        if (!string.IsNullOrEmpty(stoken))
+        {
+            if (stoken.StartsWith("v2_", StringComparison.Ordinal) && string.IsNullOrEmpty(mid))
+            {
+                return (false, cookie, "v2 版 stoken 需要 mid 参数，请抓取包含 mid 的 Cookie");
+            }
+
+            // 有 stoken：刷新 cookie_token 校验有效性并写入最新 token
+            MihoyoApiResponse<MihoyoCookieTokenData> tokenResponse;
+            try
+            {
+                tokenResponse = await client.RefreshCookieTokenAsync(BuildStokenCookie(stuid, stoken, mid), cancellationToken);
+            }
+            catch (Exception)
+            {
+                return (false, cookie, null);
+            }
+
+            if (tokenResponse.Ok && !string.IsNullOrEmpty(tokenResponse.Data?.CookieToken))
+            {
+                return (true, SetCookieToken(cookie, tokenResponse.Data.CookieToken), null);
+            }
+
+            return (false, cookie, $"stoken 校验失败（code={tokenResponse.Retcode}, msg={tokenResponse.Message}），请重新抓取 Cookie");
+        }
+
+        // 无 stoken：仅能用 cookie_token 探测角色（也仅能做游戏签到，无法自动续期/社区任务）
+        if (!CookieTokenRegex().IsMatch(cookie))
+        {
+            return (false, cookie, null);
+        }
+
+        MihoyoApiResponse<MihoyoGameRolesData> probe;
+        try
+        {
+            probe = await client.GetGameRolesAsync(cookie, "hk4e_cn", cancellationToken);
+        }
+        catch (Exception)
+        {
+            return (false, cookie, null);
+        }
+
+        if (probe.Retcode == MihoyoHttpClient.CookieExpiredCode)
+        {
+            return (false, cookie, "cookie_token 已失效，且 Cookie 中没有 stoken 无法自动刷新；请重新抓取 Cookie（建议包含 stoken）");
+        }
+
+        return (probe.Ok, cookie, null);
+    }
+
+    /// <summary>用 HoYoLAB 角色接口探测 Cookie 是否为有效的国际服账号。</summary>
+    private async Task<bool> IsValidOsCookieAsync(string cookie, CancellationToken cancellationToken)
+    {
+        if (!cookie.Contains("ltoken", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            var probe = await client.GetOsGameRolesAsync(cookie, cancellationToken);
+            return probe.Ok;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     public Task<List<MihoyoAccount>> ListByOwnerAsync(long coreUserId, bool noTracking = false, CancellationToken cancellationToken = default)

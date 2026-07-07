@@ -70,7 +70,7 @@ public class V2MihoyoTests
     {
         await using var dbContext = CreateDbContext();
         var service = CreateAccountService(dbContext, new StubHandler());
-        var result = await service.BindAsync(1, "ltuid_v2=98765; ltoken_v2=v2_abc; account_mid_v2=mid9", MihoyoRegion.Os);
+        var result = await service.BindAsync(1, "ltuid_v2=98765; ltoken_v2=v2_abc; account_mid_v2=mid9");
 
         Assert.IsFalse(result.UpdatedExisting);
         Assert.AreEqual(MihoyoRegion.Os, result.Account.Region);
@@ -86,7 +86,7 @@ public class V2MihoyoTests
     {
         await using var dbContext = CreateDbContext();
         var service = CreateAccountService(dbContext, new StubHandler());
-        var result = await service.BindAsync(1, "account_id=1122; stuid=1122; stoken=v2_tok; mid=m7; cookie_token=stale", MihoyoRegion.Cn);
+        var result = await service.BindAsync(1, "account_id=1122; stuid=1122; stoken=v2_tok; mid=m7; cookie_token=stale");
 
         Assert.AreEqual(MihoyoRegion.Cn, result.Account.Region);
         Assert.AreEqual(1122, result.Account.Stuid);
@@ -103,8 +103,7 @@ public class V2MihoyoTests
         var service = CreateAccountService(dbContext, new StubHandler());
         var result = await service.BindAsync(
             1,
-            "account_mid_v2=0pq_mhy; account_id_v2=4984975; ltuid_v2=4984975; cookie_token=Eix; account_id=4984975; ltoken=dkXU; ltuid=4984975",
-            MihoyoRegion.Cn);
+            "account_mid_v2=0pq_mhy; account_id_v2=4984975; ltuid_v2=4984975; cookie_token=Eix; account_id=4984975; ltoken=dkXU; ltuid=4984975");
 
         Assert.AreEqual(MihoyoRegion.Cn, result.Account.Region);
         Assert.AreEqual(4984975, result.Account.Stuid);
@@ -113,12 +112,23 @@ public class V2MihoyoTests
     }
 
     [TestMethod]
-    public async Task BindCnCookieWithoutCookieTokenOrStokenThrows()
+    public async Task BindCookieRejectedByBothRegionsThrows()
     {
+        // 国服探测（cookie_token 失效）与国际服探测（HoYoLAB 拒绝）都失败 → 真的失败
+        await using var dbContext = CreateDbContext();
+        var service = CreateAccountService(dbContext, new RejectingHandler());
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(
+            () => service.BindAsync(1, "account_id=1; cookie_token=x; ltoken=y"));
+    }
+
+    [TestMethod]
+    public async Task BindCookieWithoutAnyUsableTokenThrows()
+    {
+        // 既无 cookie_token/stoken（国服）也无 ltoken（国际服）→ 无从探测，直接失败
         await using var dbContext = CreateDbContext();
         var service = CreateAccountService(dbContext, new StubHandler());
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.BindAsync(1, "account_id=1; ltoken=x", MihoyoRegion.Cn));
+            () => service.BindAsync(1, "account_id=1; foo=bar"));
     }
 
     [TestMethod]
@@ -127,7 +137,7 @@ public class V2MihoyoTests
         await using var dbContext = CreateDbContext();
         var service = CreateAccountService(dbContext, new StubHandler());
         await Assert.ThrowsExactlyAsync<InvalidOperationException>(
-            () => service.BindAsync(1, "some=value; another=thing", MihoyoRegion.Cn));
+            () => service.BindAsync(1, "some=value; another=thing"));
     }
 
     [TestMethod]
@@ -325,8 +335,7 @@ public class V2MihoyoTests
         var service = CreateAccountService(dbContext, new RolesStubHandler());
         var result = await service.BindAsync(
             1,
-            "account_id=4984975; cookie_token=Eix; ltoken=dkXU; ltuid=4984975",
-            MihoyoRegion.Cn);
+            "account_id=4984975; cookie_token=Eix; ltoken=dkXU; ltuid=4984975");
 
         Assert.AreEqual(MihoyoRegion.Cn, result.Account.Region);
         // 账号名应为米游社昵称，而非游戏角色昵称
@@ -359,6 +368,18 @@ public class V2MihoyoTests
         public string Protect(string plaintext) => plaintext;
 
         public string Unprotect(string ciphertext) => ciphertext;
+    }
+
+    /// <summary>所有接口返回失效码 -100，用于模拟国服 / 国际服探测双双失败。</summary>
+    private sealed class RejectingHandler : HttpMessageHandler
+    {
+        protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""{"retcode":-100,"message":"未登录","data":null}""")
+            });
+        }
     }
 
     private sealed class RolesStubHandler : HttpMessageHandler

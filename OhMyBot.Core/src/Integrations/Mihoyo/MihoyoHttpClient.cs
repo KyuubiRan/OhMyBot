@@ -36,6 +36,22 @@ public sealed class MihoyoHttpClient(HttpClient httpClient, IOptions<MihoyoOptio
         return SendAsync<MihoyoGameRolesData>(request, cancellationToken);
     }
 
+    /// <summary>国际服(HoYoLAB) 按 Cookie 查询游戏角色；绑定时用它验证 Cookie 是否为有效国际服账号。</summary>
+    public Task<MihoyoApiResponse<MihoyoGameRolesData>> GetOsGameRolesAsync(
+        string cookie, CancellationToken cancellationToken = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, _options.OsAccountInfoUrl);
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        request.Headers.TryAddWithoutValidation("x-rpc-app_version", "1.5.0");
+        request.Headers.TryAddWithoutValidation("x-rpc-client_type", "4");
+        request.Headers.TryAddWithoutValidation("x-rpc-language", _options.OsGameLang);
+        request.Headers.Referrer = new Uri("https://act.hoyolab.com/");
+        request.Headers.TryAddWithoutValidation("Origin", "https://act.hoyolab.com");
+        request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+        request.Headers.TryAddWithoutValidation("Cookie", cookie);
+        return SendAsync<MihoyoGameRolesData>(request, cancellationToken);
+    }
+
     public Task<MihoyoApiResponse<MihoyoCookieTokenData>> RefreshCookieTokenAsync(
         string stokenCookie, CancellationToken cancellationToken = default)
     {

@@ -28,6 +28,9 @@ public sealed class MihoyoOptions
     // 主机
     public string WebApi { get; set; } = "https://api-takumi.mihoyo.com";
 
+    /// <summary>HoYoLAB（国际服）账号接口主机，用于绑定时探测账号归属。</summary>
+    public string OsWebApi { get; set; } = "https://api-account-os.hoyolab.com";
+
     public string BbsApi { get; set; } = "https://bbs-api.miyoushe.com";
 
     public string ZzzWebApi { get; set; } = "https://act-nap-api.mihoyo.com";
@@ -45,6 +48,9 @@ public sealed class MihoyoOptions
     public TimeSpan Timeout { get; set; } = TimeSpan.FromSeconds(30);
 
     public string AccountInfoUrl => WebApi + "/binding/api/getUserGameRolesByCookie";
+
+    /// <summary>国际服(HoYoLAB) 按 Cookie 查询游戏角色，用于绑定时探测账号归属。</summary>
+    public string OsAccountInfoUrl => OsWebApi + "/account/binding/api/getUserGameRolesByCookie";
 
     public string CookieTokenByStokenUrl => WebApi + "/auth/api/getCookieAccountInfoBySToken";
 
