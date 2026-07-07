@@ -56,6 +56,10 @@ public sealed class QQUpdateHandler(
 
             var replyToMessageId = message.GetMessageByType(MessageType.Reply)?.Parameters.GetValueOrDefault("id");
 
+            // @ 目标：取第一个有效 at 段的 qq（排除 @全体 和 @机器人自己）。
+            // 覆盖「/setpriv @某人」以及 QQ 回复时自动带的 @；纯 LINQ 无网络开销，可每条都算。
+            var mentionedUserId = ExtractMentionedUserId(message);
+
             string chatId;
             BotChatType chatType;
             var nickname = string.Empty;
@@ -111,7 +115,19 @@ public sealed class QQUpdateHandler(
                 return;
             }
 
-            var response = await gateway.ExecuteAsync(request, _options.BotInstanceId);
+            // 「对某人」的命令（如 setpriv）需要目标 uid：优先用 @ 到的人；
+            // 否则若是回复消息，用 get_msg 反查被回复消息的发送者（QQ 回复段只带消息 id，不带发送者）。
+            var replyToUserId = mentionedUserId;
+            if (string.IsNullOrEmpty(replyToUserId) && !string.IsNullOrEmpty(replyToMessageId))
+            {
+                replyToUserId = await ResolveReplySenderIdAsync(replyToMessageId);
+            }
+
+            var commandRequest = string.IsNullOrEmpty(replyToUserId)
+                ? request
+                : request with { ReplyToUserId = replyToUserId };
+
+            var response = await gateway.ExecuteAsync(commandRequest, _options.BotInstanceId);
             await SendResponseAsync(response, chatType, chatId, request.UserId, request.MessageId);
         }
         catch (Exception exception)
@@ -202,6 +218,53 @@ public sealed class QQUpdateHandler(
         {
             logger.LogWarning(exception, "记录 QQ 用户档案失败。uid={Uid}", request.UserId);
         }
+    }
+
+    // 取第一个有效 at 段的 qq（排除 @全体 "all"）。
+    // 不排除机器人自身：显式 @ 就是明确目标，@到谁就是谁（含 @机器人本身）。
+    private static string? ExtractMentionedUserId(MessageEvent message)
+    {
+        return message.GetMessagesByType(MessageType.At)
+            .Select(entity => entity.Parameters.GetValueOrDefault("qq"))
+            .FirstOrDefault(qq => !string.IsNullOrWhiteSpace(qq)
+                && !string.Equals(qq, "all", StringComparison.OrdinalIgnoreCase));
+    }
+
+    // 用 get_msg 反查被回复消息的发送者 uid；失败返回 null（命令侧会退回「缺目标」提示）。
+    private async Task<string?> ResolveReplySenderIdAsync(string replyToMessageId)
+    {
+        if (!long.TryParse(replyToMessageId, out var messageId))
+        {
+            return null;
+        }
+
+        try
+        {
+            var response = await oneBotClient.SendActionAsync(
+                new OneBotActionRequest("get_msg", new { message_id = messageId }));
+            if (!response.IsSuccess || response.Data.ValueKind != JsonValueKind.Object)
+            {
+                return null;
+            }
+
+            if (response.Data.TryGetProperty("sender", out var sender)
+                && sender.ValueKind == JsonValueKind.Object
+                && sender.TryGetProperty("user_id", out var userId))
+            {
+                return userId.ValueKind switch
+                {
+                    JsonValueKind.Number => userId.GetRawText(),
+                    JsonValueKind.String => userId.GetString(),
+                    _ => null
+                };
+            }
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "get_msg 反查被回复发送者失败。message_id={MessageId}", replyToMessageId);
+        }
+
+        return null;
     }
 
     private static string? ExtractMessageId(JsonElement data)

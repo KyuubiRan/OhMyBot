@@ -30,25 +30,34 @@ public sealed class NotificationSubscriptionService(
             .ToHashSet();
     }
 
-    public async Task<List<NotificationEndpoint>> ListEnabledEndpointsByTargetAsync(
-        BotPlatform platform,
+    private static readonly BotPlatform[] NotifiablePlatforms = [BotPlatform.Telegram, BotPlatform.Qq];
+
+    public async Task<List<NotificationDelivery>> ListEnabledDeliveriesByTargetAsync(
         string notificationType,
         long targetId,
         CancellationToken cancellationToken = default)
     {
-        var platformFlag = ToFlag(platform);
         var subscriptions = await dbContext.NotificationSubscriptions
             .AsNoTracking()
             .Where(subscription => subscription.NotificationType == notificationType
                 && subscription.TargetId == targetId
-                && (subscription.EnabledPlatforms & (int)platformFlag) != 0)
+                && subscription.EnabledPlatforms != (int)NotificationPlatformFlags.None)
             .ToListAsync(cancellationToken);
 
-        return subscriptions
-            .Select(subscription => ToEndpoint(subscription, platform))
-            .Where(endpoint => endpoint is not null)
-            .Cast<NotificationEndpoint>()
-            .ToList();
+        var deliveries = new List<NotificationDelivery>();
+        foreach (var subscription in subscriptions)
+        {
+            foreach (var platform in NotifiablePlatforms)
+            {
+                if (HasPlatform(subscription.EnabledPlatforms, ToFlag(platform))
+                    && ToEndpoint(subscription, platform) is { } endpoint)
+                {
+                    deliveries.Add(new NotificationDelivery(platform, endpoint.BotInstanceId, endpoint.ChatId));
+                }
+            }
+        }
+
+        return deliveries;
     }
 
     public async Task ToggleAsync(
@@ -251,3 +260,5 @@ public sealed class NotificationSubscriptionService(
 }
 
 public sealed record NotificationEndpoint(string BotInstanceId, string ChatId);
+
+public sealed record NotificationDelivery(BotPlatform Platform, string BotInstanceId, string ChatId);

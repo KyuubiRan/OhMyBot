@@ -1117,6 +1117,46 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task ListEnabledDeliveriesReturnsEveryEnabledPlatform()
+    {
+        // Regression: scheduled auto-sign tasks used to query Telegram only, so QQ subscribers
+        // never received push notifications even after enabling them. Deliveries must cover both.
+        await using var dbContext = CreateDbContext();
+        dbContext.CoreUsers.Add(new Core.Infrastructure.Data.Entities.CoreUser { Id = 1 });
+        await dbContext.SaveChangesAsync();
+        var service = new NotificationSubscriptionService(dbContext, TimeProvider.System);
+
+        await service.EnableAsync(
+            1,
+            BotPlatform.Telegram,
+            "tg",
+            "tg-chat",
+            NotificationTypes.MihoyoAutoSign,
+            100,
+            CancellationToken.None);
+        await service.EnableAsync(
+            1,
+            BotPlatform.Qq,
+            "qq",
+            "qq-chat",
+            NotificationTypes.MihoyoAutoSign,
+            100,
+            CancellationToken.None);
+
+        var deliveries = await service.ListEnabledDeliveriesByTargetAsync(
+            NotificationTypes.MihoyoAutoSign,
+            100,
+            CancellationToken.None);
+
+        CollectionAssert.AreEquivalent(
+            new[] { BotPlatform.Telegram, BotPlatform.Qq },
+            deliveries.Select(delivery => delivery.Platform).ToArray());
+        var qq = deliveries.Single(delivery => delivery.Platform == BotPlatform.Qq);
+        Assert.AreEqual("qq", qq.BotInstanceId);
+        Assert.AreEqual("qq-chat", qq.ChatId);
+    }
+
+    [TestMethod]
     public async Task NotifyAccountPanelAddsBackButtonBesideToggleAll()
     {
         await using var dbContext = CreateDbContext();
@@ -1277,6 +1317,72 @@ public class V2CoreTests
 
         Assert.AreEqual(help.TgText(), ai.TgText());
         Assert.AreEqual(routerHelp.TgText(), router.TgText());
+    }
+
+    [TestMethod]
+    public async Task AiRouterParentIsPrivateOnlyBecauseAllSubcommandsArePrivate()
+    {
+        // ai/router 两个父节点自身没标私聊，只有叶子命令是私聊。父命令的有效会话类型应由子命令聚合，
+        // 于是群里触发 /ai 必须被拦下并提示只能私聊——否则整棵 ai 子树在群里形同暴露。
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "verified", UserPrivilege.VerifiedUser);
+        var request = CreateRequest(BotPlatform.Telegram, "verified", "ai");
+        request.ChatType = BotChatType.Group;
+
+        var response = await service.ExecuteAsync(request);
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("UnsupportedChatType", response.ErrorCode);
+        Assert.Contains("只能在私聊中使用", response.TgText());
+    }
+
+    [TestMethod]
+    public async Task HelpHidesAiRouterParentInGroupChatButShowsItInPrivate()
+    {
+        // 子命令全私聊 => 父命令在群聊 /help 里应自动隐藏（可用会话类型聚合后不含群聊），私聊里照常出现。
+        await using var dbContext = CreateDbContext();
+        var service = CreateHelpCommandService(dbContext, "verified", UserPrivilege.VerifiedUser);
+        var groupRequest = CreateRequest(BotPlatform.Telegram, "verified", "help");
+        groupRequest.ChatType = BotChatType.Group;
+
+        var groupHelp = await service.ExecuteAsync(groupRequest);
+        var privateHelp = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "verified", "help"));
+
+        Assert.AreEqual(0, groupHelp.Code);
+        Assert.IsFalse(groupHelp.TgText().Contains(MarkdownV2.Escape("/ai - AI 相关指令"), StringComparison.Ordinal));
+        Assert.Contains(MarkdownV2.Escape("/ping"), groupHelp.TgText());
+        Assert.Contains(MarkdownV2.Escape("/ai - AI 相关指令"), privateHelp.TgText());
+    }
+
+    [TestMethod]
+    public void ParentChatTypeRestrictionCapsChildrenSubtree()
+    {
+        // father 大于一切：父命令限制为私聊时，其下的群聊子命令被卡成不可达(None)，
+        // 而非仍以自身的 Group 生效；父命令本身聚合后为 Private。
+        var father = new CommandDslNode
+        {
+            Name = "father",
+            Description = "Father.",
+            Usage = "/father",
+            SupportChatTypes = SupportedChatTypes.Private,
+            Children =
+            [
+                CommandOnly("grp", "Group child.", "/father grp", UserPrivilege.User, chatTypes: SupportedChatTypes.Group),
+                CommandOnly("prv", "Private child.", "/father prv", UserPrivilege.User, chatTypes: SupportedChatTypes.Private)
+            ]
+        };
+        var registry = CreateBuiltInCommandRegistry(extraNodes: [father]);
+        var routeStore = CreateRouteStore(registry);
+        routeStore.InitializeAsync().GetAwaiter().GetResult();
+
+        Assert.IsTrue(routeStore.TryGet("father", out var fatherRoute));
+        Assert.AreEqual(SupportedChatTypes.Private, fatherRoute.EffectiveSupportChatTypes);
+
+        Assert.IsTrue(routeStore.TryGetNode(["father", "grp"], out var groupChild));
+        Assert.AreEqual(SupportedChatTypes.None, groupChild.SupportChatTypes);
+
+        Assert.IsTrue(routeStore.TryGetNode(["father", "prv"], out var privateChild));
+        Assert.AreEqual(SupportedChatTypes.Private, privateChild.SupportChatTypes);
     }
 
     [TestMethod]

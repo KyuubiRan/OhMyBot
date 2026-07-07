@@ -166,7 +166,7 @@ public sealed class PlatformCommandDslExecutor(RouteStore routeStore)
             && platform is not SupportedPlatforms.None
             && chatType is not SupportedChatTypes.None
             && node.SupportPlatforms.HasFlag(platform)
-            && node.SupportChatTypes.HasFlag(chatType)
+            && CommandDsl.EffectiveChatTypes(node).HasFlag(chatType)
             && (int)privilege >= (int)node.RequiredPrivilege;
     }
 

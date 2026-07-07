@@ -50,6 +50,7 @@ public sealed class GatewayWorker(
     {
         var me = await botClient.GetMe(stoppingToken);
         logger.LogInformation("Telegram gateway connected as @{Username} ({BotId}).", me.Username, me.Id);
+        await RegisterSelfProfileAsync(me, stoppingToken);
         logger.LogInformation("Telegram drop pending updates: {DropPendingUpdates}.", _options.DropPendingUpdates);
 
         await botClient.DeleteWebhook(dropPendingUpdates: _options.DropPendingUpdates, cancellationToken: stoppingToken);
@@ -73,5 +74,30 @@ public sealed class GatewayWorker(
         }
 
         await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+    }
+
+    // 登记 bot 自身档案：bot 收不到自己的消息，否则 /info、/setpriv 以自身为目标时只会显示 uid。
+    // 复用启动时的 GetMe 结果登记一次；失败仅告警，不影响网关运行。
+    private async Task RegisterSelfProfileAsync(Telegram.Bot.Types.User me, CancellationToken stoppingToken)
+    {
+        try
+        {
+            await gateway.RecordUserProfileAsync(
+                new GatewayCommandRequest(
+                    me.Id.ToString(),
+                    me.Id.ToString(),
+                    string.Empty,
+                    string.Empty,
+                    Username: me.Username,
+                    FirstName: me.FirstName,
+                    LastName: me.LastName),
+                _options.BotInstanceId,
+                stoppingToken);
+            logger.LogInformation("已登记 Telegram bot 自身档案。uid={BotId}", me.Id);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "登记 Telegram bot 自身档案失败。");
+        }
     }
 }

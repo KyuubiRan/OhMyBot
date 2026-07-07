@@ -50,7 +50,9 @@ public sealed class RouteStore(
             var routeFilePath = RouteFilePath;
             var document = await LoadOrCreateDocumentAsync(routeFilePath, cancellationToken);
             var merged = MergeDefaults(document);
-            var nodes = BuildNodes(document.Routes, commandRegistry.Roots);
+            var nodes = InheritChatTypeRestrictions(
+                BuildNodes(document.Routes, commandRegistry.Roots),
+                SupportedChatTypes.All);
             var routes = BuildRoutes(nodes);
             var routeLookup = BuildRouteLookup(routes);
 
@@ -229,6 +231,34 @@ public sealed class RouteStore(
         };
     }
 
+    // 自上而下下压会话类型限制：子命令的可用会话类型不得超出父命令（father 大于一切）。
+    // 例：父=Private、子=Group => 子被卡成 None（彻底不可达）；子=All => 子收敛为 Private。
+    // 与自下而上的 CommandDsl.EffectiveChatTypes（父随子隐藏）互补：这里保证子不越父，那里保证父随子收敛。
+    private static IReadOnlyList<CommandDslNode> InheritChatTypeRestrictions(
+        IReadOnlyList<CommandDslNode> nodes,
+        SupportedChatTypes inherited)
+    {
+        return nodes
+            .Select(node =>
+            {
+                var capped = node.SupportChatTypes & inherited;
+                return new CommandDslNode
+                {
+                    Name = node.Name,
+                    Description = node.Description,
+                    Usage = node.Usage,
+                    Aliases = node.Aliases,
+                    RequiredPrivilege = node.RequiredPrivilege,
+                    SupportPlatforms = node.SupportPlatforms,
+                    SupportChatTypes = capped,
+                    Enabled = node.Enabled,
+                    Handler = node.Handler,
+                    Children = InheritChatTypeRestrictions(node.Children, capped)
+                };
+            })
+            .ToArray();
+    }
+
     private IReadOnlyDictionary<string, RouteEntry> BuildRoutes(IReadOnlyList<CommandDslNode> roots)
     {
         var routes = new Dictionary<string, RouteEntry>(StringComparer.OrdinalIgnoreCase);
@@ -252,7 +282,7 @@ public sealed class RouteStore(
                 node.Enabled,
                 node.Handler is not null || node.Children.Count > 0,
                 node.RequiredPrivilege,
-                node.SupportChatTypes);
+                CommandDsl.EffectiveChatTypes(node));
         }
 
         return routes;

@@ -72,8 +72,7 @@ public sealed class AiRouterAutoSignManagedTask : ManagedTaskBase
             return;
         }
 
-        var telegramEndpoints = await subscriptionService.ListEnabledEndpointsByTargetAsync(
-            BotPlatform.Telegram,
+        var deliveries = await subscriptionService.ListEnabledDeliveriesByTargetAsync(
             NotificationTypes.AiRouterAutoSign,
             account.Id,
             cancellationToken);
@@ -86,27 +85,28 @@ public sealed class AiRouterAutoSignManagedTask : ManagedTaskBase
         catch (Exception exception)
         {
             _logger.LogWarning(exception, "Failed to process AI Router account {AccountId}.", account.Id);
-            foreach (var endpoint in telegramEndpoints)
-            {
-                await publisher.PublishTelegramAsync(
-                    endpoint.BotInstanceId,
-                    endpoint.ChatId,
-                    [$"[AI Router-自动签到]\n账号：{account.DisplayName}\n自动签到执行失败：{exception.GetBaseException().Message}"],
-                    cancellationToken);
-            }
-
+            var error = $"[AI Router-自动签到]\n账号：{account.DisplayName}\n自动签到执行失败：{exception.GetBaseException().Message}";
+            await PublishAsync(publisher, deliveries, error, cancellationToken);
             return;
         }
 
-        if (telegramEndpoints.Count == 0)
+        if (deliveries.Count == 0)
         {
             return;
         }
 
-        var message = FormatNotification(result, TimeProvider.GetUtcNow());
-        foreach (var endpoint in telegramEndpoints)
+        await PublishAsync(publisher, deliveries, FormatNotification(result, TimeProvider.GetUtcNow()), cancellationToken);
+    }
+
+    private static async Task PublishAsync(
+        INotificationPublisher publisher,
+        IReadOnlyList<NotificationDelivery> deliveries,
+        string message,
+        CancellationToken cancellationToken)
+    {
+        foreach (var delivery in deliveries)
         {
-            await publisher.PublishTelegramAsync(endpoint.BotInstanceId, endpoint.ChatId, [message], cancellationToken);
+            await publisher.PublishAsync(delivery.Platform, delivery.BotInstanceId, delivery.ChatId, [message], cancellationToken);
         }
     }
 

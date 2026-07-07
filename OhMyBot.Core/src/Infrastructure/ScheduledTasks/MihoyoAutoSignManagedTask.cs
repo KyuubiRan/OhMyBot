@@ -71,8 +71,7 @@ public sealed class MihoyoAutoSignManagedTask : ManagedTaskBase
             return;
         }
 
-        var telegramEndpoints = await subscriptionService.ListEnabledEndpointsByTargetAsync(
-            BotPlatform.Telegram,
+        var deliveries = await subscriptionService.ListEnabledDeliveriesByTargetAsync(
             NotificationTypes.MihoyoAutoSign,
             account.Id,
             cancellationToken);
@@ -85,7 +84,7 @@ public sealed class MihoyoAutoSignManagedTask : ManagedTaskBase
         {
             _logger.LogWarning(exception, "Failed to process Mihoyo account {AccountId}.", account.Id);
             var error = $"[米游社-自动签到]\n账号：{account.DisplayName}\n自动签到执行失败：{exception.GetBaseException().Message}";
-            await PublishAsync(publisher, telegramEndpoints, error, cancellationToken);
+            await PublishAsync(publisher, deliveries, error, cancellationToken);
             return;
         }
 
@@ -94,18 +93,18 @@ public sealed class MihoyoAutoSignManagedTask : ManagedTaskBase
             return;
         }
 
-        await PublishAsync(publisher, telegramEndpoints, FormatNotification(result, TimeProvider.GetUtcNow()), cancellationToken);
+        await PublishAsync(publisher, deliveries, FormatNotification(result, TimeProvider.GetUtcNow()), cancellationToken);
     }
 
     private static async Task PublishAsync(
         INotificationPublisher publisher,
-        IReadOnlyList<NotificationEndpoint> telegramEndpoints,
+        IReadOnlyList<NotificationDelivery> deliveries,
         string message,
         CancellationToken cancellationToken)
     {
-        foreach (var endpoint in telegramEndpoints)
+        foreach (var delivery in deliveries)
         {
-            await publisher.PublishTelegramAsync(endpoint.BotInstanceId, endpoint.ChatId, [message], cancellationToken);
+            await publisher.PublishAsync(delivery.Platform, delivery.BotInstanceId, delivery.ChatId, [message], cancellationToken);
         }
     }
 

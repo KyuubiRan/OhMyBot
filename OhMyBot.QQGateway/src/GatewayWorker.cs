@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using OhMyBot.OneBotV11;
+using OhMyBot.OneBotV11.Transport;
 
 namespace OhMyBot.QQGateway;
 
@@ -27,6 +29,7 @@ public sealed class GatewayWorker(
             // 先连 NapCat（传输层自带自动重连），再从 Core 拉取路由；Core 恢复后自愈。
             await ConnectWithRetryAsync(stoppingToken);
             await LoadRoutesWithRetryAsync(botInstanceId, stoppingToken);
+            await RegisterSelfProfileAsync(botInstanceId, stoppingToken);
             await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -88,5 +91,52 @@ public sealed class GatewayWorker(
     private void HandleOneBotException(Exception exception)
     {
         logger.LogError(exception, "OneBot client error.");
+    }
+
+    // 登记 bot 自身档案：bot 收不到自己的消息（见 QQUpdateHandler 自消息跳过），
+    // 否则 /info、/setpriv 以自身为目标时查不到档案、只能显示 uid。
+    // 用 get_login_info 拿到自己的 uid+昵称登记一次；失败仅告警，不影响网关运行。
+    private async Task RegisterSelfProfileAsync(string botInstanceId, CancellationToken stoppingToken)
+    {
+        try
+        {
+            var response = await oneBotClient.SendActionAsync(new OneBotActionRequest("get_login_info"), stoppingToken);
+            if (!response.IsSuccess || response.Data.ValueKind != JsonValueKind.Object)
+            {
+                logger.LogWarning("get_login_info 失败，跳过 bot 自身档案登记。");
+                return;
+            }
+
+            var data = response.Data;
+            var uid = data.TryGetProperty("user_id", out var userId)
+                ? userId.ValueKind switch
+                {
+                    JsonValueKind.Number => userId.GetRawText(),
+                    JsonValueKind.String => userId.GetString(),
+                    _ => null
+                }
+                : null;
+            if (string.IsNullOrEmpty(uid))
+            {
+                return;
+            }
+
+            var nickname = data.TryGetProperty("nickname", out var nick) && nick.ValueKind == JsonValueKind.String
+                ? nick.GetString()
+                : null;
+
+            await gateway.RecordUserProfileAsync(
+                new GatewayCommandRequest(uid, uid, string.Empty, string.Empty, Nickname: nickname),
+                botInstanceId,
+                stoppingToken);
+            logger.LogInformation("已登记 QQ bot 自身档案。uid={Uid} nickname={Nickname}", uid, nickname);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "登记 QQ bot 自身档案失败。");
+        }
     }
 }
