@@ -6,6 +6,7 @@ using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Integrations.Mihoyo;
+using OhMyBot.Core.Integrations.Skland;
 using OhMyBot.Core.Commanding.Notifications;
 
 namespace OhMyBot.Core.Commanding.Callbacks;
@@ -105,6 +106,17 @@ public sealed class CallbackExecutionService(
             "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
             "notify-back" => await ExecuteNotifyBackAsync(context, request.MessageId, cancellationToken),
             "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
+            "skland-game-sign-panel" => await ExecuteSklandGameSignPanelAsync(context, action, request.MessageId, cancellationToken),
+            "skland-game-sign-run" => await ExecuteSklandGameSignRunAsync(context, action, request.MessageId, cancellationToken),
+            "skland-game-sign-back" => await ExecuteSklandGameSignBackAsync(context, request.MessageId, cancellationToken),
+            "skland-game-sign-all" => await ExecuteSklandGameSignAllAsync(context, request.MessageId, cancellationToken),
+            "skland-autosign-root-menu" => await ExecuteSklandAutoSignRootMenuAsync(context, request.MessageId, cancellationToken),
+            "skland-autosign-account-menu" => await ExecuteSklandAutoSignAccountMenuAsync(context, action, request.MessageId, cancellationToken),
+            "skland-auto-sign-toggle" => await ExecuteSklandAutoSignToggleAsync(context, action, request.MessageId, cancellationToken),
+            "skland-game-auto-sign-toggle" => await ExecuteSklandGameAutoSignToggleAsync(context, action, request.MessageId, cancellationToken),
+            "skland-game-auto-sign-toggle-all" => await ExecuteSklandGameAutoSignToggleAllAsync(context, action, request.MessageId, cancellationToken),
+            "skland-delete-select" => await ExecuteSklandDeleteSelectAsync(context, action, request.MessageId, cancellationToken),
+            "skland-delete-confirm" => await ExecuteSklandDeleteConfirmAsync(context, action, request.MessageId, cancellationToken),
             _ => CallbackError(identity, request.MessageId, "未知按钮操作。")
         };
     }
@@ -293,7 +305,8 @@ public sealed class CallbackExecutionService(
         var data = CallbackActionStore.ReadData<NotifyTypeCallbackData>(action);
         if (data?.Type != NotificationTypes.AiRouterAutoSign
             && data?.Type != NotificationTypes.KuroAutoSign
-            && data?.Type != NotificationTypes.MihoyoAutoSign)
+            && data?.Type != NotificationTypes.MihoyoAutoSign
+            && data?.Type != NotificationTypes.SklandAutoSign)
         {
             return CallbackError(context.Identity, editMessageId, "未知订阅类型。");
         }
@@ -315,6 +328,14 @@ public sealed class CallbackExecutionService(
             return await mihoyoBuilder.BuildNotifyAccountPanelAsync(context, mihoyoAccounts, editMessageId, cancellationToken);
         }
 
+        if (data.Type == NotificationTypes.SklandAutoSign)
+        {
+            var sklandAccountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+            var sklandBuilder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+            var sklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+            return await sklandBuilder.BuildNotifyAccountPanelAsync(context, sklandAccounts, editMessageId, cancellationToken);
+        }
+
         var accountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
         var builder = scope.ServiceProvider.GetRequiredService<AiRouterResponseBuilder>();
         var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
@@ -330,7 +351,8 @@ public sealed class CallbackExecutionService(
         var data = CallbackActionStore.ReadData<NotifyAccountCallbackData>(action);
         if (data?.Type != NotificationTypes.AiRouterAutoSign
             && data?.Type != NotificationTypes.KuroAutoSign
-            && data?.Type != NotificationTypes.MihoyoAutoSign)
+            && data?.Type != NotificationTypes.MihoyoAutoSign
+            && data?.Type != NotificationTypes.SklandAutoSign)
         {
             return CallbackError(context.Identity, editMessageId, "未知订阅类型。");
         }
@@ -408,6 +430,43 @@ public sealed class CallbackExecutionService(
 
             var updatedMihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
             return await mihoyoBuilder.BuildNotifyAccountPanelAsync(context, updatedMihoyoAccounts, editMessageId, cancellationToken);
+        }
+
+        if (data.Type == NotificationTypes.SklandAutoSign)
+        {
+            var sklandAccountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+            var sklandSubscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
+            var sklandBuilder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+            var sklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, cancellationToken: cancellationToken);
+            if (data.ToggleAll)
+            {
+                await sklandSubscriptionService.ToggleAllAsync(
+                    context.Identity.CoreUserId,
+                    context.Request.Platform,
+                    context.Request.BotInstanceId,
+                    context.Request.ChatId,
+                    NotificationTypes.SklandAutoSign,
+                    sklandAccounts.Select(account => account.Id).ToArray(),
+                    cancellationToken);
+            }
+            else if (sklandAccounts.Any(account => account.Id == data.AccountId))
+            {
+                await sklandSubscriptionService.ToggleAsync(
+                    context.Identity.CoreUserId,
+                    context.Request.Platform,
+                    context.Request.BotInstanceId,
+                    context.Request.ChatId,
+                    NotificationTypes.SklandAutoSign,
+                    data.AccountId,
+                    cancellationToken);
+            }
+            else
+            {
+                return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+            }
+
+            var updatedSklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+            return await sklandBuilder.BuildNotifyAccountPanelAsync(context, updatedSklandAccounts, editMessageId, cancellationToken);
         }
 
         var accountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
@@ -967,11 +1026,13 @@ public sealed class CallbackExecutionService(
         var aiAccountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
         var kuroAccountService = scope.ServiceProvider.GetRequiredService<KuroAccountService>();
         var mihoyoAccountService = scope.ServiceProvider.GetRequiredService<MihoyoAccountService>();
+        var sklandAccountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
         var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
         var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
         var aiAccounts = await aiAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var kuroAccounts = await kuroAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var mihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        var sklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var aiEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
             context.Identity.CoreUserId,
             context.Request.Platform,
@@ -990,11 +1051,18 @@ public sealed class CallbackExecutionService(
             NotificationTypes.MihoyoAutoSign,
             mihoyoAccounts.Select(account => account.Id).ToArray(),
             cancellationToken);
+        var sklandEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
+            context.Identity.CoreUserId,
+            context.Request.Platform,
+            NotificationTypes.SklandAutoSign,
+            sklandAccounts.Select(account => account.Id).ToArray(),
+            cancellationToken);
         var items = new (string Type, string DisplayName, bool Enabled)[]
         {
             (NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName, aiEnabled.Count > 0),
             (NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName, kuroEnabled.Count > 0),
-            (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0)
+            (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0),
+            (NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName, sklandEnabled.Count > 0)
         };
         var enabledNames = items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
         var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +
@@ -1582,6 +1650,327 @@ public sealed class CallbackExecutionService(
 
         var deleted = await accountService.DeleteAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
         var response = CommandResponses.Text(deleted ? $"已删除米游社账号绑定：`{account.DisplayName}`" : "未找到指定米游社账号", context);
+        response.AsTelegramEdit(editMessageId);
+        return response;
+    }
+
+    private async Task<CommandResponse> ExecuteSklandGameSignPanelAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandGameSignPanelCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var account = await accountService.FindByIdAsync(data.AccountId, noTracking: true, cancellationToken);
+        if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        // 翻转勾选走服务端原子读改写（账号级串行），避免并发点击互相覆盖；仅打开时读取当前状态。
+        var selected = string.IsNullOrEmpty(data.Toggle)
+            ? SklandResponseBuilder.ResolveGameSignSelection(account)
+            : await accountService.ToggleGameSignSelectionAsync(context.Identity.CoreUserId, account.Id, data.Toggle, cancellationToken);
+
+        return await builder.BuildGameSignPanelAsync(context, account, selected, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandGameSignRunAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandGameSignPanelCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var signService = scope.ServiceProvider.GetRequiredService<SklandSignService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var account = await accountService.FindByIdAsync(data.AccountId, noTracking: true, cancellationToken);
+        if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        // 以服务端持久化的勾选为准（面板状态即为账号记录）。
+        var selectedKeys = SklandResponseBuilder.ResolveGameSignSelection(account);
+        if (selectedKeys.Count == 0)
+        {
+            var panel = await builder.BuildGameSignPanelAsync(context, account, selectedKeys, editMessageId, cancellationToken);
+            panel.CallbackAnswerText = "请至少勾选一个游戏";
+            panel.CallbackAnswerAlert = true;
+            return panel;
+        }
+
+        var selectedGameIds = selectedKeys.Select(SklandGameNames.FromAppCode).ToHashSet();
+        var roleIds = account.Roles.Where(role => selectedGameIds.Contains(role.GameId)).Select(role => role.Id).ToArray();
+        var response = builder.BuildGameSignResult(context, await signService.ExecuteGameSignAsync(
+            account,
+            roleIds,
+            includeMissingConfigMessage: true,
+            cancellationToken: cancellationToken));
+        response.AsTelegramEdit(editMessageId);
+        return response;
+    }
+
+    private async Task<CommandResponse> ExecuteSklandGameSignBackAsync(
+        CommandContext context,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        if (accounts.Count <= 1)
+        {
+            var canceled = CommandResponses.Text("已取消游戏签到", context);
+            canceled.AsTelegramEdit(editMessageId);
+            return canceled;
+        }
+
+        return await builder.BuildGameSignSelectionAsync(context, accounts, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandGameSignAllAsync(
+        CommandContext context,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var signService = scope.ServiceProvider.GetRequiredService<SklandSignService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        if (accounts.Count == 0)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到森空岛账号。");
+        }
+
+        var results = new List<(SklandAccount, IReadOnlyList<string>)>();
+        foreach (var account in accounts)
+        {
+            try
+            {
+                var result = await signService.ExecuteGameSignAsync(account, includeMissingConfigMessage: true, cancellationToken: cancellationToken);
+                results.Add((account, result.Lines));
+            }
+            catch (Exception exception)
+            {
+                results.Add((account, ["签到失败：" + exception.GetBaseException().Message]));
+            }
+        }
+
+        return builder.BuildCombinedGameSignResult(context, results, editMessageId);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandAutoSignRootMenuAsync(
+        CommandContext context,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        return await builder.BuildAutoSignPanelAsync(context, accounts, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandAutoSignAccountMenuAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandAutoSignMenuCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        return await builder.BuildAutoSignAccountPanelAsync(context, accounts, data.AccountId, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandAutoSignToggleAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandAutoSignCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ToggleAutoSignAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
+        if (accounts.Count == 0)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        return await builder.BuildAutoSignAccountPanelAsync(context, accounts, data.AccountId, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandGameAutoSignToggleAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandGameAutoSignCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ToggleGameAutoSignAsync(context.Identity.CoreUserId, data.RoleId, cancellationToken);
+        if (accounts.Count == 0)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛角色。");
+        }
+
+        var accountId = data.AccountId == 0
+            ? accounts.FirstOrDefault(account => account.Roles.Any(role => role.Id == data.RoleId))?.Id ?? 0
+            : data.AccountId;
+        if (accountId == 0)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        return await builder.BuildAutoSignAccountPanelAsync(context, accounts, accountId, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandGameAutoSignToggleAllAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandGameAutoSignToggleAllCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var builder = scope.ServiceProvider.GetRequiredService<SklandResponseBuilder>();
+        var accounts = await accountService.ToggleAllGameAutoSignAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
+        if (accounts.Count == 0)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        return await builder.BuildAutoSignAccountPanelAsync(context, accounts, data.AccountId, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteSklandDeleteSelectAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandAccountCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
+        var account = await accountService.FindByIdAsync(data.AccountId, noTracking: true, cancellationToken);
+        if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        var response = CommandResponses.Text($"确认删除森空岛账号绑定？\n账号：`{account.DisplayName}`", context);
+        response.AsTelegramEdit(editMessageId);
+        response.AddButtonRow(new ResponseButtonRow
+        {
+            Buttons =
+            {
+                new ResponseButton
+                {
+                    Text = "确认删除",
+                    Payload = await callbackStore.PutAsync(
+                        "skland-delete-confirm",
+                        context.Identity.CoreUserId,
+                        context.Request.ChatId,
+                        context.Request.UserId,
+                        new SklandDeleteConfirmCallbackData(account.Id, Confirm: true),
+                        cancellationToken: cancellationToken)
+                },
+                new ResponseButton
+                {
+                    Text = "取消",
+                    Payload = await callbackStore.PutAsync(
+                        "skland-delete-confirm",
+                        context.Identity.CoreUserId,
+                        context.Request.ChatId,
+                        context.Request.UserId,
+                        new SklandDeleteConfirmCallbackData(account.Id, Confirm: false),
+                        cancellationToken: cancellationToken)
+                }
+            }
+        });
+        return response;
+    }
+
+    private async Task<CommandResponse> ExecuteSklandDeleteConfirmAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<SklandDeleteConfirmCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        if (!data.Confirm)
+        {
+            var canceled = CommandResponses.Text("删除操作已取消", context);
+            canceled.AsTelegramEdit(editMessageId);
+            return canceled;
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var account = await accountService.FindByIdAsync(data.AccountId, noTracking: true, cancellationToken);
+        if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定森空岛账号。");
+        }
+
+        var deleted = await accountService.DeleteAsync(context.Identity.CoreUserId, data.AccountId, cancellationToken);
+        var response = CommandResponses.Text(deleted ? $"已删除森空岛账号绑定：`{account.DisplayName}`" : "未找到指定森空岛账号", context);
         response.AsTelegramEdit(editMessageId);
         return response;
     }

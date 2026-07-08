@@ -13,6 +13,10 @@ public static class NotificationTypes
     public const string MihoyoAutoSign = "mihoyo-auto-sign";
 
     public const string MihoyoAutoSignDisplayName = "米游社自动签到";
+
+    public const string SklandAutoSign = "skland-auto-sign";
+
+    public const string SklandAutoSignDisplayName = "森空岛自动签到";
 }
 
 [Flags]

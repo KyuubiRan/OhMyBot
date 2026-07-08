@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OhMyBot.Core.Infrastructure.Data;
@@ -11,9 +12,11 @@ using OhMyBot.Core.Infrastructure.Data;
 namespace OhMyBot.Core.src.Data.Migrations
 {
     [DbContext(typeof(OhMyBotV2DbContext))]
-    partial class OhMyBotV2DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707151110_AddSklandSignIn")]
+    partial class AddSklandSignIn
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -461,10 +464,6 @@ namespace OhMyBot.Core.src.Data.Migrations
                         .IsRequired()
                         .HasMaxLength(256)
                         .HasColumnType("character varying(256)");
-
-                    b.Property<string>("GameSignSelection")
-                        .IsRequired()
-                        .HasColumnType("text");
 
                     b.Property<string>("HgTokenCiphertext")
                         .IsRequired()

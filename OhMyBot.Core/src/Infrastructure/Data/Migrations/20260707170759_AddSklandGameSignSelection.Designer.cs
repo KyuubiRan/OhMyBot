@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using OhMyBot.Core.Infrastructure.Data;
@@ -11,9 +12,11 @@ using OhMyBot.Core.Infrastructure.Data;
 namespace OhMyBot.Core.src.Data.Migrations
 {
     [DbContext(typeof(OhMyBotV2DbContext))]
-    partial class OhMyBotV2DbContextModelSnapshot : ModelSnapshot
+    [Migration("20260707170759_AddSklandGameSignSelection")]
+    partial class AddSklandGameSignSelection
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder

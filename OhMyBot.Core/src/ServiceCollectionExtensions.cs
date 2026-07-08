@@ -11,6 +11,7 @@ using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Infrastructure.Messaging;
 using OhMyBot.Core.Integrations.Mihoyo;
+using OhMyBot.Core.Integrations.Skland;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Commanding.Routing;
@@ -38,6 +39,7 @@ public static class ServiceCollectionExtensions
         services.AddOptions<AiRouterOptions>().BindConfiguration("AiRouter");
         services.AddOptions<KuroOptions>().BindConfiguration("Kuro");
         services.AddOptions<MihoyoOptions>().BindConfiguration("Mihoyo");
+        services.AddOptions<SklandOptions>().BindConfiguration("Skland");
         services.AddOptions<ScheduledTaskOptions>()
             .BindConfiguration("ScheduledTasks:AiRouterAutoSign")
             .ValidateOnStart();
@@ -46,6 +48,9 @@ public static class ServiceCollectionExtensions
             .ValidateOnStart();
         services.AddOptions<ScheduledTaskOptions>("MihoyoAutoSign")
             .BindConfiguration("ScheduledTasks:MihoyoAutoSign")
+            .ValidateOnStart();
+        services.AddOptions<ScheduledTaskOptions>("SklandAutoSign")
+            .BindConfiguration("ScheduledTasks:SklandAutoSign")
             .ValidateOnStart();
         services.TryAddSingleton<InteractiveConsoleState>();
         services.AddScoped<IAdminCommand, UserAdminCommand>();
@@ -62,6 +67,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, KuroCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, MihoyoCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, SklandCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
@@ -76,6 +82,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<MihoyoAccountService>();
         services.AddScoped<MihoyoSignService>();
         services.AddScoped<MihoyoResponseBuilder>();
+        services.AddScoped<SklandAccountService>();
+        services.AddScoped<SklandSignService>();
+        services.AddScoped<SklandResponseBuilder>();
         services.AddScoped<NotificationSubscriptionService>();
         services.AddSingleton<CallbackActionStore>();
         services.AddSingleton<QqMenuStore>();
@@ -89,6 +98,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IManagedTask, AiRouterAutoSignManagedTask>();
         services.AddSingleton<IManagedTask, KuroAutoSignManagedTask>();
         services.AddSingleton<IManagedTask, MihoyoAutoSignManagedTask>();
+        services.AddSingleton<IManagedTask, SklandAutoSignManagedTask>();
         services.AddHttpClient<AiRouterHttpClient>(client =>
         {
             client.BaseAddress = new Uri("https://ai.router.team");
@@ -109,6 +119,11 @@ public static class ServiceCollectionExtensions
             AutomaticDecompression = System.Net.DecompressionMethods.All,
             // 米游社是国服 API，必须直连；走 HTTP_PROXY 会被 bbs-api WAF 拦成 403
             UseProxy = false
+        });
+        services.AddHttpClient<SklandHttpClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SklandOptions>>().Value;
+            client.Timeout = options.Timeout;
         });
         services.AddHostedService<DatabaseMigrationHostedService>();
         services.AddHostedService<RouteStoreHostedService>();

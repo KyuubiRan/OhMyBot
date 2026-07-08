@@ -20,5 +20,7 @@ public class CoreUser
 
     public ICollection<MihoyoAccount> MihoyoAccounts { get; set; } = new List<MihoyoAccount>();
 
+    public ICollection<SklandAccount> SklandAccounts { get; set; } = new List<SklandAccount>();
+
     public ICollection<NotificationSubscription> NotificationSubscriptions { get; set; } = new List<NotificationSubscription>();
 }

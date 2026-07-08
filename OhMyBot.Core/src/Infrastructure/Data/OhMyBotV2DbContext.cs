@@ -19,6 +19,10 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
 
     public DbSet<MihoyoGameRole> MihoyoGameRoles => Set<MihoyoGameRole>();
 
+    public DbSet<SklandAccount> SklandAccounts => Set<SklandAccount>();
+
+    public DbSet<SklandGameRole> SklandGameRoles => Set<SklandGameRole>();
+
     public DbSet<NotificationSubscription> NotificationSubscriptions => Set<NotificationSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -134,6 +138,46 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
             builder.HasOne(role => role.MihoyoAccount)
                    .WithMany(account => account.Roles)
                    .HasForeignKey(role => role.MihoyoAccountId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SklandAccount>(builder =>
+        {
+            builder.HasKey(account => account.Id);
+            builder.Property(account => account.SklandUserId).HasMaxLength(128).IsRequired();
+            builder.Property(account => account.DeviceId).HasMaxLength(64).IsRequired();
+            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
+            builder.Property(account => account.HgTokenCiphertext).HasMaxLength(2048).IsRequired();
+            builder.Property(account => account.CredCiphertext).HasMaxLength(2048).IsRequired();
+            builder.Property(account => account.SignTokenCiphertext).HasMaxLength(2048).IsRequired();
+            builder.Property(account => account.CreatedAt).IsRequired();
+            builder.Property(account => account.UpdatedAt).IsRequired();
+
+            builder.HasIndex(account => account.SklandUserId).IsUnique();
+            builder.HasOne(account => account.CoreUser)
+                   .WithMany(user => user.SklandAccounts)
+                   .HasForeignKey(account => account.CoreUserId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<SklandGameRole>(builder =>
+        {
+            builder.HasKey(role => role.Id);
+            builder.Property(role => role.AppCode).HasMaxLength(64).IsRequired();
+            builder.Property(role => role.GameName).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.Uid).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.NickName).HasMaxLength(256).IsRequired();
+            builder.Property(role => role.Level).HasMaxLength(64).IsRequired();
+            builder.Property(role => role.ChannelName).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.ServerId).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.RoleId).HasMaxLength(128).IsRequired();
+            builder.Property(role => role.CreatedAt).IsRequired();
+            builder.Property(role => role.UpdatedAt).IsRequired();
+
+            builder.HasIndex(role => new { role.SklandAccountId, role.GameId, role.Uid, role.RoleId }).IsUnique();
+            builder.HasOne(role => role.SklandAccount)
+                   .WithMany(account => account.Roles)
+                   .HasForeignKey(role => role.SklandAccountId)
                    .OnDelete(DeleteBehavior.Cascade);
         });
 
