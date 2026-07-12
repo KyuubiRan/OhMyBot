@@ -67,11 +67,24 @@ public sealed class KuroCommandDslProvider(IServiceScopeFactory scopeFactory) : 
         };
     }
 
+    private static readonly string BindUsage = string.Join('\n',
+        "用法：/kuro bind <token> [devCode] [distinctId]",
+        string.Empty,
+        "获取 Token：",
+        "1. 浏览器登录 库街区（登录后保持在该页面）",
+        "   · https://www.kurobbs.com/",
+        "2. 按 F12 打开开发人员工具，切到 Network（网络）",
+        "3. 在页面上刷新或随意点击一下，从请求列表里选中一条发往 kurobbs.com 的接口请求",
+        "4. 在该请求的 Headers（请求标头）里找到 `token` 字段，复制它的值",
+        "5. 回到这里发送 /kuro bind 后面粘贴刚复制的 Token",
+        string.Empty,
+        "注：如遇签到风控，可在同一请求头里一并复制 `devCode`、`distinct_id`，作为命令的 devCode、distinctId 参数附上。");
+
     private async Task<CommandResponse> BindAsync(CommandContext context)
     {
         if (context.Request.Args.Count < 1)
         {
-            return CommandResponses.Error("Usage", "用法：/kuro bind <token> [devCode] [distinctId]", context);
+            return CommandResponses.Text(BindUsage, context);
         }
 
         await using var scope = scopeFactory.CreateAsyncScope();

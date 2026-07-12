@@ -749,10 +749,11 @@ public sealed class KuroResponseBuilder(
             .Select(account => $"`{MarkdownV2.Code(account.DisplayName)}`")
             .ToArray();
         var markdown = string.Join('\n',
-            MarkdownV2.Escape($"[{NotificationTypes.KuroAutoSignDisplayName}]"),
+            MarkdownV2.Escape($"[消息订阅 · {NotificationTypes.KuroAutoSignDisplayName}]"),
             MarkdownV2.Escape("当前已启用：") + (enabledMarks.Length == 0
                 ? MarkdownV2.Escape("无")
-                : string.Join(MarkdownV2.Escape("、"), enabledMarks)));
+                : string.Join(MarkdownV2.Escape("、"), enabledMarks)),
+            MarkdownV2.Escape("此处为消息订阅管理，仅控制签到结果是否推送；开关自动签到请使用 ") + MarkdownV2.CodeSpan("/kuro autosign"));
         var response = CommandResponses.TelegramMarkdown(
             context.Identity,
             markdown,
@@ -851,6 +852,7 @@ public sealed class KuroResponseBuilder(
             lines.Add($"#{account.Id} {account.DisplayName}：{(account.AutoSignEnabled ? "开启" : "关闭")}");
         }
 
+        lines.Add("如需管理签到结果的消息推送，请使用 `/notify`");
         return string.Join('\n', lines);
     }
 

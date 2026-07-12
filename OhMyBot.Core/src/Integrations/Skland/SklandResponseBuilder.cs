@@ -194,6 +194,7 @@ public sealed class SklandResponseBuilder(
             lines.Add($"{(account.AutoSignEnabled ? "[开]" : "[关]")} #{account.Id} {account.DisplayName}");
         }
 
+        lines.Add("如需管理签到结果的消息推送，请使用 `/notify`");
         var response = CommandResponses.Text(string.Join('\n', lines), context);
         ApplyEdit(response, editMessageId);
 
@@ -318,8 +319,9 @@ public sealed class SklandResponseBuilder(
             .Select(account => $"`{MarkdownV2.Code(account.DisplayName)}`")
             .ToArray();
         return string.Join('\n',
-            MarkdownV2.Escape($"[{NotificationTypes.SklandAutoSignDisplayName}]"),
-            MarkdownV2.Escape("当前已启用：") + (enabledNames.Length == 0 ? MarkdownV2.Escape("无") : string.Join(MarkdownV2.Escape("、"), enabledNames)));
+            MarkdownV2.Escape($"[消息订阅 · {NotificationTypes.SklandAutoSignDisplayName}]"),
+            MarkdownV2.Escape("当前已启用：") + (enabledNames.Length == 0 ? MarkdownV2.Escape("无") : string.Join(MarkdownV2.Escape("、"), enabledNames)),
+            MarkdownV2.Escape("此处为消息订阅管理，仅控制签到结果是否推送；开关自动签到请使用 ") + MarkdownV2.CodeSpan("/skland autosign"));
     }
 
     // ---- Delete panel ----

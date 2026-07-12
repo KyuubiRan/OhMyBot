@@ -26,14 +26,14 @@ public sealed class CoreCommandDslProvider(
             new CommandDslNode
             {
                 Name = "ping",
-                Description = "检查 Core 连接状态。",
+                Description = "检查 Core 连接状态",
                 Usage = "/ping",
                 Handler = PingAsync
             },
             new CommandDslNode
             {
                 Name = "link",
-                Description = "跨平台绑定身份。",
+                Description = "跨平台绑定身份",
                 Usage = "/link [token]",
                 SupportChatTypes = SupportedChatTypes.Private,
                 Handler = LinkAsync
@@ -41,14 +41,14 @@ public sealed class CoreCommandDslProvider(
             new CommandDslNode
             {
                 Name = "info",
-                Description = "查看用户信息。",
+                Description = "查看用户信息",
                 Usage = "/info [uid]",
                 Handler = InfoAsync
             },
             new CommandDslNode
             {
                 Name = "setpriv",
-                Description = "设置用户权限。",
+                Description = "设置用户权限",
                 Usage = "/setpriv <uid|@user> 或回复消息 /setpriv",
                 RequiredPrivilege = UserPrivilege.Admin,
                 Handler = SetPrivilegeAsync

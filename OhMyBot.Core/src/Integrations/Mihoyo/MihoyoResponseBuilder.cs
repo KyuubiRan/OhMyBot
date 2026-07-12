@@ -492,8 +492,9 @@ public sealed class MihoyoResponseBuilder(
             .Select(account => $"`{MarkdownV2.Code(account.DisplayName)}`")
             .ToArray();
         return string.Join('\n',
-            MarkdownV2.Escape($"[{NotificationTypes.MihoyoAutoSignDisplayName}]"),
-            MarkdownV2.Escape("当前已启用：") + (enabledNames.Length == 0 ? MarkdownV2.Escape("无") : string.Join(MarkdownV2.Escape("、"), enabledNames)));
+            MarkdownV2.Escape($"[消息订阅 · {NotificationTypes.MihoyoAutoSignDisplayName}]"),
+            MarkdownV2.Escape("当前已启用：") + (enabledNames.Length == 0 ? MarkdownV2.Escape("无") : string.Join(MarkdownV2.Escape("、"), enabledNames)),
+            MarkdownV2.Escape("此处为消息订阅管理，仅控制签到结果是否推送；开关自动签到请使用 ") + MarkdownV2.CodeSpan("/mihoyo autosign"));
     }
 
     private static IEnumerable<MihoyoGameRole> OrderRoles(MihoyoAccount account)
@@ -599,6 +600,7 @@ public sealed class MihoyoResponseBuilder(
             lines.Add($"#{account.Id} {account.DisplayName} [{RegionLabel(account.Region)}]：{(account.AutoSignEnabled ? "开启" : "关闭")}");
         }
 
+        lines.Add("如需管理签到结果的消息推送，请使用 `/notify`");
         return string.Join('\n', lines);
     }
 

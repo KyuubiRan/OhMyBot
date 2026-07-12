@@ -282,10 +282,11 @@ public sealed class AiRouterResponseBuilder(
             .Select(account => MarkdownV2.CodeSpan(account.DisplayName))
             .ToArray();
         var markdown = string.Join('\n',
-            MarkdownV2.Escape($"[{NotificationTypes.AiRouterAutoSignDisplayName}]"),
+            MarkdownV2.Escape($"[消息订阅 · {NotificationTypes.AiRouterAutoSignDisplayName}]"),
             MarkdownV2.Escape("当前已启用：") + (enabledMarks.Length == 0
                 ? MarkdownV2.Escape("无")
-                : string.Join(MarkdownV2.Escape("、"), enabledMarks)));
+                : string.Join(MarkdownV2.Escape("、"), enabledMarks)),
+            MarkdownV2.Escape("此处为消息订阅管理，仅控制签到结果是否推送；开关自动签到请使用 ") + MarkdownV2.CodeSpan("/ai router autosign"));
         var response = CommandResponses.TelegramMarkdown(
             context.Identity,
             markdown,
@@ -388,7 +389,8 @@ public sealed class AiRouterResponseBuilder(
     private static string BuildAutoSignText(IReadOnlyList<AiRouterAccount> accounts)
     {
         var enabled = accounts.Where(account => account.AutoSignEnabled).Select(account => $"`{account.DisplayName}`").ToArray();
-        return "点击下方按钮进行开/关签到功能\n当前已启用: " + (enabled.Length == 0 ? "无" : string.Join(", ", enabled));
+        return "点击下方按钮进行开/关签到功能\n当前已启用: " + (enabled.Length == 0 ? "无" : string.Join(", ", enabled))
+            + "\n如需管理签到结果的消息推送，请使用 `/notify`";
     }
 }
 
