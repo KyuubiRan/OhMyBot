@@ -23,6 +23,8 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
 
     public DbSet<SklandGameRole> SklandGameRoles => Set<SklandGameRole>();
 
+    public DbSet<HappytukAccount> HappytukAccounts => Set<HappytukAccount>();
+
     public DbSet<NotificationSubscription> NotificationSubscriptions => Set<NotificationSubscription>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -178,6 +180,21 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
             builder.HasOne(role => role.SklandAccount)
                    .WithMany(account => account.Roles)
                    .HasForeignKey(role => role.SklandAccountId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<HappytukAccount>(builder =>
+        {
+            builder.HasKey(account => account.Id);
+            builder.Property(account => account.LoginAccount).HasMaxLength(256).IsRequired();
+            builder.Property(account => account.PasswordCiphertext).HasMaxLength(2048).IsRequired();
+            builder.Property(account => account.CreatedAt).IsRequired();
+            builder.Property(account => account.UpdatedAt).IsRequired();
+
+            builder.HasIndex(account => account.LoginAccount).IsUnique();
+            builder.HasOne(account => account.CoreUser)
+                   .WithMany(user => user.HappytukAccounts)
+                   .HasForeignKey(account => account.CoreUserId)
                    .OnDelete(DeleteBehavior.Cascade);
         });
 

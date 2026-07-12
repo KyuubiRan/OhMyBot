@@ -10,6 +10,9 @@
 - [x] 米游社(国服米游社任务 + 国服/国际服游戏签到)自动/手动签到 & 自动签到消息推送
     - 手动游戏签到会弹出游戏勾选面板，勾选要签到的游戏后点「签到」；绑定多个账号时可一键「全部签到」
 - [x] 鹰游社自动/手动签到 & 自动签到消息推送
+- [x] HappyTuk（快乐玩 / mangot5）兑换码自动/手动兑换 & 结果消息推送
+    - 手动兑换绑定多个账号时会弹出账号选择面板（部分兑换码限定账号），也可一键「全部兑换」
+    - 触发 Cloudflare 验证时自动回退到内置浏览器（裸 CDP 驱动，见配置的 `Happytuk`）
 
 
 以及一些其他零碎小功能
@@ -46,9 +49,13 @@
     - `VirtualHost | string` 虚拟主机，默认 `/`
     - `NotificationExchange | string` 通知交换机，默认 `ohmybot.notifications`
 - `Kestrel:Endpoints:Grpc:Url | string` gRPC 监听地址（供网关连接），默认 `http://localhost:5100`
-- `ScheduledTasks` 各平台自动签到定时任务（`AiRouterAutoSign` / `KuroAutoSign` / `MihoyoAutoSign`）
+- `ScheduledTasks` 各平台自动签到/兑换定时任务（`AiRouterAutoSign` / `KuroAutoSign` / `MihoyoAutoSign` / `SklandAutoSign` / `HappytukAutoRedeem`）
     - `Enabled | bool` 是否启用
     - `Cron | string` Cron 表达式（UTC 时区）
+    - `HappytukAutoRedeem` 额外含 `Args:CouponCode | string`：按当前时间格式化生成兑换码（如每周维护码 `yyMMdd維護`）
+- `Happytuk` \[可选\] HappyTuk 兑换码集成
+    - `Proxy:Server | string` 访问 mangot5 的代理（站点有区域限制），如 `http://127.0.0.1:7890`；Core 的 HTTP 请求与浏览器回退共用，务必一致
+    - `BrowserFallback` 触发 Cloudflare 时的浏览器回退：`ExecutablePath`（Chromium 路径）、`Headless`（无头；建议 `false` 配合 Xvfb 提高通过率）、`NoSandbox`（以 root 运行时置 `true`）
 - 其余缓存/路由项（`IdentityCache`、`UserProfileCache`、`CallbackActions`、`Routes`、`AiRouter`）均有默认值，一般无需改动
 
 ### Telegram 网关（`OhMyBot.TelegramGateway/appsettings.json`）

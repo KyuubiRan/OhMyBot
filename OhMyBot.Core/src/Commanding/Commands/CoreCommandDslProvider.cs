@@ -331,8 +331,45 @@ public sealed class CoreCommandDslProvider(
             targetUser.PlatformProfiles.Add(profile);
         }
 
+        await MoveOwnedRowsAsync(
+            dbContext.AiRouterAccounts.Where(account => account.CoreUserId == sourceUser.Id),
+            account => account.CoreUserId = targetUser.Id,
+            cancellationToken);
+        await MoveOwnedRowsAsync(
+            dbContext.KuroAccounts.Where(account => account.CoreUserId == sourceUser.Id),
+            account => account.CoreUserId = targetUser.Id,
+            cancellationToken);
+        await MoveOwnedRowsAsync(
+            dbContext.MihoyoAccounts.Where(account => account.CoreUserId == sourceUser.Id),
+            account => account.CoreUserId = targetUser.Id,
+            cancellationToken);
+        await MoveOwnedRowsAsync(
+            dbContext.SklandAccounts.Where(account => account.CoreUserId == sourceUser.Id),
+            account => account.CoreUserId = targetUser.Id,
+            cancellationToken);
+        await MoveOwnedRowsAsync(
+            dbContext.HappytukAccounts.Where(account => account.CoreUserId == sourceUser.Id),
+            account => account.CoreUserId = targetUser.Id,
+            cancellationToken);
+        await MoveOwnedRowsAsync(
+            dbContext.NotificationSubscriptions.Where(subscription => subscription.CoreUserId == sourceUser.Id),
+            subscription => subscription.CoreUserId = targetUser.Id,
+            cancellationToken);
+
         dbContext.CoreUsers.Remove(sourceUser);
         await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    private static async Task MoveOwnedRowsAsync<T>(
+        IQueryable<T> query,
+        Action<T> move,
+        CancellationToken cancellationToken)
+        where T : class
+    {
+        foreach (var row in await query.ToListAsync(cancellationToken))
+        {
+            move(row);
+        }
     }
 
     private static string GenerateToken()

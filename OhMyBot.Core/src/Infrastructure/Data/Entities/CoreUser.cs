@@ -22,5 +22,7 @@ public class CoreUser
 
     public ICollection<SklandAccount> SklandAccounts { get; set; } = new List<SklandAccount>();
 
+    public ICollection<HappytukAccount> HappytukAccounts { get; set; } = new List<HappytukAccount>();
+
     public ICollection<NotificationSubscription> NotificationSubscriptions { get; set; } = new List<NotificationSubscription>();
 }

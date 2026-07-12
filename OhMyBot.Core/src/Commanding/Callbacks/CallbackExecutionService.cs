@@ -7,6 +7,7 @@ using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Integrations.Mihoyo;
 using OhMyBot.Core.Integrations.Skland;
+using OhMyBot.Core.Integrations.Happytuk;
 using OhMyBot.Core.Commanding.Notifications;
 
 namespace OhMyBot.Core.Commanding.Callbacks;
@@ -66,6 +67,9 @@ public sealed class CallbackExecutionService(
             "ai-router-auto-sign-toggle" => await ExecuteAutoSignToggleAsync(context, action, request.MessageId, cancellationToken),
             "ai-router-delete-select" => await ExecuteDeleteSelectAsync(context, action, request.MessageId, cancellationToken),
             "ai-router-delete-confirm" => await ExecuteDeleteConfirmAsync(context, action, request.MessageId, cancellationToken),
+            "happytuk-delete-select" => await ExecuteHappytukDeleteSelectAsync(context, action, request.MessageId, cancellationToken),
+            "happytuk-delete-confirm" => await ExecuteHappytukDeleteConfirmAsync(context, action, request.MessageId, cancellationToken),
+            "happytuk-redeem-select" => await ExecuteHappytukRedeemSelectAsync(context, action, request.MessageId, cancellationToken),
             "kuro-bbs-sign-select" => await ExecuteKuroBbsSignSelectAsync(context, action, request.MessageId, cancellationToken),
             "kuro-bbs-sign-all" => await ExecuteKuroBbsSignAllAsync(context, request.MessageId, cancellationToken),
             "kuro-game-sign-select" => await ExecuteKuroGameSignSelectAsync(context, action, request.MessageId, cancellationToken),
@@ -306,7 +310,8 @@ public sealed class CallbackExecutionService(
         if (data?.Type != NotificationTypes.AiRouterAutoSign
             && data?.Type != NotificationTypes.KuroAutoSign
             && data?.Type != NotificationTypes.MihoyoAutoSign
-            && data?.Type != NotificationTypes.SklandAutoSign)
+            && data?.Type != NotificationTypes.SklandAutoSign
+            && data?.Type != NotificationTypes.HappytukAutoRedeem)
         {
             return CallbackError(context.Identity, editMessageId, "未知订阅类型。");
         }
@@ -336,10 +341,156 @@ public sealed class CallbackExecutionService(
             return await sklandBuilder.BuildNotifyAccountPanelAsync(context, sklandAccounts, editMessageId, cancellationToken);
         }
 
+        if (data.Type == NotificationTypes.HappytukAutoRedeem)
+        {
+            var happytukAccountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
+            var happytukBuilder = scope.ServiceProvider.GetRequiredService<HappytukResponseBuilder>();
+            var happytukAccounts = await happytukAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+            return await happytukBuilder.BuildNotifyAccountPanelAsync(context, happytukAccounts, editMessageId, cancellationToken);
+        }
+
         var accountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
         var builder = scope.ServiceProvider.GetRequiredService<AiRouterResponseBuilder>();
         var accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         return await builder.BuildNotifyAccountPanelAsync(context, accounts, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteHappytukRedeemSelectAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<HappytukRedeemSelectCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
+        var redeemService = scope.ServiceProvider.GetRequiredService<HappytukRedeemService>();
+        var builder = scope.ServiceProvider.GetRequiredService<HappytukResponseBuilder>();
+
+        List<HappytukAccount> accounts;
+        if (data.All)
+        {
+            accounts = await accountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        }
+        else
+        {
+            var account = await accountService.FindByIdAsync(data.AccountId, cancellationToken);
+            if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+            {
+                return CallbackError(context.Identity, editMessageId, "未找到指定 HappyTuk 账号。");
+            }
+
+            accounts = [account];
+        }
+
+        if (accounts.Count == 0)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到 HappyTuk 账号。");
+        }
+
+        var results = await HappytukRedeemExecutor.TryRunAsync(
+            context.Identity.CoreUserId, redeemService, accounts, data.CouponCode, data.MaskNames, cancellationToken);
+        if (results is null)
+        {
+            // A redeem for this user is already running; leave the panel untouched.
+            return CallbackNoop(context.Identity);
+        }
+
+        var response = builder.BuildRedeemResult(context, data.CouponCode, results);
+        response.AsTelegramEdit(editMessageId);
+        return response;
+    }
+
+    private async Task<CommandResponse> ExecuteHappytukDeleteSelectAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<HappytukAccountCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
+        var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
+        var account = await accountService.FindByIdAsync(data.AccountId, cancellationToken);
+        if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定 HappyTuk 账号。");
+        }
+
+        var response = CommandResponses.Text($"确认删除 HappyTuk 账号绑定？\n账号：`{account.LoginAccount}`", context);
+        response.AsTelegramEdit(editMessageId);
+        response.AddButtonRow(new ResponseButtonRow
+        {
+            Buttons =
+            {
+                new ResponseButton
+                {
+                    Text = "确认删除",
+                    Payload = await callbackStore.PutAsync(
+                        "happytuk-delete-confirm",
+                        context.Identity.CoreUserId,
+                        context.Request.ChatId,
+                        context.Request.UserId,
+                        new HappytukDeleteConfirmCallbackData(account.Id, Confirm: true),
+                        cancellationToken: cancellationToken)
+                },
+                new ResponseButton
+                {
+                    Text = "取消",
+                    Payload = await callbackStore.PutAsync(
+                        "happytuk-delete-confirm",
+                        context.Identity.CoreUserId,
+                        context.Request.ChatId,
+                        context.Request.UserId,
+                        new HappytukDeleteConfirmCallbackData(account.Id, Confirm: false),
+                        cancellationToken: cancellationToken)
+                }
+            }
+        });
+        return response;
+    }
+
+    private async Task<CommandResponse> ExecuteHappytukDeleteConfirmAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<HappytukDeleteConfirmCallbackData>(action);
+        if (data is null)
+        {
+            return CallbackError(context.Identity, editMessageId, "按钮数据无效。");
+        }
+
+        if (!data.Confirm)
+        {
+            var canceled = CommandResponses.Text("删除操作已取消", context);
+            canceled.AsTelegramEdit(editMessageId);
+            return canceled;
+        }
+
+        await using var scope = scopeFactory.CreateAsyncScope();
+        var accountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
+        var account = await accountService.FindByIdAsync(data.AccountId, cancellationToken);
+        if (account is null || account.CoreUserId != context.Identity.CoreUserId)
+        {
+            return CallbackError(context.Identity, editMessageId, "未找到指定 HappyTuk 账号。");
+        }
+
+        var deleted = await accountService.DeleteAsync(context.Identity.CoreUserId, account.Id, cancellationToken);
+        var response = CommandResponses.Text(deleted ? $"已删除 HappyTuk 账号绑定：`{account.LoginAccount}`" : "未找到指定 HappyTuk 账号", context);
+        response.AsTelegramEdit(editMessageId);
+        return response;
     }
 
     private async Task<CommandResponse> ExecuteNotifyAccountToggleAsync(
@@ -352,7 +503,8 @@ public sealed class CallbackExecutionService(
         if (data?.Type != NotificationTypes.AiRouterAutoSign
             && data?.Type != NotificationTypes.KuroAutoSign
             && data?.Type != NotificationTypes.MihoyoAutoSign
-            && data?.Type != NotificationTypes.SklandAutoSign)
+            && data?.Type != NotificationTypes.SklandAutoSign
+            && data?.Type != NotificationTypes.HappytukAutoRedeem)
         {
             return CallbackError(context.Identity, editMessageId, "未知订阅类型。");
         }
@@ -467,6 +619,43 @@ public sealed class CallbackExecutionService(
 
             var updatedSklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
             return await sklandBuilder.BuildNotifyAccountPanelAsync(context, updatedSklandAccounts, editMessageId, cancellationToken);
+        }
+
+        if (data.Type == NotificationTypes.HappytukAutoRedeem)
+        {
+            var happytukAccountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
+            var happytukSubscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
+            var happytukBuilder = scope.ServiceProvider.GetRequiredService<HappytukResponseBuilder>();
+            var happytukAccounts = await happytukAccountService.ListByOwnerAsync(context.Identity.CoreUserId, cancellationToken: cancellationToken);
+            if (data.ToggleAll)
+            {
+                await happytukSubscriptionService.ToggleAllAsync(
+                    context.Identity.CoreUserId,
+                    context.Request.Platform,
+                    context.Request.BotInstanceId,
+                    context.Request.ChatId,
+                    NotificationTypes.HappytukAutoRedeem,
+                    happytukAccounts.Select(account => account.Id).ToArray(),
+                    cancellationToken);
+            }
+            else if (happytukAccounts.Any(account => account.Id == data.AccountId))
+            {
+                await happytukSubscriptionService.ToggleAsync(
+                    context.Identity.CoreUserId,
+                    context.Request.Platform,
+                    context.Request.BotInstanceId,
+                    context.Request.ChatId,
+                    NotificationTypes.HappytukAutoRedeem,
+                    data.AccountId,
+                    cancellationToken);
+            }
+            else
+            {
+                return CallbackError(context.Identity, editMessageId, "未找到指定 HappyTuk 账号。");
+            }
+
+            var updatedHappytukAccounts = await happytukAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+            return await happytukBuilder.BuildNotifyAccountPanelAsync(context, updatedHappytukAccounts, editMessageId, cancellationToken);
         }
 
         var accountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
@@ -1027,12 +1216,14 @@ public sealed class CallbackExecutionService(
         var kuroAccountService = scope.ServiceProvider.GetRequiredService<KuroAccountService>();
         var mihoyoAccountService = scope.ServiceProvider.GetRequiredService<MihoyoAccountService>();
         var sklandAccountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var happytukAccountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
         var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
         var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
         var aiAccounts = await aiAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var kuroAccounts = await kuroAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var mihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var sklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
+        var happytukAccounts = await happytukAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, cancellationToken);
         var aiEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
             context.Identity.CoreUserId,
             context.Request.Platform,
@@ -1057,12 +1248,19 @@ public sealed class CallbackExecutionService(
             NotificationTypes.SklandAutoSign,
             sklandAccounts.Select(account => account.Id).ToArray(),
             cancellationToken);
+        var happytukEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
+            context.Identity.CoreUserId,
+            context.Request.Platform,
+            NotificationTypes.HappytukAutoRedeem,
+            happytukAccounts.Select(account => account.Id).ToArray(),
+            cancellationToken);
         var items = new (string Type, string DisplayName, bool Enabled)[]
         {
             (NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName, aiEnabled.Count > 0),
             (NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName, kuroEnabled.Count > 0),
             (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0),
-            (NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName, sklandEnabled.Count > 0)
+            (NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName, sklandEnabled.Count > 0),
+            (NotificationTypes.HappytukAutoRedeem, NotificationTypes.HappytukAutoRedeemDisplayName, happytukEnabled.Count > 0)
         };
         var enabledNames = items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
         var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +

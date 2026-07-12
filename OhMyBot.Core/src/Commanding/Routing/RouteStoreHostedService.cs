@@ -13,7 +13,19 @@ public sealed class RouteStoreHostedService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await routeStore.InitializeAsync(stoppingToken);
+        if (!await routeStore.InitializeAsync(stoppingToken))
+        {
+            return;
+        }
+
+        try
+        {
+            await routeChangePublisher.PublishRoutesChangedAsync(routeStore.Version, stoppingToken);
+        }
+        catch (Exception exception)
+        {
+            logger.LogWarning(exception, "Failed to publish initial route snapshot version {Version}.", routeStore.Version);
+        }
 
         var routeFilePath = routeStore.RouteFilePath;
         var directory = Path.GetDirectoryName(routeFilePath);

@@ -16,6 +16,8 @@ using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Integrations.Mihoyo;
+using OhMyBot.Core.Integrations.Skland;
+using OhMyBot.Core.Integrations.Happytuk;
 using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Infrastructure.Messaging;
@@ -196,6 +198,39 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task LinkMovesHappytukAccountToRetainedCoreUser()
+    {
+        await using var dbContext = CreateDbContext();
+        var tokenStore = new FakeLinkTokenStore();
+        var service = CreateCommandService(dbContext, tokenStore);
+
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-owner", "link"));
+        var token = tokenStore.LastToken!;
+        await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-current", "ping"));
+        var telegramUserId = await dbContext.PlatformUserProfiles
+            .Where(profile => profile.Platform == BotPlatform.Telegram && profile.Uid == "tg-current")
+            .Select(profile => profile.CoreUserId!.Value)
+            .SingleAsync();
+        dbContext.HappytukAccounts.Add(new HappytukAccount
+        {
+            CoreUserId = telegramUserId,
+            LoginAccount = "happytuk-user",
+            PasswordCiphertext = "encrypted"
+        });
+        await dbContext.SaveChangesAsync();
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-current", "link", token));
+
+        Assert.AreEqual(0, response.Code);
+        var retainedUserId = await dbContext.PlatformUserProfiles
+            .Where(profile => profile.Platform == BotPlatform.Qq && profile.Uid == "qq-owner")
+            .Select(profile => profile.CoreUserId!.Value)
+            .SingleAsync();
+        var account = await dbContext.HappytukAccounts.SingleAsync();
+        Assert.AreEqual(retainedUserId, account.CoreUserId);
+    }
+
+    [TestMethod]
     public async Task MissingOrConsumedTokenReturnsStructuredError()
     {
         await using var dbContext = CreateDbContext();
@@ -359,6 +394,49 @@ public class V2CoreTests
 
         Assert.IsFalse(telegramRoutes.Any(route => route.Command == "qqonly"));
         Assert.IsTrue(qqRoutes.Any(route => route.Command == "qqonly"));
+    }
+
+    [TestMethod]
+    public async Task ParentCommandWithoutArgsMatchesHelpPath()
+    {
+        await using var dbContext = CreateDbContext();
+        var parent = new CommandDslNode
+        {
+            Name = "parent",
+            Description = "Parent command.",
+            Usage = "/parent <child>",
+            Children =
+            [
+                CommandOnly("child", "Child command.", "/parent child", UserPrivilege.User)
+            ]
+        };
+        var service = CreateCommandService(
+            dbContext,
+            new FakeLinkTokenStore(),
+            CreateBuiltInCommandRegistry(extraNodes: [parent]));
+
+        var direct = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "parent"));
+        var help = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "help", "parent"));
+
+        Assert.AreEqual(help.TgText(), direct.TgText());
+    }
+
+    [TestMethod]
+    public async Task RouteStoreHostedServicePublishesInitialSnapshot()
+    {
+        var routeStore = CreateRouteStore(CreateBuiltInCommandRegistry());
+        var publisher = new FakeRouteChangePublisher();
+        var hostedService = new RouteStoreHostedService(
+            routeStore,
+            publisher,
+            Options.Create(new RouteOptions { Path = routeStore.RouteFilePath }),
+            NullLogger<RouteStoreHostedService>.Instance);
+
+        await hostedService.StartAsync(CancellationToken.None);
+        var publishedVersion = await publisher.Published.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await hostedService.StopAsync(CancellationToken.None);
+
+        Assert.AreEqual(routeStore.Version, publishedVersion);
     }
 
     [TestMethod]
@@ -864,10 +942,18 @@ public class V2CoreTests
         services.AddSingleton(new KuroHttpClient(new HttpClient(), Options.Create(new KuroOptions())));
         services.AddSingleton(Options.Create(new MihoyoOptions()));
         services.AddSingleton(new MihoyoHttpClient(new HttpClient(), Options.Create(new MihoyoOptions())));
+        services.AddSingleton(Options.Create(new SklandOptions()));
+        services.AddSingleton(new SklandHttpClient(new HttpClient(), Options.Create(new SklandOptions())));
+        services.AddSingleton(Options.Create(new HappytukOptions()));
+        services.AddSingleton(new HappytukHttpClient(new HttpClient { BaseAddress = new Uri("https://www.mangot5.com") }));
+        services.AddLogging();
+        services.AddSingleton<HappytukBrowserClient>();
         services.AddSingleton<CoreIdentityService>();
         services.AddSingleton<AiRouterAccountService>();
         services.AddSingleton<KuroAccountService>();
         services.AddSingleton<MihoyoAccountService>();
+        services.AddSingleton<SklandAccountService>();
+        services.AddSingleton<HappytukAccountService>();
         services.AddSingleton<NotificationSubscriptionService>();
         var serviceProvider = services.BuildServiceProvider();
         var callbackService = new CallbackExecutionService(
@@ -886,7 +972,7 @@ public class V2CoreTests
         });
 
         CollectionAssert.AreEqual(
-            new[] { "AI Router 自动签到", "库街区自动签到", "米游社自动签到" },
+            new[] { "AI Router 自动签到", "库街区自动签到", "米游社自动签到", "森空岛自动签到", "HappyTuk 自动兑换" },
             response.TgButtonTexts().ToArray());
     }
 
@@ -1860,6 +1946,17 @@ public class V2CoreTests
         public Task RemoveAsync(string token, CancellationToken cancellationToken = default)
         {
             Tokens.Remove(token);
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class FakeRouteChangePublisher : IRouteChangePublisher
+    {
+        public TaskCompletionSource<long> Published { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task PublishRoutesChangedAsync(long version, CancellationToken cancellationToken = default)
+        {
+            Published.TrySetResult(version);
             return Task.CompletedTask;
         }
     }

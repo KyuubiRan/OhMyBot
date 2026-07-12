@@ -6,6 +6,7 @@ using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Integrations.Mihoyo;
 using OhMyBot.Core.Integrations.Skland;
+using OhMyBot.Core.Integrations.Happytuk;
 
 namespace OhMyBot.Core.Commanding.Notifications;
 
@@ -35,12 +36,14 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
         var kuroAccountService = scope.ServiceProvider.GetRequiredService<KuroAccountService>();
         var mihoyoAccountService = scope.ServiceProvider.GetRequiredService<MihoyoAccountService>();
         var sklandAccountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
+        var happytukAccountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
         var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
         var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
         var aiAccounts = await aiAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
         var kuroAccounts = await kuroAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
         var mihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
         var sklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
+        var happytukAccounts = await happytukAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
         var aiEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
             context.Identity.CoreUserId,
             context.Request.Platform,
@@ -65,13 +68,20 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
             NotificationTypes.SklandAutoSign,
             sklandAccounts.Select(account => account.Id).ToArray(),
             context.CancellationToken);
+        var happytukEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
+            context.Identity.CoreUserId,
+            context.Request.Platform,
+            NotificationTypes.HappytukAutoRedeem,
+            happytukAccounts.Select(account => account.Id).ToArray(),
+            context.CancellationToken);
 
         var items = new (string Type, string DisplayName, bool Enabled)[]
         {
             (NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName, aiEnabled.Count > 0),
             (NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName, kuroEnabled.Count > 0),
             (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0),
-            (NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName, sklandEnabled.Count > 0)
+            (NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName, sklandEnabled.Count > 0),
+            (NotificationTypes.HappytukAutoRedeem, NotificationTypes.HappytukAutoRedeemDisplayName, happytukEnabled.Count > 0)
         };
         var enabledNames = items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
         var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +

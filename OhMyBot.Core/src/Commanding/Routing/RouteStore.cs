@@ -38,7 +38,7 @@ public sealed class RouteStore(
         }
     }
 
-    public Task InitializeAsync(CancellationToken cancellationToken = default)
+    public Task<bool> InitializeAsync(CancellationToken cancellationToken = default)
     {
         return ReloadAsync(writeMergedFile: true, cancellationToken);
     }

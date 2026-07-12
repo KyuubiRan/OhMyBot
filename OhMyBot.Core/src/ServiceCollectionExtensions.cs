@@ -12,6 +12,7 @@ using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Infrastructure.Messaging;
 using OhMyBot.Core.Integrations.Mihoyo;
 using OhMyBot.Core.Integrations.Skland;
+using OhMyBot.Core.Integrations.Happytuk;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Commanding.Routing;
@@ -40,18 +41,12 @@ public static class ServiceCollectionExtensions
         services.AddOptions<KuroOptions>().BindConfiguration("Kuro");
         services.AddOptions<MihoyoOptions>().BindConfiguration("Mihoyo");
         services.AddOptions<SklandOptions>().BindConfiguration("Skland");
-        services.AddOptions<ScheduledTaskOptions>()
-            .BindConfiguration("ScheduledTasks:AiRouterAutoSign")
-            .ValidateOnStart();
-        services.AddOptions<ScheduledTaskOptions>("KuroAutoSign")
-            .BindConfiguration("ScheduledTasks:KuroAutoSign")
-            .ValidateOnStart();
-        services.AddOptions<ScheduledTaskOptions>("MihoyoAutoSign")
-            .BindConfiguration("ScheduledTasks:MihoyoAutoSign")
-            .ValidateOnStart();
-        services.AddOptions<ScheduledTaskOptions>("SklandAutoSign")
-            .BindConfiguration("ScheduledTasks:SklandAutoSign")
-            .ValidateOnStart();
+        services.AddOptions<HappytukOptions>().BindConfiguration("Happytuk");
+        AddScheduledTaskOptions(services, Microsoft.Extensions.Options.Options.DefaultName, "ScheduledTasks:AiRouterAutoSign");
+        AddScheduledTaskOptions(services, "KuroAutoSign", "ScheduledTasks:KuroAutoSign");
+        AddScheduledTaskOptions(services, "MihoyoAutoSign", "ScheduledTasks:MihoyoAutoSign");
+        AddScheduledTaskOptions(services, "SklandAutoSign", "ScheduledTasks:SklandAutoSign");
+        AddScheduledTaskOptions(services, "HappytukAutoRedeem", "ScheduledTasks:HappytukAutoRedeem");
         services.TryAddSingleton<InteractiveConsoleState>();
         services.AddScoped<IAdminCommand, UserAdminCommand>();
         services.AddScoped<IAdminCommand, TaskCtlAdminCommand>();
@@ -68,6 +63,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IPlatformCommandDslProvider, KuroCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, MihoyoCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, SklandCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider, HappytukCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
@@ -85,6 +81,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<SklandAccountService>();
         services.AddScoped<SklandSignService>();
         services.AddScoped<SklandResponseBuilder>();
+        services.AddScoped<HappytukAccountService>();
+        services.AddScoped<HappytukBrowserClient>();
+        services.AddScoped<HappytukRedeemService>();
+        services.AddScoped<HappytukResponseBuilder>();
         services.AddScoped<NotificationSubscriptionService>();
         services.AddSingleton<CallbackActionStore>();
         services.AddSingleton<QqMenuStore>();
@@ -99,6 +99,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IManagedTask, KuroAutoSignManagedTask>();
         services.AddSingleton<IManagedTask, MihoyoAutoSignManagedTask>();
         services.AddSingleton<IManagedTask, SklandAutoSignManagedTask>();
+        services.AddSingleton<IManagedTask, HappytukAutoRedeemManagedTask>();
         services.AddHttpClient<AiRouterHttpClient>(client =>
         {
             client.BaseAddress = new Uri("https://ai.router.team");
@@ -124,6 +125,29 @@ public static class ServiceCollectionExtensions
         {
             var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SklandOptions>>().Value;
             client.Timeout = options.Timeout;
+        });
+        services.AddHttpClient<HappytukHttpClient>((provider, client) =>
+        {
+            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<HappytukOptions>>().Value;
+            client.BaseAddress = new Uri("https://www.mangot5.com");
+            client.Timeout = options.Timeout;
+        }).ConfigurePrimaryHttpMessageHandler(provider =>
+        {
+            var proxy = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<HappytukOptions>>().Value.Proxy;
+            return new HttpClientHandler
+            {
+                AllowAutoRedirect = false,
+                AutomaticDecompression = System.Net.DecompressionMethods.All,
+                UseProxy = !string.IsNullOrWhiteSpace(proxy.Server),
+                Proxy = string.IsNullOrWhiteSpace(proxy.Server)
+                    ? null
+                    : new System.Net.WebProxy(proxy.Server)
+                    {
+                        Credentials = string.IsNullOrWhiteSpace(proxy.Username)
+                            ? null
+                            : new System.Net.NetworkCredential(proxy.Username, proxy.Password)
+                    }
+            };
         });
         services.AddHostedService<DatabaseMigrationHostedService>();
         services.AddHostedService<RouteStoreHostedService>();
@@ -158,5 +182,13 @@ public static class ServiceCollectionExtensions
 
         services.AddStackExchangeRedisCache(options => options.Configuration = redisConfiguration);
         return services;
+    }
+
+    private static void AddScheduledTaskOptions(IServiceCollection services, string name, string sectionPath)
+    {
+        services.AddOptions<ScheduledTaskOptions>(name)
+            .Configure<IConfiguration>((options, configuration) =>
+                ScheduledTaskOptions.Bind(options, configuration.GetSection(sectionPath)))
+            .ValidateOnStart();
     }
 }
