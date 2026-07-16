@@ -9,8 +9,59 @@ public sealed class ManagedTaskHostedService(
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var loops = registry.Tasks.Select(task => RunLoopAsync(task, stoppingToken)).ToArray();
-        await Task.WhenAll(loops);
+        var loops = new Dictionary<IManagedTask, (CancellationTokenSource Cancellation, Task Loop)>();
+        try
+        {
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                var currentTasks = registry.Tasks.ToHashSet();
+                foreach (var removed in loops.Keys.Where(task => !currentTasks.Contains(task)).ToArray())
+                {
+                    var loop = loops[removed];
+                    await loop.Cancellation.CancelAsync();
+                    try
+                    {
+                        await loop.Loop;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                    }
+                    loop.Cancellation.Dispose();
+                    loops.Remove(removed);
+                }
+
+                foreach (var task in currentTasks.Where(task => !loops.ContainsKey(task)))
+                {
+                    var cancellation = CancellationTokenSource.CreateLinkedTokenSource(stoppingToken);
+                    loops[task] = (cancellation, RunLoopAsync(task, cancellation.Token));
+                }
+
+                await Task.Delay(TimeSpan.FromSeconds(1), stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+        finally
+        {
+            foreach (var loop in loops.Values)
+            {
+                await loop.Cancellation.CancelAsync();
+            }
+
+            try
+            {
+                await Task.WhenAll(loops.Values.Select(loop => loop.Loop));
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            foreach (var loop in loops.Values)
+            {
+                loop.Cancellation.Dispose();
+            }
+        }
     }
 
     private async Task RunLoopAsync(IManagedTask task, CancellationToken stoppingToken)

@@ -1,17 +1,16 @@
 using OhMyBot.Contracts.Grpc;
-using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
 using OhMyBot.Core.Commanding.Presentation;
-using OhMyBot.Core.Integrations.Kuro;
-using OhMyBot.Core.Integrations.Mihoyo;
-using OhMyBot.Core.Integrations.Skland;
-using OhMyBot.Core.Integrations.Happytuk;
 
 namespace OhMyBot.Core.Commanding.Notifications;
 
-public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFactory) : IPlatformCommandDslProvider
+public sealed class NotificationCommandDslProvider(
+    CallbackActionStore callbackStore,
+    PluginNotificationSourceRegistry? sourceRegistry = null) : IPlatformCommandDslProvider
 {
+    private readonly PluginNotificationSourceRegistry _sourceRegistry = sourceRegistry ?? new PluginNotificationSourceRegistry();
+
     public IEnumerable<CommandDslNode> GetNodes()
     {
         return
@@ -24,85 +23,50 @@ public sealed class NotificationCommandDslProvider(IServiceScopeFactory scopeFac
                 RequiredPrivilege = UserPrivilege.VerifiedUser,
                 SupportPlatforms = SupportedPlatforms.All,
                 SupportChatTypes = SupportedChatTypes.Private,
-                Handler = NotifyAsync
+                Handler = context => BuildRootAsync(context, null, context.CancellationToken)
             }
         ];
     }
 
-    private async Task<CommandResponse> NotifyAsync(CommandContext context)
+    public async Task<CommandResponse> BuildRootAsync(
+        CommandContext context,
+        string? editMessageId,
+        CancellationToken cancellationToken = default)
     {
-        await using var scope = scopeFactory.CreateAsyncScope();
-        var aiAccountService = scope.ServiceProvider.GetRequiredService<AiRouterAccountService>();
-        var kuroAccountService = scope.ServiceProvider.GetRequiredService<KuroAccountService>();
-        var mihoyoAccountService = scope.ServiceProvider.GetRequiredService<MihoyoAccountService>();
-        var sklandAccountService = scope.ServiceProvider.GetRequiredService<SklandAccountService>();
-        var happytukAccountService = scope.ServiceProvider.GetRequiredService<HappytukAccountService>();
-        var callbackStore = scope.ServiceProvider.GetRequiredService<CallbackActionStore>();
-        var subscriptionService = scope.ServiceProvider.GetRequiredService<NotificationSubscriptionService>();
-        var aiAccounts = await aiAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
-        var kuroAccounts = await kuroAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
-        var mihoyoAccounts = await mihoyoAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
-        var sklandAccounts = await sklandAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
-        var happytukAccounts = await happytukAccountService.ListByOwnerAsync(context.Identity.CoreUserId, noTracking: true, context.CancellationToken);
-        var aiEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
-            context.Identity.CoreUserId,
-            context.Request.Platform,
-            NotificationTypes.AiRouterAutoSign,
-            aiAccounts.Select(account => account.Id).ToArray(),
-            context.CancellationToken);
-        var kuroEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
-            context.Identity.CoreUserId,
-            context.Request.Platform,
-            NotificationTypes.KuroAutoSign,
-            kuroAccounts.Select(account => account.Id).ToArray(),
-            context.CancellationToken);
-        var mihoyoEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
-            context.Identity.CoreUserId,
-            context.Request.Platform,
-            NotificationTypes.MihoyoAutoSign,
-            mihoyoAccounts.Select(account => account.Id).ToArray(),
-            context.CancellationToken);
-        var sklandEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
-            context.Identity.CoreUserId,
-            context.Request.Platform,
-            NotificationTypes.SklandAutoSign,
-            sklandAccounts.Select(account => account.Id).ToArray(),
-            context.CancellationToken);
-        var happytukEnabled = await subscriptionService.GetEnabledTargetIdsAsync(
-            context.Identity.CoreUserId,
-            context.Request.Platform,
-            NotificationTypes.HappytukAutoRedeem,
-            happytukAccounts.Select(account => account.Id).ToArray(),
-            context.CancellationToken);
-
-        var items = new (string Type, string DisplayName, bool Enabled)[]
+        var sources = _sourceRegistry.Sources;
+        var enabledNames = new List<string>();
+        foreach (var source in sources)
         {
-            (NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName, aiEnabled.Count > 0),
-            (NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName, kuroEnabled.Count > 0),
-            (NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName, mihoyoEnabled.Count > 0),
-            (NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName, sklandEnabled.Count > 0),
-            (NotificationTypes.HappytukAutoRedeem, NotificationTypes.HappytukAutoRedeemDisplayName, happytukEnabled.Count > 0)
-        };
-        var enabledNames = items.Where(item => item.Enabled).Select(item => item.DisplayName).ToArray();
+            if (await source.HasEnabledTargetsAsync(context, cancellationToken))
+            {
+                enabledNames.Add(source.DisplayName);
+            }
+        }
+
         var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +
-            (enabledNames.Length == 0
+            (enabledNames.Count == 0
                 ? "无"
                 : string.Join(MarkdownV2.Escape("、"), enabledNames.Select(MarkdownV2.CodeSpan)));
         var response = CommandResponses.TelegramMarkdown(context.Identity, text, context.Request.MessageId);
+        if (!string.IsNullOrWhiteSpace(editMessageId))
+        {
+            response.AsTelegramEdit(editMessageId);
+        }
 
         var row = new ResponseButtonRow();
-        foreach (var item in items)
+        foreach (var source in sources)
         {
             row.Buttons.Add(new ResponseButton
             {
-                Text = item.DisplayName,
+                Text = source.DisplayName,
                 Payload = await callbackStore.PutAsync(
                     "notify-type-select",
                     context.Identity.CoreUserId,
                     context.Request.ChatId,
                     context.Request.UserId,
-                    new NotifyTypeCallbackData(item.Type),
-                    cancellationToken: context.CancellationToken)
+                    new NotificationTypeCallbackData(source.Type),
+                    ownerPluginId: "core",
+                    cancellationToken: cancellationToken)
             });
 
             if (row.Buttons.Count == 2)

@@ -8,7 +8,7 @@ using OhMyBot.Core.Infrastructure.Identity;
 namespace OhMyBot.Core.Commanding.Admin;
 
 public sealed class UserAdminCommand(
-    OhMyBotV2DbContext dbContext,
+    CoreDbContext dbContext,
     IIdentityCache identityCache,
     TimeProvider timeProvider) : IAdminCommand
 {

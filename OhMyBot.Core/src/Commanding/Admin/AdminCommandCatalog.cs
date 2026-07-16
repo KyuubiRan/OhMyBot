@@ -5,9 +5,11 @@ public sealed class AdminCommandCatalog
     private readonly IReadOnlyList<IAdminCommand> _commandList;
     private readonly Dictionary<string, IAdminCommand> _commands;
 
-    public AdminCommandCatalog(IEnumerable<IAdminCommand> commands)
+    public AdminCommandCatalog(
+        IEnumerable<IAdminCommand> commands,
+        PluginAdminCommandRegistry? pluginCommands = null)
     {
-        _commandList = commands.ToArray();
+        _commandList = commands.Concat(pluginCommands?.Commands ?? []).ToArray();
         _commands = BuildCommandMap(_commandList);
     }
 

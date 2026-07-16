@@ -9,15 +9,20 @@ using OhMyBot.Core.Infrastructure.Data;
 using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Infrastructure.Linking;
+using OhMyBot.Core.Infrastructure.Plugins;
 
 namespace OhMyBot.Core.Commanding.Commands;
 
 public sealed class CoreCommandDslProvider(
     IServiceScopeFactory scopeFactory,
     IOptions<LinkTokenOptions> linkTokenOptions,
-    TimeProvider timeProvider) : IPlatformCommandDslProvider
+    TimeProvider timeProvider,
+    Func<IPluginManager>? pluginManagerAccessor = null) : IPlatformCommandDslProvider
 {
+    private static readonly IPluginManager FallbackPluginManager = new NullPluginManager();
     private readonly LinkTokenOptions _linkTokenOptions = linkTokenOptions.Value;
+    private readonly Func<IPluginManager> _pluginManagerAccessor =
+        pluginManagerAccessor ?? (() => FallbackPluginManager);
 
     public IEnumerable<CommandDslNode> GetNodes()
     {
@@ -59,8 +64,100 @@ public sealed class CoreCommandDslProvider(
                 Description = "显示可用指令",
                 Usage = "/help [子命令]",
                 Handler = context => Task.FromResult(CommandResponses.Silent(context))
+            },
+            new CommandDslNode
+            {
+                Name = "plugin",
+                Description = "管理 Core 插件",
+                Usage = "/plugin <list|status|reload>",
+                RequiredPrivilege = UserPrivilege.Owner,
+                Children =
+                [
+                    new CommandDslNode
+                    {
+                        Name = "list",
+                        Description = "列出插件",
+                        Usage = "/plugin list",
+                        RequiredPrivilege = UserPrivilege.Owner,
+                        Handler = PluginListAsync
+                    },
+                    new CommandDslNode
+                    {
+                        Name = "status",
+                        Description = "查看插件状态",
+                        Usage = "/plugin status <id>",
+                        RequiredPrivilege = UserPrivilege.Owner,
+                        Handler = PluginStatusAsync
+                    },
+                    new CommandDslNode
+                    {
+                        Name = "reload",
+                        Description = "重载插件",
+                        Usage = "/plugin reload <id|all>",
+                        RequiredPrivilege = UserPrivilege.Owner,
+                        Handler = PluginReloadAsync
+                    }
+                ]
             }
         ];
+    }
+
+    private Task<CommandResponse> PluginListAsync(CommandContext context)
+    {
+        var plugins = _pluginManagerAccessor().GetPlugins();
+        if (plugins.Count == 0)
+        {
+            return Task.FromResult(CommandResponses.Text("当前没有已发现的插件。", context));
+        }
+
+        var lines = plugins.Select(plugin =>
+            $"{plugin.Id} {plugin.Version} [{plugin.State}] platforms={plugin.SupportedPlatforms} generation={plugin.Generation}");
+        return Task.FromResult(CommandResponses.Text(string.Join('\n', lines), context));
+    }
+
+    private Task<CommandResponse> PluginStatusAsync(CommandContext context)
+    {
+        if (context.Request.Args.Count == 0)
+        {
+            return Task.FromResult(CommandResponses.Error("PluginIdMissing", "请提供插件 ID。", context));
+        }
+
+        var pluginId = context.Request.Args[0].Trim();
+        var plugin = _pluginManagerAccessor().GetPlugins()
+            .FirstOrDefault(item => string.Equals(item.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+        if (plugin is null)
+        {
+            return Task.FromResult(CommandResponses.Error("PluginNotFound", $"未找到插件：{pluginId}", context));
+        }
+
+        var dependencies = plugin.Dependencies.Count == 0
+            ? "-"
+            : string.Join(", ", plugin.Dependencies.Select(item => $"{item.PluginId} {item.VersionRange}"));
+        var text = string.Join('\n',
+            $"ID: {plugin.Id}",
+            $"名称: {plugin.Name}",
+            $"版本: {plugin.Version}",
+            $"状态: {plugin.State}",
+            $"权重: {plugin.LoadPriority}",
+            $"平台: {plugin.SupportedPlatforms}",
+            $"Generation: {plugin.Generation}",
+            $"依赖: {dependencies}",
+            $"错误: {plugin.LastError ?? "-"}");
+        return Task.FromResult(CommandResponses.Text(text, context));
+    }
+
+    private async Task<CommandResponse> PluginReloadAsync(CommandContext context)
+    {
+        if (context.Request.Args.Count == 0)
+        {
+            return CommandResponses.Error("PluginIdMissing", "请提供插件 ID 或 all。", context);
+        }
+
+        var result = await _pluginManagerAccessor()
+            .ReloadAsync(context.Request.Args[0].Trim(), context.CancellationToken);
+        return result.Success
+            ? CommandResponses.Text(result.Message, context)
+            : CommandResponses.Error("PluginReloadFailed", result.Message, context);
     }
 
     private Task<CommandResponse> PingAsync(CommandContext context)
@@ -79,8 +176,10 @@ public sealed class CoreCommandDslProvider(
         var currentIdentity = context.Identity;
         var cancellationToken = context.CancellationToken;
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<OhMyBotV2DbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
         var identityService = scope.ServiceProvider.GetRequiredService<CoreIdentityService>();
+        var mergeService = scope.ServiceProvider.GetService<CoreUserMergeService>()
+            ?? new CoreUserMergeService(dbContext, timeProvider);
         var linkTokenStore = scope.ServiceProvider.GetRequiredService<ILinkTokenStore>();
 
         if (request.Args.Count == 0)
@@ -141,7 +240,7 @@ public sealed class CoreCommandDslProvider(
         }
 
         var (retainedUser, mergedUser) = SelectMergeDirection(sourceUser, targetUser);
-        await MergeUsersAsync(dbContext, mergedUser, retainedUser, cancellationToken);
+        await mergeService.MergeAsync(mergedUser, retainedUser, cancellationToken);
         await identityService.CacheUserIdentitiesAsync(retainedUser, cancellationToken);
         await linkTokenStore.RemoveAsync(incomingToken, cancellationToken);
         return currentIdentity.Platform == BotPlatform.Qq
@@ -152,7 +251,7 @@ public sealed class CoreCommandDslProvider(
     private async Task<CommandResponse> InfoAsync(CommandContext context)
     {
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<OhMyBotV2DbContext>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
         var callerIsAdmin = (int)context.Identity.Privilege >= (int)UserPrivilege.Admin;
         var requestedUser = context.Request.Args.Count > 0
             ? context.Request.Args[0].Trim()
@@ -313,65 +412,6 @@ public sealed class CoreCommandDslProvider(
             : (secondUser, firstUser);
     }
 
-    private async Task MergeUsersAsync(
-        OhMyBotV2DbContext dbContext,
-        CoreUser sourceUser,
-        CoreUser targetUser,
-        CancellationToken cancellationToken)
-    {
-        var now = timeProvider.GetUtcNow();
-        targetUser.Privilege = (UserPrivilege)Math.Max((int)targetUser.Privilege, (int)sourceUser.Privilege);
-        targetUser.UpdatedAt = now;
-
-        foreach (var profile in sourceUser.PlatformProfiles.ToArray())
-        {
-            profile.CoreUserId = targetUser.Id;
-            profile.CoreUser = targetUser;
-            profile.UpdatedAt = now;
-            targetUser.PlatformProfiles.Add(profile);
-        }
-
-        await MoveOwnedRowsAsync(
-            dbContext.AiRouterAccounts.Where(account => account.CoreUserId == sourceUser.Id),
-            account => account.CoreUserId = targetUser.Id,
-            cancellationToken);
-        await MoveOwnedRowsAsync(
-            dbContext.KuroAccounts.Where(account => account.CoreUserId == sourceUser.Id),
-            account => account.CoreUserId = targetUser.Id,
-            cancellationToken);
-        await MoveOwnedRowsAsync(
-            dbContext.MihoyoAccounts.Where(account => account.CoreUserId == sourceUser.Id),
-            account => account.CoreUserId = targetUser.Id,
-            cancellationToken);
-        await MoveOwnedRowsAsync(
-            dbContext.SklandAccounts.Where(account => account.CoreUserId == sourceUser.Id),
-            account => account.CoreUserId = targetUser.Id,
-            cancellationToken);
-        await MoveOwnedRowsAsync(
-            dbContext.HappytukAccounts.Where(account => account.CoreUserId == sourceUser.Id),
-            account => account.CoreUserId = targetUser.Id,
-            cancellationToken);
-        await MoveOwnedRowsAsync(
-            dbContext.NotificationSubscriptions.Where(subscription => subscription.CoreUserId == sourceUser.Id),
-            subscription => subscription.CoreUserId = targetUser.Id,
-            cancellationToken);
-
-        dbContext.CoreUsers.Remove(sourceUser);
-        await dbContext.SaveChangesAsync(cancellationToken);
-    }
-
-    private static async Task MoveOwnedRowsAsync<T>(
-        IQueryable<T> query,
-        Action<T> move,
-        CancellationToken cancellationToken)
-        where T : class
-    {
-        foreach (var row in await query.ToListAsync(cancellationToken))
-        {
-            move(row);
-        }
-    }
-
     private static string GenerateToken()
     {
         Span<byte> bytes = stackalloc byte[16];
@@ -395,7 +435,7 @@ public sealed class CoreCommandDslProvider(
     }
 
     private static async Task<UserInfoView?> BuildUserInfoViewAsync(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         PlatformUserProfile? profile,
         CancellationToken cancellationToken)
     {
@@ -425,7 +465,7 @@ public sealed class CoreCommandDslProvider(
     }
 
     private static Task<CoreUser?> LoadUserAsync(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         long coreUserId,
         CancellationToken cancellationToken)
     {
@@ -436,7 +476,7 @@ public sealed class CoreCommandDslProvider(
     }
 
     private static Task<PlatformUserProfile?> FindProfileAsync(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         BotPlatform platform,
         string requestedUser,
         CancellationToken cancellationToken)

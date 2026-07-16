@@ -1,18 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using OhMyBot.Contracts.Messaging;
-using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Admin;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
 using OhMyBot.Core.Infrastructure.Data;
 using OhMyBot.Core.Infrastructure.Identity;
-using OhMyBot.Core.Integrations.Kuro;
 using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Infrastructure.Messaging;
-using OhMyBot.Core.Integrations.Mihoyo;
-using OhMyBot.Core.Integrations.Skland;
-using OhMyBot.Core.Integrations.Happytuk;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Commanding.Routing;
@@ -20,6 +15,7 @@ using OhMyBot.Core.Infrastructure.ScheduledTasks;
 using OhMyBot.Core.Infrastructure.Security;
 using OhMyBot.Core.Infrastructure.Terminal;
 using OhMyBot.Core.Infrastructure.UserProfiles;
+using OhMyBot.Core.Infrastructure.Plugins;
 using RouteOptions = OhMyBot.Core.Commanding.Routing.RouteOptions;
 
 namespace OhMyBot.Core;
@@ -37,56 +33,37 @@ public static class ServiceCollectionExtensions
         services.AddOptions<EncryptionOptions>().BindConfiguration("Encryption");
         services.AddOptions<CallbackActionOptions>().BindConfiguration("CallbackActions");
         services.AddOptions<QqMenuOptions>().BindConfiguration("QqMenu");
-        services.AddOptions<AiRouterOptions>().BindConfiguration("AiRouter");
-        services.AddOptions<KuroOptions>().BindConfiguration("Kuro");
-        services.AddOptions<MihoyoOptions>().BindConfiguration("Mihoyo");
-        services.AddOptions<SklandOptions>().BindConfiguration("Skland");
-        services.AddOptions<HappytukOptions>().BindConfiguration("Happytuk");
-        AddScheduledTaskOptions(services, Microsoft.Extensions.Options.Options.DefaultName, "ScheduledTasks:AiRouterAutoSign");
-        AddScheduledTaskOptions(services, "KuroAutoSign", "ScheduledTasks:KuroAutoSign");
-        AddScheduledTaskOptions(services, "MihoyoAutoSign", "ScheduledTasks:MihoyoAutoSign");
-        AddScheduledTaskOptions(services, "SklandAutoSign", "ScheduledTasks:SklandAutoSign");
-        AddScheduledTaskOptions(services, "HappytukAutoRedeem", "ScheduledTasks:HappytukAutoRedeem");
         services.TryAddSingleton<InteractiveConsoleState>();
+        services.TryAddSingleton<IPluginManager, NullPluginManager>();
+        services.TryAddSingleton<Func<IPluginManager>>(provider =>
+            () => provider.GetRequiredService<IPluginManager>());
         services.AddScoped<IAdminCommand, UserAdminCommand>();
         services.AddScoped<IAdminCommand, TaskCtlAdminCommand>();
         services.AddScoped<IAdminCommand, PushMessageAdminCommand>();
+        services.AddScoped<IAdminCommand, PluginAdminCommand>();
+        services.AddSingleton<PluginAdminCommandRegistry>();
         services.AddScoped<AdminCommandCatalog>();
         services.AddScoped<AdminCommandExecutor>();
         services.AddScoped<CoreIdentityService>();
+        services.AddScoped<CoreUserMergeService>();
         services.AddScoped<SetPrivilegeService>();
         services.AddScoped<PlatformUserProfileService>();
         services.AddScoped<CommandExecutionService>();
         services.AddScoped<CallbackExecutionService>();
         services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, KuroCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, MihoyoCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, SklandCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, HappytukCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
+        services.AddSingleton<NotificationCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider>(provider =>
+            provider.GetRequiredService<NotificationCommandDslProvider>());
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
         services.AddScoped<IUserProfileCache, DistributedUserProfileCache>();
-        services.AddScoped<ISecretProtector, AesGcmSecretProtector>();
-        services.AddScoped<AiRouterAccountService>();
-        services.AddScoped<AiRouterSignService>();
-        services.AddScoped<AiRouterResponseBuilder>();
-        services.AddScoped<KuroAccountService>();
-        services.AddScoped<KuroSignService>();
-        services.AddScoped<KuroResponseBuilder>();
-        services.AddScoped<MihoyoAccountService>();
-        services.AddScoped<MihoyoSignService>();
-        services.AddScoped<MihoyoResponseBuilder>();
-        services.AddScoped<SklandAccountService>();
-        services.AddScoped<SklandSignService>();
-        services.AddScoped<SklandResponseBuilder>();
-        services.AddScoped<HappytukAccountService>();
-        services.AddScoped<HappytukBrowserClient>();
-        services.AddScoped<HappytukRedeemService>();
-        services.AddScoped<HappytukResponseBuilder>();
+        services.AddSingleton<ISecretProtector, AesGcmSecretProtector>();
         services.AddScoped<NotificationSubscriptionService>();
+        services.AddScoped<INotificationSubscriptionService>(provider =>
+            provider.GetRequiredService<NotificationSubscriptionService>());
+        services.AddSingleton<PluginNotificationSourceRegistry>();
         services.AddSingleton<CallbackActionStore>();
+        services.AddSingleton<PluginCallbackRegistry>();
         services.AddSingleton<QqMenuStore>();
         services.AddSingleton<QqMenuConverter>();
         services.AddSingleton<PlatformCommandDslRegistry>();
@@ -95,64 +72,11 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRouteChangePublisher, RabbitMqRouteChangePublisher>();
         services.AddSingleton<INotificationPublisher, RabbitMqNotificationPublisher>();
         services.AddSingleton<ManagedTaskRegistry>();
-        services.AddSingleton<IManagedTask, AiRouterAutoSignManagedTask>();
-        services.AddSingleton<IManagedTask, KuroAutoSignManagedTask>();
-        services.AddSingleton<IManagedTask, MihoyoAutoSignManagedTask>();
-        services.AddSingleton<IManagedTask, SklandAutoSignManagedTask>();
-        services.AddSingleton<IManagedTask, HappytukAutoRedeemManagedTask>();
-        services.AddHttpClient<AiRouterHttpClient>(client =>
-        {
-            client.BaseAddress = new Uri("https://ai.router.team");
-        });
-        services.AddHttpClient<KuroHttpClient>((provider, client) =>
-        {
-            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<KuroOptions>>().Value;
-            client.BaseAddress = new Uri(options.BaseUrl);
-            client.Timeout = options.Timeout;
-        });
-        services.AddHttpClient<MihoyoHttpClient>((provider, client) =>
-        {
-            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<MihoyoOptions>>().Value;
-            client.Timeout = options.Timeout;
-        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
-        {
-            // 米游社 bbs-api 会 gzip 压缩响应，需自动解压否则 JSON 解析失败
-            AutomaticDecompression = System.Net.DecompressionMethods.All,
-            // 米游社是国服 API，必须直连；走 HTTP_PROXY 会被 bbs-api WAF 拦成 403
-            UseProxy = false
-        });
-        services.AddHttpClient<SklandHttpClient>((provider, client) =>
-        {
-            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<SklandOptions>>().Value;
-            client.Timeout = options.Timeout;
-        });
-        services.AddHttpClient<HappytukHttpClient>((provider, client) =>
-        {
-            var options = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<HappytukOptions>>().Value;
-            client.BaseAddress = new Uri("https://www.mangot5.com");
-            client.Timeout = options.Timeout;
-        }).ConfigurePrimaryHttpMessageHandler(provider =>
-        {
-            var proxy = provider.GetRequiredService<Microsoft.Extensions.Options.IOptions<HappytukOptions>>().Value.Proxy;
-            return new HttpClientHandler
-            {
-                AllowAutoRedirect = false,
-                AutomaticDecompression = System.Net.DecompressionMethods.All,
-                UseProxy = !string.IsNullOrWhiteSpace(proxy.Server),
-                Proxy = string.IsNullOrWhiteSpace(proxy.Server)
-                    ? null
-                    : new System.Net.WebProxy(proxy.Server)
-                    {
-                        Credentials = string.IsNullOrWhiteSpace(proxy.Username)
-                            ? null
-                            : new System.Net.NetworkCredential(proxy.Username, proxy.Password)
-                    }
-            };
-        });
+        // 先启动队列渲染器，确保数据库 migration 或后续 hosted service 启动失败时也能立即看到日志。
+        services.AddHostedService<InteractiveConsoleRendererHostedService>();
         services.AddHostedService<DatabaseMigrationHostedService>();
         services.AddHostedService<RouteStoreHostedService>();
         services.AddHostedService<ManagedTaskHostedService>();
-        services.AddHostedService<InteractiveConsoleRendererHostedService>();
         services.AddHostedService<InteractiveConsoleHostedService>();
         return services;
     }
@@ -165,7 +89,9 @@ public static class ServiceCollectionExtensions
             throw new InvalidOperationException("ConnectionStrings:Postgres is required.");
         }
 
-        services.AddDbContext<OhMyBotV2DbContext>(options => options.UseNpgsql(connectionString));
+        services.AddDbContext<CoreDbContext>(options => options.UseNpgsql(
+            connectionString,
+            npgsql => npgsql.MigrationsHistoryTable("__EFMigrationsHistory_Core")));
         return services;
     }
 
@@ -184,11 +110,4 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    private static void AddScheduledTaskOptions(IServiceCollection services, string name, string sectionPath)
-    {
-        services.AddOptions<ScheduledTaskOptions>(name)
-            .Configure<IConfiguration>((options, configuration) =>
-                ScheduledTaskOptions.Bind(options, configuration.GetSection(sectionPath)))
-            .ValidateOnStart();
-    }
 }

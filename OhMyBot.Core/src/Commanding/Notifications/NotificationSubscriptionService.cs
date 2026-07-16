@@ -5,9 +5,25 @@ using OhMyBot.Core.Infrastructure.Data.Entities;
 
 namespace OhMyBot.Core.Commanding.Notifications;
 
+public interface INotificationSubscriptionService
+{
+    Task<HashSet<long>> GetEnabledTargetIdsAsync(long coreUserId, BotPlatform platform, string notificationType,
+        IReadOnlyCollection<long> knownTargetIds, CancellationToken cancellationToken = default);
+    Task<List<NotificationDelivery>> ListEnabledDeliveriesByTargetAsync(string notificationType, long targetId,
+        CancellationToken cancellationToken = default);
+    Task ToggleAsync(long coreUserId, BotPlatform platform, string botInstanceId, string chatId,
+        string notificationType, long targetId, CancellationToken cancellationToken = default);
+    Task EnableAsync(long coreUserId, BotPlatform platform, string botInstanceId, string chatId,
+        string notificationType, long targetId, CancellationToken cancellationToken = default);
+    Task ToggleAllAsync(long coreUserId, BotPlatform platform, string botInstanceId, string chatId,
+        string notificationType, IReadOnlyCollection<long> targetIds, CancellationToken cancellationToken = default);
+    Task DeleteTargetAsync(long coreUserId, string notificationType, long targetId,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed class NotificationSubscriptionService(
-    OhMyBotV2DbContext dbContext,
-    TimeProvider timeProvider)
+    CoreDbContext dbContext,
+    TimeProvider timeProvider) : INotificationSubscriptionService
 {
     public async Task<HashSet<long>> GetEnabledTargetIdsAsync(
         long coreUserId,
@@ -193,6 +209,21 @@ public sealed class NotificationSubscriptionService(
             dbContext.NotificationSubscriptions.Add(created);
         }
 
+        await dbContext.SaveChangesAsync(cancellationToken);
+    }
+
+    public async Task DeleteTargetAsync(
+        long coreUserId,
+        string notificationType,
+        long targetId,
+        CancellationToken cancellationToken = default)
+    {
+        var subscriptions = await dbContext.NotificationSubscriptions
+            .Where(item => item.CoreUserId == coreUserId
+                && item.NotificationType == notificationType
+                && item.TargetId == targetId)
+            .ToListAsync(cancellationToken);
+        dbContext.NotificationSubscriptions.RemoveRange(subscriptions);
         await dbContext.SaveChangesAsync(cancellationToken);
     }
 

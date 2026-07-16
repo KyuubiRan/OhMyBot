@@ -6,7 +6,6 @@ using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Admin;
-using OhMyBot.Core.Integrations.AiRouter;
 using OhMyBot.Core.Commanding.Commands;
 using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Commanding.Callbacks;
@@ -14,10 +13,6 @@ using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Infrastructure.Data;
 using OhMyBot.Core.Infrastructure.Data.Entities;
 using OhMyBot.Core.Infrastructure.Identity;
-using OhMyBot.Core.Integrations.Kuro;
-using OhMyBot.Core.Integrations.Mihoyo;
-using OhMyBot.Core.Integrations.Skland;
-using OhMyBot.Core.Integrations.Happytuk;
 using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Infrastructure.Messaging;
@@ -198,7 +193,7 @@ public class V2CoreTests
     }
 
     [TestMethod]
-    public async Task LinkMovesHappytukAccountToRetainedCoreUser()
+    public async Task LinkKeepsPluginRelationMetadataWhilePluginIsOffline()
     {
         await using var dbContext = CreateDbContext();
         var tokenStore = new FakeLinkTokenStore();
@@ -207,27 +202,22 @@ public class V2CoreTests
         await service.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-owner", "link"));
         var token = tokenStore.LastToken!;
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-current", "ping"));
-        var telegramUserId = await dbContext.PlatformUserProfiles
-            .Where(profile => profile.Platform == BotPlatform.Telegram && profile.Uid == "tg-current")
-            .Select(profile => profile.CoreUserId!.Value)
-            .SingleAsync();
-        dbContext.HappytukAccounts.Add(new HappytukAccount
+        dbContext.PluginOwnedRelations.Add(new PluginOwnedRelation
         {
-            CoreUserId = telegramUserId,
-            LoginAccount = "happytuk-user",
-            PasswordCiphertext = "encrypted"
+            PluginId = "com.ohmybot.happytuk",
+            SchemaName = "public",
+            TableName = "HappytukAccounts",
+            CoreUserIdColumn = "CoreUserId"
         });
         await dbContext.SaveChangesAsync();
 
         var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-current", "link", token));
 
         Assert.AreEqual(0, response.Code);
-        var retainedUserId = await dbContext.PlatformUserProfiles
-            .Where(profile => profile.Platform == BotPlatform.Qq && profile.Uid == "qq-owner")
-            .Select(profile => profile.CoreUserId!.Value)
-            .SingleAsync();
-        var account = await dbContext.HappytukAccounts.SingleAsync();
-        Assert.AreEqual(retainedUserId, account.CoreUserId);
+        Assert.AreEqual(1, await dbContext.CoreUsers.CountAsync());
+        var relation = await dbContext.PluginOwnedRelations.SingleAsync();
+        Assert.AreEqual("com.ohmybot.happytuk", relation.PluginId);
+        Assert.AreEqual("HappytukAccounts", relation.TableName);
     }
 
     [TestMethod]
@@ -322,7 +312,7 @@ public class V2CoreTests
         var qqIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Platform == BotPlatform.Qq);
-        qqIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        qqIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
 
         await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-owner", "link"));
@@ -357,12 +347,12 @@ public class V2CoreTests
         var firstUser = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .Where(identity => identity.Platform == BotPlatform.Telegram)
-            .Select(identity => identity.CoreUser)
+            .Select(identity => identity.CoreUser!)
             .SingleAsync();
         var secondUser = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .Where(identity => identity.Platform == BotPlatform.Qq)
-            .Select(identity => identity.CoreUser)
+            .Select(identity => identity.CoreUser!)
             .SingleAsync();
 
         firstUser.CreatedAt = new DateTimeOffset(2026, 1, 2, 0, 0, 0, TimeSpan.Zero);
@@ -668,7 +658,7 @@ public class V2CoreTests
         var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Uid == "admin");
-        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
@@ -692,7 +682,7 @@ public class V2CoreTests
         var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Uid == "admin");
-        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
@@ -725,7 +715,7 @@ public class V2CoreTests
         var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Uid == "admin");
-        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
@@ -761,7 +751,7 @@ public class V2CoreTests
         var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Uid == "admin");
-        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
         await identityCache.SetAsync(BotPlatform.Qq, "qq-target", new CachedIdentity(telegramIdentity.CoreUserId!.Value, UserPrivilege.User));
@@ -785,7 +775,7 @@ public class V2CoreTests
         var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Uid == "admin");
-        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
         var infoRequest = CreateRequest(BotPlatform.Telegram, "admin", "info");
@@ -808,7 +798,7 @@ public class V2CoreTests
         var adminIdentity = await dbContext.PlatformUserProfiles
             .Include(identity => identity.CoreUser)
             .SingleAsync(identity => identity.Uid == "admin");
-        adminIdentity.CoreUser.Privilege = UserPrivilege.Admin;
+        adminIdentity.CoreUser!.Privilege = UserPrivilege.Admin;
         await dbContext.SaveChangesAsync();
         await identityCache.SetAsync(BotPlatform.Telegram, "admin", new CachedIdentity(adminIdentity.CoreUserId!.Value, UserPrivilege.Admin));
 
@@ -935,32 +925,25 @@ public class V2CoreTests
         services.AddSingleton(callbackStore);
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton<IDistributedCache, FakeDistributedCache>();
-        services.AddSingleton<ISecretProtector, PlainSecretProtector>();
-        services.AddSingleton(Options.Create(new AiRouterOptions()));
-        services.AddSingleton(Options.Create(new KuroOptions()));
-        services.AddSingleton(new AiRouterHttpClient(new HttpClient()));
-        services.AddSingleton(new KuroHttpClient(new HttpClient(), Options.Create(new KuroOptions())));
-        services.AddSingleton(Options.Create(new MihoyoOptions()));
-        services.AddSingleton(new MihoyoHttpClient(new HttpClient(), Options.Create(new MihoyoOptions())));
-        services.AddSingleton(Options.Create(new SklandOptions()));
-        services.AddSingleton(new SklandHttpClient(new HttpClient(), Options.Create(new SklandOptions())));
-        services.AddSingleton(Options.Create(new HappytukOptions()));
-        services.AddSingleton(new HappytukHttpClient(new HttpClient { BaseAddress = new Uri("https://www.mangot5.com") }));
         services.AddLogging();
-        services.AddSingleton<HappytukBrowserClient>();
         services.AddSingleton<CoreIdentityService>();
-        services.AddSingleton<AiRouterAccountService>();
-        services.AddSingleton<KuroAccountService>();
-        services.AddSingleton<MihoyoAccountService>();
-        services.AddSingleton<SklandAccountService>();
-        services.AddSingleton<HappytukAccountService>();
         services.AddSingleton<NotificationSubscriptionService>();
         var serviceProvider = services.BuildServiceProvider();
+        var notificationSources = new PluginNotificationSourceRegistry();
+        notificationSources.RegisterPlugin("tests", new IPluginNotificationSource[]
+        {
+            new FakeNotificationSource(NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName),
+            new FakeNotificationSource(NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName),
+            new FakeNotificationSource(NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName),
+            new FakeNotificationSource(NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName),
+            new FakeNotificationSource(NotificationTypes.HappytukAutoRedeem, NotificationTypes.HappytukAutoRedeemDisplayName)
+        });
         var callbackService = new CallbackExecutionService(
             serviceProvider.GetRequiredService<CoreIdentityService>(),
             callbackStore,
             serviceProvider.GetRequiredService<IServiceScopeFactory>(),
-            TimeProvider.System);
+            TimeProvider.System,
+            notificationSources: notificationSources);
 
         var response = await callbackService.ExecuteAsync(new CallbackRequest
         {
@@ -1240,43 +1223,6 @@ public class V2CoreTests
         var qq = deliveries.Single(delivery => delivery.Platform == BotPlatform.Qq);
         Assert.AreEqual("qq", qq.BotInstanceId);
         Assert.AreEqual("qq-chat", qq.ChatId);
-    }
-
-    [TestMethod]
-    public async Task NotifyAccountPanelAddsBackButtonBesideToggleAll()
-    {
-        await using var dbContext = CreateDbContext();
-        var callbackStore = new CallbackActionStore(
-            new FakeDistributedCache(),
-            Options.Create(new CallbackActionOptions()));
-        var builder = new AiRouterResponseBuilder(
-            callbackStore,
-            new NotificationSubscriptionService(dbContext, TimeProvider.System),
-            TimeProvider.System);
-        var context = new CommandContext(
-            CreateRequest(BotPlatform.Telegram, "tg-1", "notify"),
-            new ResolvedIdentity(1, UserPrivilege.VerifiedUser, BotPlatform.Telegram, "tg-1"),
-            TimeProvider.System.GetTimestamp(),
-            CancellationToken.None);
-
-        var response = await builder.BuildNotifyAccountPanelAsync(
-            context,
-            [
-                new AiRouterAccount
-                {
-                    Id = 100,
-                    CoreUserId = 1,
-                    DisplayName = "Account1",
-                    LoginEmail = "a@example.com"
-                }
-            ],
-            cancellationToken: CancellationToken.None);
-
-        var lastRow = response.TgButtonRows().Last();
-        CollectionAssert.AreEqual(
-            new[] { "开启/关闭全部", "返回" },
-            lastRow.Buttons.Select(button => button.Text).ToArray());
-        Assert.StartsWith("[关] ", response.TgButtonRows()[0].Buttons[0].Text);
     }
 
     [TestMethod]
@@ -1565,7 +1511,7 @@ public class V2CoreTests
         var identity = await dbContext.PlatformUserProfiles
             .Include(item => item.CoreUser)
             .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.Uid == "123456");
-        Assert.AreEqual(UserPrivilege.Owner, identity.CoreUser.Privilege);
+        Assert.AreEqual(UserPrivilege.Owner, identity.CoreUser!.Privilege);
 
         var cached = await identityCache.GetAsync(BotPlatform.Telegram, "123456");
         Assert.IsNotNull(cached);
@@ -1614,7 +1560,7 @@ public class V2CoreTests
         var identity = await dbContext.PlatformUserProfiles
             .Include(item => item.CoreUser)
             .SingleAsync(item => item.Platform == BotPlatform.Telegram && item.Uid == "123456");
-        Assert.AreEqual(UserPrivilege.VerifiedUser, identity.CoreUser.Privilege);
+        Assert.AreEqual(UserPrivilege.VerifiedUser, identity.CoreUser!.Privilege);
 
         var cached = await identityCache.GetAsync(BotPlatform.Telegram, "123456");
         Assert.IsNotNull(cached);
@@ -1762,15 +1708,15 @@ public class V2CoreTests
         Assert.AreEqual("hello", second.Current.Segments[0].Text);
     }
 
-    private static OhMyBotV2DbContext CreateDbContext()
+    private static CoreDbContext CreateDbContext()
     {
-        return new OhMyBotV2DbContext(new DbContextOptionsBuilder<OhMyBotV2DbContext>()
+        return new CoreDbContext(new DbContextOptionsBuilder<CoreDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString())
             .Options);
     }
 
     private static CommandExecutionService CreateCommandService(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         FakeLinkTokenStore tokenStore,
         PlatformCommandDslRegistry? registry = null,
         RouteDocument? routeDocument = null,
@@ -1791,7 +1737,7 @@ public class V2CoreTests
     }
 
     private static PlatformCommandDslRegistry CreateBuiltInCommandRegistry(
-        OhMyBotV2DbContext? dbContext = null,
+        CoreDbContext? dbContext = null,
         FakeLinkTokenStore? tokenStore = null,
         FakeIdentityCache? identityCache = null,
         CallbackActionStore? callbackStore = null,
@@ -1812,7 +1758,8 @@ public class V2CoreTests
         services.AddSingleton(Options.Create(new LinkTokenOptions()));
         services.AddSingleton<CoreIdentityService>();
         services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider>(
+            new StaticDslProvider([CreateAiRouterDslNode()]));
         services.AddSingleton<IPlatformCommandDslProvider, NotificationCommandDslProvider>();
         if (extraNodes is { Count: > 0 })
         {
@@ -1824,7 +1771,7 @@ public class V2CoreTests
     }
 
     private static ServiceProvider CreateCallbackServiceProvider(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         FakeIdentityCache identityCache,
         CallbackActionStore callbackStore)
     {
@@ -1839,7 +1786,7 @@ public class V2CoreTests
     }
 
     private static CommandExecutionService CreateHelpCommandService(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         string userId,
         UserPrivilege privilege,
         RouteDocument? routeDocument = null)
@@ -1859,7 +1806,8 @@ public class V2CoreTests
         services.AddSingleton(Options.Create(new LinkTokenOptions()));
         services.AddSingleton<CoreIdentityService>();
         services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
-        services.AddSingleton<IPlatformCommandDslProvider, AiRouterCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider>(
+            new StaticDslProvider([CreateAiRouterDslNode()]));
         services.AddSingleton<IPlatformCommandDslProvider>(new StaticDslProvider(
         [
             CommandOnly("owner", "Owner command.", "/owner", UserPrivilege.Owner)
@@ -1880,7 +1828,7 @@ public class V2CoreTests
     }
 
     private static AdminCommandExecutor CreateAdminCommandExecutor(
-        OhMyBotV2DbContext dbContext,
+        CoreDbContext dbContext,
         FakeIdentityCache identityCache)
     {
         var commands = new IAdminCommand[]
@@ -2052,6 +2000,40 @@ public class V2CoreTests
         }
     }
 
+    private sealed class FakeNotificationSource(string type, string displayName) : IPluginNotificationSource
+    {
+        public string Type { get; } = type;
+
+        public string DisplayName { get; } = displayName;
+
+        public int Order { get; } = type switch
+        {
+            NotificationTypes.AiRouterAutoSign => 100,
+            NotificationTypes.KuroAutoSign => 200,
+            NotificationTypes.MihoyoAutoSign => 300,
+            NotificationTypes.SklandAutoSign => 400,
+            _ => 500
+        };
+
+        public Task<bool> HasEnabledTargetsAsync(
+            CommandContext context,
+            CancellationToken cancellationToken = default) => Task.FromResult(false);
+
+        public Task<CommandResponse> BuildAccountPanelAsync(
+            CommandContext context,
+            string? editMessageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CommandResponses.Silent(context));
+
+        public Task<CommandResponse> ToggleAsync(
+            CommandContext context,
+            long accountId,
+            bool toggleAll,
+            string editMessageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CommandResponses.Silent(context));
+    }
+
     private sealed class FakeDistributedCache : IDistributedCache
     {
         private readonly Dictionary<string, byte[]> _items = new(StringComparer.Ordinal);
@@ -2140,6 +2122,46 @@ public class V2CoreTests
             SupportPlatforms = platforms,
             SupportChatTypes = chatTypes,
             Handler = context => Task.FromResult(CommandResponses.Text(handlerText, context))
+        };
+    }
+
+    private static CommandDslNode CreateAiRouterDslNode()
+    {
+        return new CommandDslNode
+        {
+            Name = "ai",
+            Description = "AI 相关指令",
+            Usage = "/ai",
+            Children =
+            [
+                new CommandDslNode
+                {
+                    Name = "router",
+                    Description = "Router 平台相关指令",
+                    Usage = "/ai router",
+                    Children =
+                    [
+                        CommandOnly(
+                            "bind",
+                            "绑定用户",
+                            "/ai router bind",
+                            UserPrivilege.VerifiedUser,
+                            chatTypes: SupportedChatTypes.Private),
+                        CommandOnly(
+                            "autosign",
+                            "自动签到管理",
+                            "/ai router autosign",
+                            UserPrivilege.VerifiedUser,
+                            chatTypes: SupportedChatTypes.Private),
+                        CommandOnly(
+                            "delete",
+                            "删除绑定",
+                            "/ai router delete",
+                            UserPrivilege.VerifiedUser,
+                            chatTypes: SupportedChatTypes.Private)
+                    ]
+                }
+            ]
         };
     }
 

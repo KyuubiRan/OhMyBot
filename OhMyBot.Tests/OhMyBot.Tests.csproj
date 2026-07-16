@@ -10,8 +10,14 @@
     <ItemGroup>
       <ProjectReference Include="..\OhMyBot.Contracts\OhMyBot.Contracts.csproj" />
       <ProjectReference Include="..\OhMyBot.Core\OhMyBot.Core.csproj" />
+      <ProjectReference Include="..\OhMyBot.Core.Host\OhMyBot.Core.Host.csproj" />
+      <ProjectReference Include="..\OhMyBot.Plugin.Abstractions\OhMyBot.Plugin.Abstractions.csproj" />
       <ProjectReference Include="..\OhMyBot.QQGateway\OhMyBot.QQGateway.csproj" />
       <ProjectReference Include="..\OhMyBot.TelegramGateway\OhMyBot.TelegramGateway.csproj" />
+      <ProjectReference Include="Fixtures\PluginDependencyA\OhMyBot.Tests.PluginDependencyA.csproj"
+                        ReferenceOutputAssembly="false" />
+      <ProjectReference Include="Fixtures\PluginDependencyB\OhMyBot.Tests.PluginDependencyB.csproj"
+                        ReferenceOutputAssembly="false" />
     </ItemGroup>
 
     <ItemGroup>
@@ -23,6 +29,26 @@
 
     <ItemGroup>
       <None Include="appsettings.Test.template.json" />
+      <Compile Remove="Fixtures/**/*.cs" />
+      <PluginFixtureProject Include="Fixtures\PluginDependencyA\OhMyBot.Tests.PluginDependencyA.csproj" />
+      <PluginFixtureProject Include="Fixtures\PluginDependencyB\OhMyBot.Tests.PluginDependencyB.csproj" />
     </ItemGroup>
+
+    <Target Name="BuildPluginRuntimeFixtures" BeforeTargets="CopyPluginRuntimeFixtures">
+      <MSBuild Projects="@(PluginFixtureProject)"
+               Targets="Build"
+               Properties="Configuration=$(Configuration)" />
+    </Target>
+
+    <Target Name="CopyPluginRuntimeFixtures" AfterTargets="Build" DependsOnTargets="BuildPluginRuntimeFixtures">
+      <PropertyGroup>
+        <_PluginFixtureRoot>$(OutDir)PluginFixtures</_PluginFixtureRoot>
+      </PropertyGroup>
+      <MakeDir Directories="$(_PluginFixtureRoot)\A;$(_PluginFixtureRoot)\B" />
+      <Copy SourceFiles="$(MSBuildProjectDirectory)\..\build\OhMyBot.Tests.PluginDependencyA\bin\$(Configuration)\net10.0\OhMyBot.Tests.PluginDependencyA.dll"
+            DestinationFiles="$(_PluginFixtureRoot)\A\Plugin.dll" />
+      <Copy SourceFiles="$(MSBuildProjectDirectory)\..\build\OhMyBot.Tests.PluginDependencyB\bin\$(Configuration)\net10.0\OhMyBot.Tests.PluginDependencyB.dll"
+            DestinationFiles="$(_PluginFixtureRoot)\B\Plugin.dll" />
+    </Target>
 
 </Project>

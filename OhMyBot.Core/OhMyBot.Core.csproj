@@ -1,22 +1,25 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net10.0</TargetFramework>
-        <RuntimeIdentifiers>linux-x64;osx-arm64;win-x64</RuntimeIdentifiers>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <OutputType>Exe</OutputType>
     </PropertyGroup>
 
     <ItemGroup>
-        <ProjectReference Include="..\OhMyBot.Contracts\OhMyBot.Contracts.csproj" />
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
     </ItemGroup>
 
     <ItemGroup>
-        <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
+        <ProjectReference Include="..\OhMyBot.Contracts\OhMyBot.Contracts.csproj" />
+        <ProjectReference Include="..\OhMyBot.Plugin.Abstractions\OhMyBot.Plugin.Abstractions.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
         <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
         <PackageReference Include="Cronos" Version="0.13.0" />
         <PackageReference Include="Microsoft.EntityFrameworkCore" Version="10.0.9" />
+        <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.9" />
         <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.9">
             <PrivateAssets>all</PrivateAssets>
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
@@ -24,11 +27,6 @@
         <PackageReference Include="Microsoft.Extensions.Caching.StackExchangeRedis" Version="10.0.9" />
         <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.2" />
         <PackageReference Include="RabbitMQ.Client" Version="7.2.1" />
-    </ItemGroup>
-
-    <ItemGroup>
-      <None Include="appsettings.template.json" />
-      <Content Update="appsettings.json" CopyToPublishDirectory="Never" Condition="Exists('appsettings.json')" />
     </ItemGroup>
 
 </Project>

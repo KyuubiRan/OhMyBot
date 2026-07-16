@@ -25,7 +25,9 @@ public sealed class RouteStore(
     private IReadOnlyList<CommandDslNode> _nodes = [];
     private long _version;
 
-    public string RouteFilePath => Path.GetFullPath(_options.Path);
+    public string RouteFilePath => Path.IsPathRooted(_options.Path)
+        ? Path.GetFullPath(_options.Path)
+        : Path.GetFullPath(_options.Path, AppContext.BaseDirectory);
 
     public long Version
     {

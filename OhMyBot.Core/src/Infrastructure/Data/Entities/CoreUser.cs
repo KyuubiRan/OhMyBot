@@ -14,15 +14,5 @@ public class CoreUser
 
     public ICollection<PlatformUserProfile> PlatformProfiles { get; set; } = new List<PlatformUserProfile>();
 
-    public ICollection<AiRouterAccount> AiRouterAccounts { get; set; } = new List<AiRouterAccount>();
-
-    public ICollection<KuroAccount> KuroAccounts { get; set; } = new List<KuroAccount>();
-
-    public ICollection<MihoyoAccount> MihoyoAccounts { get; set; } = new List<MihoyoAccount>();
-
-    public ICollection<SklandAccount> SklandAccounts { get; set; } = new List<SklandAccount>();
-
-    public ICollection<HappytukAccount> HappytukAccounts { get; set; } = new List<HappytukAccount>();
-
     public ICollection<NotificationSubscription> NotificationSubscriptions { get; set; } = new List<NotificationSubscription>();
 }

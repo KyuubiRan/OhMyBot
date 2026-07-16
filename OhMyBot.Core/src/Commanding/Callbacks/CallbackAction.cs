@@ -7,4 +7,6 @@ public sealed record CallbackAction(
     string ChatId,
     string SenderId,
     bool RequireOriginalSender,
-    string DataJson);
+    string DataJson,
+    string? OwnerPluginId = null,
+    int PayloadVersion = 1);

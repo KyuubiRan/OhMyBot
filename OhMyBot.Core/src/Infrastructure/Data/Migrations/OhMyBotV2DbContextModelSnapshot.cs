@@ -467,6 +467,69 @@ namespace OhMyBot.Core.src.Data.Migrations
                     b.ToTable("PlatformUserProfiles");
                 });
 
+            modelBuilder.Entity("OhMyBot.Core.Infrastructure.Data.Entities.PluginOwnedRelation", b =>
+                {
+                    b.Property<string>("SchemaName")
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
+
+                    b.Property<string>("TableName")
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
+
+                    b.Property<string>("CoreUserIdColumn")
+                        .HasMaxLength(63)
+                        .HasColumnType("character varying(63)");
+
+                    b.Property<string>("PluginId")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)");
+
+                    b.HasKey("SchemaName", "TableName", "CoreUserIdColumn");
+
+                    b.HasIndex("PluginId");
+
+                    b.ToTable("PluginOwnedRelations");
+
+                    b.HasData(
+                        new
+                        {
+                            SchemaName = "public",
+                            TableName = "AiRouterAccounts",
+                            CoreUserIdColumn = "CoreUserId",
+                            PluginId = "com.ohmybot.airouter"
+                        },
+                        new
+                        {
+                            SchemaName = "public",
+                            TableName = "KuroAccounts",
+                            CoreUserIdColumn = "CoreUserId",
+                            PluginId = "com.ohmybot.kuro"
+                        },
+                        new
+                        {
+                            SchemaName = "public",
+                            TableName = "MihoyoAccounts",
+                            CoreUserIdColumn = "CoreUserId",
+                            PluginId = "com.ohmybot.mihoyo"
+                        },
+                        new
+                        {
+                            SchemaName = "public",
+                            TableName = "SklandAccounts",
+                            CoreUserIdColumn = "CoreUserId",
+                            PluginId = "com.ohmybot.skland"
+                        },
+                        new
+                        {
+                            SchemaName = "public",
+                            TableName = "HappytukAccounts",
+                            CoreUserIdColumn = "CoreUserId",
+                            PluginId = "com.ohmybot.happytuk"
+                        });
+                });
+
             modelBuilder.Entity("OhMyBot.Core.Infrastructure.Data.Entities.SklandAccount", b =>
                 {
                     b.Property<long>("Id")
@@ -607,7 +670,7 @@ namespace OhMyBot.Core.src.Data.Migrations
                     b.HasOne("OhMyBot.Core.Infrastructure.Data.Entities.CoreUser", "CoreUser")
                         .WithMany("AiRouterAccounts")
                         .HasForeignKey("CoreUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CoreUser");
@@ -618,7 +681,7 @@ namespace OhMyBot.Core.src.Data.Migrations
                     b.HasOne("OhMyBot.Core.Infrastructure.Data.Entities.CoreUser", "CoreUser")
                         .WithMany("HappytukAccounts")
                         .HasForeignKey("CoreUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CoreUser");
@@ -629,7 +692,7 @@ namespace OhMyBot.Core.src.Data.Migrations
                     b.HasOne("OhMyBot.Core.Infrastructure.Data.Entities.CoreUser", "CoreUser")
                         .WithMany("KuroAccounts")
                         .HasForeignKey("CoreUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CoreUser");
@@ -651,7 +714,7 @@ namespace OhMyBot.Core.src.Data.Migrations
                     b.HasOne("OhMyBot.Core.Infrastructure.Data.Entities.CoreUser", "CoreUser")
                         .WithMany("MihoyoAccounts")
                         .HasForeignKey("CoreUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CoreUser");
@@ -694,7 +757,7 @@ namespace OhMyBot.Core.src.Data.Migrations
                     b.HasOne("OhMyBot.Core.Infrastructure.Data.Entities.CoreUser", "CoreUser")
                         .WithMany("SklandAccounts")
                         .HasForeignKey("CoreUserId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
                     b.Navigation("CoreUser");

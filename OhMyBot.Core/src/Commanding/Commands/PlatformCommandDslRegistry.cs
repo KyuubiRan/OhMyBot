@@ -2,24 +2,98 @@ namespace OhMyBot.Core.Commanding.Commands;
 
 public sealed class PlatformCommandDslRegistry
 {
-    private readonly IReadOnlyList<CommandDslNode> _roots;
-    private readonly IReadOnlyDictionary<string, CommandDslNode> _rootLookup;
+    private const string CoreOwner = "core";
+    private readonly Lock _lock = new();
+    private readonly Dictionary<string, IReadOnlyList<IPlatformCommandDslProvider>> _providersByOwner =
+        new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<CommandDslNode> _roots = [];
+    private IReadOnlyDictionary<string, CommandDslNode> _rootLookup =
+        new Dictionary<string, CommandDslNode>(StringComparer.OrdinalIgnoreCase);
 
     public PlatformCommandDslRegistry(IEnumerable<IPlatformCommandDslProvider> providers)
     {
-        _roots = providers
+        _providersByOwner[CoreOwner] = providers.ToArray();
+        RebuildSnapshot();
+    }
+
+    public IReadOnlyList<CommandDslNode> Roots
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _roots;
+            }
+        }
+    }
+
+    public void RegisterPlugin(string pluginId, IEnumerable<IPlatformCommandDslProvider> providers)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        var materialized = providers.ToArray();
+
+        lock (_lock)
+        {
+            if (_providersByOwner.ContainsKey(pluginId))
+            {
+                throw new InvalidOperationException($"Command providers are already registered for plugin '{pluginId}'.");
+            }
+
+            _providersByOwner[pluginId] = materialized;
+            try
+            {
+                RebuildSnapshot();
+            }
+            catch
+            {
+                _providersByOwner.Remove(pluginId);
+                RebuildSnapshot();
+                throw;
+            }
+        }
+    }
+
+    public bool UnregisterPlugin(string pluginId)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        lock (_lock)
+        {
+            if (!_providersByOwner.Remove(pluginId))
+            {
+                return false;
+            }
+
+            RebuildSnapshot();
+            return true;
+        }
+    }
+
+    public bool TryGet(IReadOnlyList<string> path, out CommandDslNode node)
+    {
+        lock (_lock)
+        {
+            return TryGetCore(path, out node);
+        }
+    }
+
+    private void RebuildSnapshot()
+    {
+        var roots = _providersByOwner
+            .OrderBy(pair => string.Equals(pair.Key, CoreOwner, StringComparison.OrdinalIgnoreCase) ? 0 : 1)
+            .ThenBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+            .SelectMany(pair => pair.Value)
             .SelectMany(provider => provider.GetNodes())
             .Select(NormalizeTree)
             .GroupBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(group => Merge(group.ToArray()))
+            .Select(group => Merge(group.Key, group.ToArray()))
             .OrderBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        _rootLookup = _roots.ToDictionary(node => node.Name, StringComparer.OrdinalIgnoreCase);
+
+        _roots = roots;
+        _rootLookup = roots.ToDictionary(node => node.Name, StringComparer.OrdinalIgnoreCase);
     }
 
-    public IReadOnlyList<CommandDslNode> Roots => _roots;
-
-    public bool TryGet(IReadOnlyList<string> path, out CommandDslNode node)
+    private bool TryGetCore(IReadOnlyList<string> path, out CommandDslNode node)
     {
         node = null!;
         if (path.Count == 0 || !_rootLookup.TryGetValue(CommandDsl.Normalize(path[0]), out var current))
@@ -58,13 +132,29 @@ public sealed class PlatformCommandDslRegistry
         };
     }
 
-    private static CommandDslNode Merge(IReadOnlyList<CommandDslNode> nodes)
+    private static CommandDslNode Merge(string path, IReadOnlyList<CommandDslNode> nodes)
     {
         var first = nodes[0];
+        var handlers = nodes.Where(node => node.Handler is not null).ToArray();
+        if (handlers.Length > 1)
+        {
+            throw new InvalidOperationException($"Multiple command handlers are registered for path '{path}'.");
+        }
+
+        if (nodes.Skip(1).Any(node =>
+                !string.Equals(node.Description, first.Description, StringComparison.Ordinal)
+                || !string.Equals(node.Usage, first.Usage, StringComparison.Ordinal)
+                || node.RequiredPrivilege != first.RequiredPrivilege
+                || node.SupportPlatforms != first.SupportPlatforms
+                || node.SupportChatTypes != first.SupportChatTypes))
+        {
+            throw new InvalidOperationException($"Conflicting command metadata is registered for path '{path}'.");
+        }
+
         var children = nodes
             .SelectMany(node => node.Children)
             .GroupBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
-            .Select(group => Merge(group.ToArray()))
+            .Select(group => Merge($"{path} {group.Key}", group.ToArray()))
             .OrderBy(node => node.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -78,9 +168,8 @@ public sealed class PlatformCommandDslRegistry
             SupportPlatforms = first.SupportPlatforms,
             SupportChatTypes = first.SupportChatTypes,
             Enabled = first.Enabled,
-            Handler = nodes.LastOrDefault(node => node.Handler is not null)?.Handler ?? first.Handler,
+            Handler = handlers.SingleOrDefault()?.Handler,
             Children = children
         };
     }
 }
-

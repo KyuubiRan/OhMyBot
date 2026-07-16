@@ -20,6 +20,8 @@ public sealed class CallbackActionStore(
         T data,
         bool requireOriginalSender = true,
         TimeSpan? ttl = null,
+        string? ownerPluginId = null,
+        int payloadVersion = 1,
         CancellationToken cancellationToken = default)
     {
         var hash = GenerateHash();
@@ -30,7 +32,9 @@ public sealed class CallbackActionStore(
             chatId,
             senderId,
             requireOriginalSender,
-            JsonSerializer.Serialize(data, JsonOptions));
+            JsonSerializer.Serialize(data, JsonOptions),
+            ownerPluginId,
+            payloadVersion);
 
         await cache.SetAsync(GetKey(hash), JsonSerializer.SerializeToUtf8Bytes(action, JsonOptions), new DistributedCacheEntryOptions
         {

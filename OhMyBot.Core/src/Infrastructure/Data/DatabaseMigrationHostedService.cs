@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Microsoft.EntityFrameworkCore;
+using OhMyBot.Core.Infrastructure.Plugins;
 
 namespace OhMyBot.Core.Infrastructure.Data;
 
@@ -13,8 +14,14 @@ public sealed class DatabaseMigrationHostedService(
         logger.LogInformation("Applying database migrations.");
 
         await using var scope = scopeFactory.CreateAsyncScope();
-        var dbContext = scope.ServiceProvider.GetRequiredService<OhMyBotV2DbContext>();
-        await dbContext.Database.MigrateAsync(cancellationToken);
+        var dbContext = scope.ServiceProvider.GetRequiredService<CoreDbContext>();
+        await EfBaselineAdopter.AdoptOrMigrateAsync(
+            dbContext,
+            new EfBaselineOptions(
+                "com.ohmybot.core",
+                "__EFMigrationsHistory_Core",
+                ["CoreUsers", "PlatformUserProfiles", "NotificationSubscriptions", "PluginOwnedRelations"]),
+            cancellationToken);
 
         logger.LogInformation(
             "Database migrations applied in {ElapsedMilliseconds:F0} ms.",

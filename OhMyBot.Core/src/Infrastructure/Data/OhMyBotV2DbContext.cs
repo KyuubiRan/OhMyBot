@@ -3,29 +3,18 @@ using OhMyBot.Core.Infrastructure.Data.Entities;
 
 namespace OhMyBot.Core.Infrastructure.Data;
 
-public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : DbContext(options)
+/// <summary>
+/// Core-owned model. Plugin tables intentionally do not belong to this context.
+/// </summary>
+public class CoreDbContext(DbContextOptions<CoreDbContext> options) : DbContext(options)
 {
     public DbSet<CoreUser> CoreUsers => Set<CoreUser>();
 
     public DbSet<PlatformUserProfile> PlatformUserProfiles => Set<PlatformUserProfile>();
 
-    public DbSet<AiRouterAccount> AiRouterAccounts => Set<AiRouterAccount>();
-
-    public DbSet<KuroAccount> KuroAccounts => Set<KuroAccount>();
-
-    public DbSet<KuroGameRole> KuroGameRoles => Set<KuroGameRole>();
-
-    public DbSet<MihoyoAccount> MihoyoAccounts => Set<MihoyoAccount>();
-
-    public DbSet<MihoyoGameRole> MihoyoGameRoles => Set<MihoyoGameRole>();
-
-    public DbSet<SklandAccount> SklandAccounts => Set<SklandAccount>();
-
-    public DbSet<SklandGameRole> SklandGameRoles => Set<SklandGameRole>();
-
-    public DbSet<HappytukAccount> HappytukAccounts => Set<HappytukAccount>();
-
     public DbSet<NotificationSubscription> NotificationSubscriptions => Set<NotificationSubscription>();
+
+    public DbSet<PluginOwnedRelation> PluginOwnedRelations => Set<PluginOwnedRelation>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -51,151 +40,9 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
 
             builder.HasIndex(profile => new { profile.Platform, profile.Uid }).IsUnique();
             builder.HasOne(profile => profile.CoreUser)
-                   .WithMany(user => user.PlatformProfiles)
-                   .HasForeignKey(profile => profile.CoreUserId)
-                   .OnDelete(DeleteBehavior.SetNull);
-        });
-
-        modelBuilder.Entity<AiRouterAccount>(builder =>
-        {
-            builder.HasKey(account => account.Id);
-            builder.Property(account => account.LoginEmail).HasMaxLength(320).IsRequired();
-            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
-            builder.Property(account => account.PasswordCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.CreatedAt).IsRequired();
-            builder.Property(account => account.UpdatedAt).IsRequired();
-
-            builder.HasIndex(account => account.LoginEmail).IsUnique();
-            builder.HasOne(account => account.CoreUser)
-                   .WithMany(user => user.AiRouterAccounts)
-                   .HasForeignKey(account => account.CoreUserId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<KuroAccount>(builder =>
-        {
-            builder.HasKey(account => account.Id);
-            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
-            builder.Property(account => account.TokenCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.DevCode).HasMaxLength(255);
-            builder.Property(account => account.DistinctId).HasMaxLength(255);
-            builder.Property(account => account.CreatedAt).IsRequired();
-            builder.Property(account => account.UpdatedAt).IsRequired();
-
-            builder.HasIndex(account => account.BbsUserId).IsUnique();
-            builder.HasOne(account => account.CoreUser)
-                   .WithMany(user => user.KuroAccounts)
-                   .HasForeignKey(account => account.CoreUserId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<KuroGameRole>(builder =>
-        {
-            builder.HasKey(role => role.Id);
-            builder.Property(role => role.GameName).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.ServerId).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.ServerName).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.RoleName).HasMaxLength(256).IsRequired();
-            builder.Property(role => role.GameLevel).HasMaxLength(64).IsRequired();
-            builder.Property(role => role.CreatedAt).IsRequired();
-            builder.Property(role => role.UpdatedAt).IsRequired();
-
-            builder.HasIndex(role => new { role.KuroAccountId, role.GameId, role.ServerId, role.RoleId }).IsUnique();
-            builder.HasOne(role => role.KuroAccount)
-                   .WithMany(account => account.Roles)
-                   .HasForeignKey(role => role.KuroAccountId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<MihoyoAccount>(builder =>
-        {
-            builder.HasKey(account => account.Id);
-            builder.Property(account => account.Region);
-            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
-            builder.Property(account => account.CookieCiphertext).HasMaxLength(4096).IsRequired();
-            builder.Property(account => account.StokenCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.Mid).HasMaxLength(255).IsRequired();
-            builder.Property(account => account.CreatedAt).IsRequired();
-            builder.Property(account => account.UpdatedAt).IsRequired();
-
-            builder.HasIndex(account => new { account.Region, account.Stuid }).IsUnique();
-            builder.HasOne(account => account.CoreUser)
-                   .WithMany(user => user.MihoyoAccounts)
-                   .HasForeignKey(account => account.CoreUserId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<MihoyoGameRole>(builder =>
-        {
-            builder.HasKey(role => role.Id);
-            builder.Property(role => role.GameBiz).HasMaxLength(64).IsRequired();
-            builder.Property(role => role.GameName).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.Region).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.Nickname).HasMaxLength(256).IsRequired();
-            builder.Property(role => role.Level).HasMaxLength(64).IsRequired();
-            builder.Property(role => role.CreatedAt).IsRequired();
-            builder.Property(role => role.UpdatedAt).IsRequired();
-
-            builder.HasIndex(role => new { role.MihoyoAccountId, role.GameBiz, role.GameUid }).IsUnique();
-            builder.HasOne(role => role.MihoyoAccount)
-                   .WithMany(account => account.Roles)
-                   .HasForeignKey(role => role.MihoyoAccountId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<SklandAccount>(builder =>
-        {
-            builder.HasKey(account => account.Id);
-            builder.Property(account => account.SklandUserId).HasMaxLength(128).IsRequired();
-            builder.Property(account => account.DeviceId).HasMaxLength(64).IsRequired();
-            builder.Property(account => account.DisplayName).HasMaxLength(256).IsRequired();
-            builder.Property(account => account.HgTokenCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.CredCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.SignTokenCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.CreatedAt).IsRequired();
-            builder.Property(account => account.UpdatedAt).IsRequired();
-
-            builder.HasIndex(account => account.SklandUserId).IsUnique();
-            builder.HasOne(account => account.CoreUser)
-                   .WithMany(user => user.SklandAccounts)
-                   .HasForeignKey(account => account.CoreUserId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<SklandGameRole>(builder =>
-        {
-            builder.HasKey(role => role.Id);
-            builder.Property(role => role.AppCode).HasMaxLength(64).IsRequired();
-            builder.Property(role => role.GameName).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.Uid).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.NickName).HasMaxLength(256).IsRequired();
-            builder.Property(role => role.Level).HasMaxLength(64).IsRequired();
-            builder.Property(role => role.ChannelName).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.ServerId).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.RoleId).HasMaxLength(128).IsRequired();
-            builder.Property(role => role.CreatedAt).IsRequired();
-            builder.Property(role => role.UpdatedAt).IsRequired();
-
-            builder.HasIndex(role => new { role.SklandAccountId, role.GameId, role.Uid, role.RoleId }).IsUnique();
-            builder.HasOne(role => role.SklandAccount)
-                   .WithMany(account => account.Roles)
-                   .HasForeignKey(role => role.SklandAccountId)
-                   .OnDelete(DeleteBehavior.Cascade);
-        });
-
-        modelBuilder.Entity<HappytukAccount>(builder =>
-        {
-            builder.HasKey(account => account.Id);
-            builder.Property(account => account.LoginAccount).HasMaxLength(256).IsRequired();
-            builder.Property(account => account.PasswordCiphertext).HasMaxLength(2048).IsRequired();
-            builder.Property(account => account.CreatedAt).IsRequired();
-            builder.Property(account => account.UpdatedAt).IsRequired();
-
-            builder.HasIndex(account => account.LoginAccount).IsUnique();
-            builder.HasOne(account => account.CoreUser)
-                   .WithMany(user => user.HappytukAccounts)
-                   .HasForeignKey(account => account.CoreUserId)
-                   .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(user => user.PlatformProfiles)
+                .HasForeignKey(profile => profile.CoreUserId)
+                .OnDelete(DeleteBehavior.SetNull);
         });
 
         modelBuilder.Entity<NotificationSubscription>(builder =>
@@ -216,9 +63,31 @@ public class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : 
                 subscription.TargetId
             }).IsUnique();
             builder.HasOne(subscription => subscription.CoreUser)
-                   .WithMany(user => user.NotificationSubscriptions)
-                   .HasForeignKey(subscription => subscription.CoreUserId)
-                   .OnDelete(DeleteBehavior.Cascade);
+                .WithMany(user => user.NotificationSubscriptions)
+                .HasForeignKey(subscription => subscription.CoreUserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<PluginOwnedRelation>(builder =>
+        {
+            builder.HasKey(relation => new
+            {
+                relation.SchemaName,
+                relation.TableName,
+                relation.CoreUserIdColumn
+            });
+            builder.Property(relation => relation.PluginId).HasMaxLength(255).IsRequired();
+            builder.Property(relation => relation.SchemaName).HasMaxLength(63).IsRequired();
+            builder.Property(relation => relation.TableName).HasMaxLength(63).IsRequired();
+            builder.Property(relation => relation.CoreUserIdColumn).HasMaxLength(63).IsRequired();
+            builder.HasIndex(relation => relation.PluginId);
+
         });
     }
 }
+
+/// <summary>
+/// Marker context retained only so the immutable legacy migration audit chain remains loadable.
+/// Runtime services must use <see cref="CoreDbContext"/>.
+/// </summary>
+public sealed class OhMyBotV2DbContext(DbContextOptions<OhMyBotV2DbContext> options) : DbContext(options);

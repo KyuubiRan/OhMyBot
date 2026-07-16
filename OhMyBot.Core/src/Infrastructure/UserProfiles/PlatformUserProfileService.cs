@@ -6,7 +6,7 @@ using OhMyBot.Core.Infrastructure.Data.Entities;
 namespace OhMyBot.Core.Infrastructure.UserProfiles;
 
 public sealed class PlatformUserProfileService(
-    OhMyBotV2DbContext dbContext,
+    CoreDbContext dbContext,
     IUserProfileCache cache,
     TimeProvider timeProvider)
 {

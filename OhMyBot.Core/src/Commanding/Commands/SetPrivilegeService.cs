@@ -8,7 +8,7 @@ using OhMyBot.Core.Infrastructure.Identity;
 namespace OhMyBot.Core.Commanding.Commands;
 
 public sealed class SetPrivilegeService(
-    OhMyBotV2DbContext dbContext,
+    CoreDbContext dbContext,
     IIdentityCache identityCache,
     TimeProvider timeProvider)
 {
