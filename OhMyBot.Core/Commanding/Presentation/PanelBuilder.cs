@@ -81,6 +81,10 @@ public sealed class PanelBuilder(
     /// <summary>
     /// 翻页行：总页数 ≤ 1 时不追加任何行，首页省略「上一页」、末页省略「下一页」。
     /// 用 <see cref="Func{T,TResult}"/> 而非泛型参数，因为各插件的翻页回调 record 类型互不相同。
+    ///
+    /// <paramref name="middleButton"/> 把一颗插件自己的按钮（如「开启/关闭全部」）夹在两个翻页按钮中间。
+    /// 首末页不补占位按钮，所以它会随页码左右移动——这是明确接受的取舍，换来不浪费一次回调 payload。
+    /// 传了它时单页也要保留这一行，否则只有一页的用户就拿不到这颗按钮了。
     /// </summary>
     public async Task<CommandResponse> AddPagerAsync(
         CommandResponse response,
@@ -90,20 +94,26 @@ public sealed class PanelBuilder(
         Func<int, object> pageDataFactory,
         string previousText,
         string nextText,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        ResponseButton? middleButton = null)
     {
-        if (totalPages <= 1)
+        if (totalPages <= 1 && middleButton is null)
         {
             return response;
         }
 
         var row = new ResponseButtonRow();
-        if (page > 0)
+        if (totalPages > 1 && page > 0)
         {
             row.Buttons.Add(await ButtonAsync(actionType, previousText, pageDataFactory(page - 1), cancellationToken));
         }
 
-        if (page + 1 < totalPages)
+        if (middleButton is not null)
+        {
+            row.Buttons.Add(middleButton);
+        }
+
+        if (totalPages > 1 && page + 1 < totalPages)
         {
             row.Buttons.Add(await ButtonAsync(actionType, nextText, pageDataFactory(page + 1), cancellationToken));
         }

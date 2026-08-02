@@ -91,6 +91,55 @@ public class V2PresentationTests
     }
 
     [TestMethod]
+    public async Task AddPagerKeepsMiddleButtonRowEvenOnSinglePage()
+    {
+        // 「开启/关闭全部」并进了翻页行。单页时翻页行整行消失，若不为中间按钮破例，
+        // 只有一页账号的用户就再也点不到全局开关了。
+        var panel = CreatePanel();
+        var response = CommandResponses.Text("panel", CreateContext());
+        var middle = await panel.ButtonAsync("test-toggle", "开启/关闭全部", new TestCallbackData("all"));
+
+        await panel.AddPagerAsync(
+            response, "test-pager", page: 0, totalPages: 1,
+            target => new TestCallbackData(target.ToString()), "上一页", "下一页",
+            middleButton: middle);
+
+        CollectionAssert.AreEqual(new[] { "开启/关闭全部" }, response.TgButtonTexts().ToArray());
+    }
+
+    [TestMethod]
+    public async Task AddPagerPutsMiddleButtonBetweenPageButtonsWithoutPadding()
+    {
+        // 首末页不补占位按钮，中间那颗会随页码左右移动——这是明确接受的取舍。
+        // 锁死的是顺序：中间按钮永远夹在上一页和下一页之间，不能漂到行首或行尾。
+        var context = CreateContext();
+
+        var first = CommandResponses.Text("panel", context);
+        var firstPanel = CreatePanel();
+        await firstPanel.AddPagerAsync(
+            first, "test-pager", page: 0, totalPages: 3,
+            target => new TestCallbackData(target.ToString()), "上一页", "下一页",
+            middleButton: await firstPanel.ButtonAsync("test-toggle", "全部", new TestCallbackData("all")));
+        CollectionAssert.AreEqual(new[] { "全部", "下一页" }, first.TgButtonTexts().ToArray());
+
+        var middle = CommandResponses.Text("panel", context);
+        var middlePanel = CreatePanel();
+        await middlePanel.AddPagerAsync(
+            middle, "test-pager", page: 1, totalPages: 3,
+            target => new TestCallbackData(target.ToString()), "上一页", "下一页",
+            middleButton: await middlePanel.ButtonAsync("test-toggle", "全部", new TestCallbackData("all")));
+        CollectionAssert.AreEqual(new[] { "上一页", "全部", "下一页" }, middle.TgButtonTexts().ToArray());
+
+        var last = CommandResponses.Text("panel", context);
+        var lastPanel = CreatePanel();
+        await lastPanel.AddPagerAsync(
+            last, "test-pager", page: 2, totalPages: 3,
+            target => new TestCallbackData(target.ToString()), "上一页", "下一页",
+            middleButton: await lastPanel.ButtonAsync("test-toggle", "全部", new TestCallbackData("all")));
+        CollectionAssert.AreEqual(new[] { "上一页", "全部" }, last.TgButtonTexts().ToArray());
+    }
+
+    [TestMethod]
     public async Task ButtonPayloadRoundTripsThroughObjectTypedData()
     {
         // PanelBuilder.ButtonAsync 把 data 声明成 object，PutAsync<T> 因此 T = object。
