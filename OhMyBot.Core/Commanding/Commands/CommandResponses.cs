@@ -199,6 +199,17 @@ public static class TelegramResponseExtensions
         return response;
     }
 
+    /// <summary>
+    /// editMessageId 非空白时改为「编辑现有消息」，为空/空白时保持原样。
+    ///
+    /// 不要把这个判空并进 <see cref="AsTelegramEdit"/>：那个方法会无条件清掉 ReplyToMessageId，
+    /// 而回调路径（editMessageId 为 ""）正依赖这个清空行为——加了守卫会让回调回复变成引用自身面板消息。
+    /// </summary>
+    public static CommandResponse AsTelegramEditIfSpecified(this CommandResponse response, string? editMessageId)
+    {
+        return string.IsNullOrWhiteSpace(editMessageId) ? response : response.AsTelegramEdit(editMessageId);
+    }
+
     /// <summary>追加一行按钮到第一条 Telegram 消息。</summary>
     public static CommandResponse AddButtonRow(this CommandResponse response, ResponseButtonRow row)
     {
