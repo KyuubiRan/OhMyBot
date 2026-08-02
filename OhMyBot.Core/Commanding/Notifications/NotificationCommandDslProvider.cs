@@ -44,42 +44,23 @@ public sealed class NotificationCommandDslProvider(
         }
 
         var text = MarkdownV2.Escape("[消息订阅管理]") + "\n当前已启用：" +
-            (enabledNames.Count == 0
-                ? "无"
-                : string.Join(MarkdownV2.Escape("、"), enabledNames.Select(MarkdownV2.CodeSpan)));
-        var response = CommandResponses.TelegramMarkdown(context.Identity, text, context.Request.MessageId);
-        if (!string.IsNullOrWhiteSpace(editMessageId))
-        {
-            response.AsTelegramEdit(editMessageId);
-        }
+            TextLayout.JoinOrEmpty(
+                enabledNames.Select(MarkdownV2.CodeSpan),
+                MarkdownV2.Escape("、"),
+                "无");
+        var response = CommandResponses.TelegramMarkdown(context.Identity, text, context.Request.MessageId)
+            .AsTelegramEditIfSpecified(editMessageId);
 
-        var row = new ResponseButtonRow();
-        foreach (var source in sources)
-        {
-            row.Buttons.Add(new ResponseButton
-            {
-                Text = source.DisplayName,
-                Payload = await callbackStore.PutAsync(
-                    "notify-type-select",
-                    context.Identity.CoreUserId,
-                    context.Request.ChatId,
-                    context.Request.UserId,
-                    new NotificationTypeCallbackData(source.Type),
-                    ownerPluginId: "core",
-                    cancellationToken: cancellationToken)
-            });
-
-            if (row.Buttons.Count == 2)
-            {
-                response.AddButtonRow(row);
-                row = new ResponseButtonRow();
-            }
-        }
-
-        if (row.Buttons.Count > 0)
-        {
-            response.AddButtonRow(row);
-        }
+        // ownerPluginId 必须是 "core"：插件热重载时按归属清理回调，漏了会把 Core 自己的按钮一起清掉。
+        var panel = new PanelBuilder(callbackStore, context, ownerPluginId: "core");
+        await panel.AddGridAsync(
+            response,
+            sources,
+            columns: 2,
+            "notify-type-select",
+            source => source.DisplayName,
+            source => new NotificationTypeCallbackData(source.Type),
+            cancellationToken);
 
         return response;
     }

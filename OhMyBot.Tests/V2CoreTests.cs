@@ -1025,8 +1025,7 @@ public class V2CoreTests
             new FakeNotificationSource(NotificationTypes.AiRouterAutoSign, NotificationTypes.AiRouterAutoSignDisplayName),
             new FakeNotificationSource(NotificationTypes.KuroAutoSign, NotificationTypes.KuroAutoSignDisplayName),
             new FakeNotificationSource(NotificationTypes.MihoyoAutoSign, NotificationTypes.MihoyoAutoSignDisplayName),
-            new FakeNotificationSource(NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName),
-            new FakeNotificationSource(NotificationTypes.HappytukAutoRedeem, NotificationTypes.HappytukAutoRedeemDisplayName)
+            new FakeNotificationSource(NotificationTypes.SklandAutoSign, NotificationTypes.SklandAutoSignDisplayName)
         });
         var callbackService = new CallbackExecutionService(
             serviceProvider.GetRequiredService<CoreIdentityService>(),
@@ -1045,7 +1044,7 @@ public class V2CoreTests
         });
 
         CollectionAssert.AreEqual(
-            new[] { "AI Router 自动签到", "库街区自动签到", "米游社自动签到", "森空岛自动签到", "HappyTuk 自动兑换" },
+            new[] { "AI Router 自动签到", "库街区自动签到", "米游社自动签到", "森空岛自动签到" },
             response.TgButtonTexts().ToArray());
     }
 

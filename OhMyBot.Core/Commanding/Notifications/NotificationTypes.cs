@@ -17,10 +17,6 @@ public static class NotificationTypes
     public const string SklandAutoSign = "skland-auto-sign";
 
     public const string SklandAutoSignDisplayName = "森空岛自动签到";
-
-    public const string HappytukAutoRedeem = "happytuk-auto-redeem";
-
-    public const string HappytukAutoRedeemDisplayName = "HappyTuk 自动兑换";
 }
 
 [Flags]
