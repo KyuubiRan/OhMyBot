@@ -30,8 +30,10 @@ internal sealed class PluginManager : IPluginManager, IHostedService
     private readonly PluginNotificationSourceRegistry _notificationSourceRegistry;
     private readonly RouteStore _routeStore;
     private readonly IRouteChangePublisher _routeChangePublisher;
+    private readonly IPluginRuntimeStateStore _stateStore;
     private readonly ILogger<PluginManager> _logger;
     private readonly PluginRuntimeOptions _options;
+    private readonly HashSet<string> _disabledPluginIds;
     private readonly SemaphoreSlim _mutationGate = new(1, 1);
     private readonly Lock _snapshotLock = new();
     private readonly Dictionary<string, PluginHandle> _active = new(StringComparer.OrdinalIgnoreCase);
@@ -50,6 +52,7 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         RouteStore routeStore,
         IRouteChangePublisher routeChangePublisher,
         IOptions<PluginRuntimeOptions> options,
+        IPluginRuntimeStateStore stateStore,
         ILogger<PluginManager> logger)
     {
         _rootServices = rootServices;
@@ -61,6 +64,11 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         _routeStore = routeStore;
         _routeChangePublisher = routeChangePublisher;
         _options = options.Value;
+        _stateStore = stateStore;
+        _disabledPluginIds = (stateStore.LoadDisabledPluginIds() ?? _options.DisabledPluginIds ?? [])
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         _logger = logger;
         _hostServices = new PluginHostServices(rootServices, FindAvailablePlugin);
     }
@@ -141,6 +149,197 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         }
     }
 
+    public async Task<PluginActivationResult> DisableAsync(
+        string pluginId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        await _mutationGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await DisableCoreAsync(pluginId.Trim(), cancellationToken);
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
+    }
+
+    public async Task<PluginActivationResult> EnableAsync(
+        string pluginId,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(pluginId);
+        await _mutationGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await EnableCoreAsync(pluginId.Trim(), cancellationToken);
+        }
+        finally
+        {
+            _mutationGate.Release();
+        }
+    }
+
+    private async Task<PluginActivationResult> DisableCoreAsync(
+        string pluginId,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(pluginId, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PluginActivationResult(false, "plugin disable 需要指定单个插件 id。");
+        }
+
+        PluginDiscoveryResult discovery;
+        try
+        {
+            discovery = PluginDiscovery.DiscoverDetailed(ResolveRuntimePath(_options.PluginPath));
+        }
+        catch (Exception exception)
+        {
+            return new PluginActivationResult(false, $"插件发现失败：{exception.GetBaseException().Message}");
+        }
+
+        var descriptor = discovery.Descriptors.FirstOrDefault(item =>
+            string.Equals(item.Metadata.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+        if (descriptor is null)
+        {
+            return new PluginActivationResult(false, $"未找到插件：{pluginId}");
+        }
+
+        if (_disabledPluginIds.Contains(pluginId))
+        {
+            UpdateDisabledStatuses([descriptor]);
+            try
+            {
+                await PersistDisabledPluginIdsAsync(cancellationToken);
+                return new PluginActivationResult(true, $"插件 {descriptor.Metadata.Id} 已处于禁用状态。");
+            }
+            catch (Exception exception)
+            {
+                return new PluginActivationResult(
+                    false,
+                    $"插件 {descriptor.Metadata.Id} 已禁用，但持久化状态失败：{exception.GetBaseException().Message}");
+            }
+        }
+
+        var activeDescriptors = GetActiveHandlesInLoadOrder()
+            .Select(handle => handle.Descriptor)
+            .ToArray();
+        var activeDependents = BuildReloadClosure(descriptor.Metadata.Id, activeDescriptors)
+            .Where(id => !string.Equals(id, descriptor.Metadata.Id, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        if (activeDependents.Length > 0)
+        {
+            return new PluginActivationResult(
+                false,
+                $"无法禁用插件 {descriptor.Metadata.Id}；以下活动插件依赖它：{string.Join(", ", activeDependents)}。");
+        }
+
+        _disabledPluginIds.Add(descriptor.Metadata.Id);
+        try
+        {
+            var active = FindActivePlugin(descriptor.Metadata.Id);
+            if (active is not null)
+            {
+                await UnloadActiveHandleAsync(active, cancellationToken);
+            }
+
+            UpdateDisabledStatuses([descriptor]);
+            await PersistDisabledPluginIdsAsync(cancellationToken);
+            return new PluginActivationResult(true, $"已禁用插件 {descriptor.Metadata.Id}。");
+        }
+        catch (Exception exception)
+        {
+            _disabledPluginIds.Remove(descriptor.Metadata.Id);
+            var rollback = FindActivePlugin(descriptor.Metadata.Id) is null
+                ? await ReloadCoreAsync(descriptor.Metadata.Id, cancellationToken)
+                : null;
+            var rollbackMessage = rollback is null || rollback.Success
+                ? string.Empty
+                : $" 回滚加载失败：{rollback.Message}";
+            return new PluginActivationResult(
+                false,
+                $"禁用插件 {descriptor.Metadata.Id} 失败：{exception.GetBaseException().Message}.{rollbackMessage}");
+        }
+    }
+
+    private async Task<PluginActivationResult> EnableCoreAsync(
+        string pluginId,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(pluginId, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return new PluginActivationResult(false, "plugin enable 需要指定单个插件 id。");
+        }
+
+        var wasDisabled = _disabledPluginIds.Remove(pluginId);
+        var reload = await ReloadCoreAsync(pluginId, cancellationToken);
+        if (!reload.Success)
+        {
+            if (wasDisabled)
+            {
+                _disabledPluginIds.Add(pluginId);
+                MarkDiscoveredPluginDisabled(pluginId);
+            }
+
+            return new PluginActivationResult(false, $"启用插件 {pluginId} 失败：{reload.Message}");
+        }
+
+        if (!wasDisabled)
+        {
+            return new PluginActivationResult(true, $"插件 {pluginId} 已处于启用状态并完成重载。");
+        }
+
+        try
+        {
+            await PersistDisabledPluginIdsAsync(cancellationToken);
+            return new PluginActivationResult(true, $"已启用插件 {pluginId}。");
+        }
+        catch (Exception exception)
+        {
+            _disabledPluginIds.Add(pluginId);
+            var active = FindActivePlugin(pluginId);
+            if (active is not null)
+            {
+                try
+                {
+                    await UnloadActiveHandleAsync(active, cancellationToken);
+                }
+                catch (Exception rollbackException)
+                {
+                    return new PluginActivationResult(
+                        false,
+                        $"启用状态持久化失败：{exception.GetBaseException().Message}；回滚卸载也失败：{rollbackException.GetBaseException().Message}");
+                }
+            }
+
+            MarkDiscoveredPluginDisabled(pluginId);
+            return new PluginActivationResult(
+                false,
+                $"启用插件 {pluginId} 后无法持久化状态，已回滚：{exception.GetBaseException().Message}");
+        }
+    }
+
+    private Task PersistDisabledPluginIdsAsync(CancellationToken cancellationToken)
+    {
+        return _stateStore.SaveDisabledPluginIdsAsync(
+            _disabledPluginIds.OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray(),
+            cancellationToken);
+    }
+
+    private void MarkDiscoveredPluginDisabled(string pluginId)
+    {
+        var discovery = PluginDiscovery.DiscoverDetailed(ResolveRuntimePath(_options.PluginPath));
+        var descriptor = discovery.Descriptors.FirstOrDefault(item =>
+            string.Equals(item.Metadata.Id, pluginId, StringComparison.OrdinalIgnoreCase));
+        if (descriptor is not null)
+        {
+            UpdateDisabledStatuses([descriptor]);
+        }
+    }
+
     private async Task<PluginReloadResult> ReloadCoreAsync(string pluginId, CancellationToken cancellationToken)
     {
         PluginDiscoveryResult discovery;
@@ -153,15 +352,29 @@ internal sealed class PluginManager : IPluginManager, IHostedService
             return new PluginReloadResult(false, $"插件发现失败：{exception.GetBaseException().Message}", []);
         }
 
-        var descriptors = discovery.Descriptors;
+        var disabledDescriptors = discovery.Descriptors
+            .Where(descriptor => _disabledPluginIds.Contains(descriptor.Metadata.Id))
+            .ToArray();
+        var descriptors = discovery.Descriptors
+            .Where(descriptor => !_disabledPluginIds.Contains(descriptor.Metadata.Id))
+            .ToArray();
         var validation = ValidateAndSortFailSoft(descriptors);
         var loadOrder = validation.LoadOrder;
 
-        PruneInactiveStatuses(descriptors, discovery.Failures);
+        PruneInactiveStatuses(discovery.Descriptors, discovery.Failures);
         UpdateDiscoveredStatuses(descriptors, null);
+        UpdateDisabledStatuses(disabledDescriptors);
         UpdateDiscoveryFailures(discovery.Failures);
         UpdateValidationFailures(validation.Failures);
         var reloadAll = string.Equals(pluginId, "all", StringComparison.OrdinalIgnoreCase);
+        if (!reloadAll && _disabledPluginIds.Contains(pluginId))
+        {
+            return new PluginReloadResult(
+                false,
+                $"插件 {pluginId} 已通过 PluginRuntime:DisabledPluginIds 禁用。",
+                []);
+        }
+
         var descriptorMap = loadOrder.ToDictionary(item => item.Metadata.Id, StringComparer.OrdinalIgnoreCase);
         if (!reloadAll && !descriptorMap.ContainsKey(pluginId))
         {
@@ -501,6 +714,60 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         UpdateStatus(handle, null);
     }
 
+    private async Task UnloadActiveHandleAsync(
+        PluginHandle handle,
+        CancellationToken cancellationToken)
+    {
+        handle.Context.SetState(PluginState.Draining);
+        UpdateStatus(handle, null);
+        try
+        {
+            await handle.InvocationGate.BeginDrainAsync(_options.DrainTimeout, cancellationToken);
+        }
+        catch
+        {
+            handle.InvocationGate.CancelDrain();
+            handle.Context.SetState(PluginState.Active);
+            UpdateStatus(handle, null);
+            throw;
+        }
+
+        UnregisterComponents(handle);
+        try
+        {
+            await RebuildRoutesAsync(cancellationToken);
+        }
+        catch
+        {
+            RegisterComponents(handle);
+            handle.InvocationGate.CancelDrain();
+            handle.Context.SetState(PluginState.Active);
+            UpdateStatus(handle, null);
+            throw;
+        }
+
+        try
+        {
+            await StopHandleAsync(handle, cancellationToken);
+        }
+        catch
+        {
+            RegisterComponents(handle);
+            handle.InvocationGate.CancelDrain();
+            handle.Context.SetState(PluginState.Active);
+            UpdateStatus(handle, null);
+            await RebuildRoutesAsync(cancellationToken);
+            throw;
+        }
+
+        lock (_snapshotLock)
+        {
+            _active.Remove(handle.Descriptor.Metadata.Id);
+        }
+
+        await DisposeHandleAsync(handle);
+    }
+
     private async ValueTask DisposeHandleAsync(PluginHandle handle)
     {
         handle.LifetimeCancellation.Cancel();
@@ -599,6 +866,14 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         lock (_snapshotLock)
         {
             return _staging.GetValueOrDefault(pluginId) ?? _active.GetValueOrDefault(pluginId);
+        }
+    }
+
+    private PluginHandle? FindActivePlugin(string pluginId)
+    {
+        lock (_snapshotLock)
+        {
+            return _active.GetValueOrDefault(pluginId);
         }
     }
 
@@ -835,6 +1110,26 @@ internal sealed class PluginManager : IPluginManager, IHostedService
                     0,
                     descriptor.Metadata.Dependencies,
                     error);
+            }
+        }
+    }
+
+    private void UpdateDisabledStatuses(IEnumerable<PluginDescriptor> descriptors)
+    {
+        lock (_snapshotLock)
+        {
+            foreach (var descriptor in descriptors)
+            {
+                _status[descriptor.Metadata.Id] = new PluginRuntimeInfo(
+                    descriptor.Metadata.Id,
+                    descriptor.Metadata.Name,
+                    descriptor.Metadata.Version,
+                    descriptor.Metadata.LoadPriority,
+                    descriptor.Metadata.SupportedPlatforms,
+                    PluginState.Disabled,
+                    0,
+                    descriptor.Metadata.Dependencies,
+                    null);
             }
         }
     }

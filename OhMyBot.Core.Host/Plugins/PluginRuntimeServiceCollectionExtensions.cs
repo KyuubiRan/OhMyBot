@@ -11,6 +11,7 @@ internal static class PluginRuntimeServiceCollectionExtensions
     {
         services.AddOptions<PluginRuntimeOptions>()
             .Bind(configuration.GetSection("PluginRuntime"));
+        services.AddSingleton<IPluginRuntimeStateStore, PluginRuntimeStateStore>();
         services.AddSingleton<PluginManager>();
         services.Replace(ServiceDescriptor.Singleton<IPluginManager>(provider =>
             provider.GetRequiredService<PluginManager>()));

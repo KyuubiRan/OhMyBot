@@ -66,6 +66,7 @@ message CallbackRequest {
   string message_id = 5;
   string callback_query_id = 6;
   string payload = 7;
+  BotChatType chat_type = 8;         // 回调发生的会话类型；插件 handler 据此区分私聊/群聊
 }
 
 message GetRoutesRequest {

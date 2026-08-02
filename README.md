@@ -64,7 +64,21 @@ OhMyBot/
 OhMyBot/build/OhMyBot.Core.Host/bin/<Configuration>/net10.0/Plugins/<PluginName>/
 ```
 
-已有 `pluginsettings.json` 不会被覆盖。使用 `/plugin list`、`/plugin status <id>` 和 `/plugin reload <id|all>` 管理插件。
+已有 `pluginsettings.json` 不会被覆盖。使用 `plugin list`、`plugin status <id>`、`plugin reload <id|all>`、`plugin disable <id>` 和 `plugin enable <id>` 管理插件。
+
+可以在 Host 的 `appsettings.json` 中持久化配置不应加载的插件：
+
+```json
+{
+  "PluginRuntime": {
+    "DisabledPluginIds": [
+      "com.example.plugin"
+    ]
+  }
+}
+```
+
+禁用的插件仍会显示为 `Disabled`，但不会创建实例、注册组件或执行插件 migration。控制台的 `enable/disable` 指令会立即加载或卸载插件，并把状态原子写入 `plugin-runtime-state.json`；该状态文件在下次启动时覆盖模板配置。直接修改 `appsettings.json` 中的列表则需要重启 Host。
 
 ## 运行依赖
 
