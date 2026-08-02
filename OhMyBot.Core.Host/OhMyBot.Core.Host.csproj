@@ -15,18 +15,14 @@
 
     <ItemGroup>
         <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
+        <PackageReference Include="Microsoft.Extensions.Hosting.Systemd" Version="10.0.10" />
         <PackageReference Include="NuGet.Versioning" Version="6.14.0" />
         <PackageReference Include="System.Reflection.MetadataLoadContext" Version="10.0.0" />
     </ItemGroup>
 
     <ItemGroup>
-        <Content Update="appsettings.template.json"
-                 CopyToOutputDirectory="PreserveNewest"
-                 CopyToPublishDirectory="PreserveNewest" />
-        <Content Update="appsettings.json"
-                 Condition="Exists('appsettings.json')"
-                 CopyToOutputDirectory="PreserveNewest"
-                 CopyToPublishDirectory="Never" />
+        <Content Update="appsettings.template.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <Content Update="appsettings.json" Condition="Exists('appsettings.json')" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" />
     </ItemGroup>
 
 </Project>

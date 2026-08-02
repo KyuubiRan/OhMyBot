@@ -15,6 +15,7 @@ public sealed class GatewayWorker(
     ILogger<GatewayWorker> logger) : BackgroundService
 {
     private static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan RouteLoadRetryDelay = TimeSpan.FromSeconds(5);
     private readonly TelegramGatewayOptions _options = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -63,17 +64,37 @@ public sealed class GatewayWorker(
 
         botClient.StartReceiving(updateHandler, receiverOptions, stoppingToken);
 
-        try
-        {
-            var commands = await gateway.ReloadAsync(_options.BotInstanceId, stoppingToken);
-            logger.LogInformation("Telegram gateway loaded {Count} commands from Core.", commands.Count);
-        }
-        catch (Exception exception)
-        {
-            logger.LogError(exception, "Failed to load Telegram routes from Core. The gateway will keep running; use /reload after Core is reachable.");
-        }
+        await LoadRoutesWithRetryAsync(stoppingToken);
 
         await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+    }
+
+    // Core 起得比网关慢（要跑迁移、加载插件），开机并发拉起或发布重启时首次拉取必然可能失败。
+    // 这里必须重试到成功：本方法之后就是 Task.Delay(Infinite)，一次放弃就意味着路由永久为空，
+    // 而网关不会退出，systemd 的 Restart=on-failure 也不会兜底——进程显示 active 却对任何命令无反应。
+    private async Task LoadRoutesWithRetryAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                var commands = await gateway.ReloadAsync(_options.BotInstanceId, stoppingToken);
+                logger.LogInformation("Telegram gateway loaded {Count} commands from Core.", commands.Count);
+                return;
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(
+                    exception,
+                    "Failed to load Telegram routes from Core. Retrying in {DelaySeconds} seconds.",
+                    RouteLoadRetryDelay.TotalSeconds);
+                await Task.Delay(RouteLoadRetryDelay, stoppingToken);
+            }
+        }
     }
 
     // 登记 bot 自身档案：bot 收不到自己的消息，否则 /info、/setpriv 以自身为目标时只会显示 uid。

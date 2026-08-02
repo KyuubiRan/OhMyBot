@@ -46,6 +46,11 @@ if (consoleState.Enabled)
 
 builder.Logging.AddProvider(new InteractiveConsoleLoggerProvider(consoleOutputQueue));
 
+// 以 systemd 服务运行时改用 Type=notify 协议：ApplicationStarted（即 Kestrel 绑定 gRPC 端口之后）
+// 才上报 READY=1，两个网关的 unit 靠 After= 就能真正等到 Core 可连，而不是刚 fork 出来就被放行。
+// 非 systemd 环境（本地直接跑）下这个调用不生效，不影响交互式控制台。
+builder.Host.UseSystemd();
+
 builder.Services.AddGrpc(options => options.Interceptors.Add<AccessTokenInterceptor>());
 builder.Services.AddSingleton(consoleState);
 builder.Services.AddSingleton(consoleOutputQueue);
