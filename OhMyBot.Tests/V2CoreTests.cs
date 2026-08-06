@@ -689,6 +689,34 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task CommandUserExceptionReachesUserVerbatim()
+    {
+        await using var dbContext = CreateDbContext();
+        var registry = CreateBuiltInCommandRegistry(extraNodes:
+        [
+            new CommandDslNode
+            {
+                Name = "broken",
+                Description = "Broken command.",
+                Usage = "/broken",
+                // 业务失败：处理器已经写好了给用户看的自助提示，Core 不该再折叠掉。
+                Handler = _ => throw new CommandUserException("AiRouterLoginFailed", "AI Router 登录失败：用户名或密码错误")
+            }
+        ]);
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(), registry);
+
+        var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "tg-1", "broken"));
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("AiRouterLoginFailed", response.ErrorCode);
+        var text = response.TgText();
+        // 用户要能据此自己解决问题：既不能被换成「请稍后重试」，也不该拿到一个只有翻日志才有意义的 id。
+        StringAssert.Contains(text, "用户名或密码错误");
+        Assert.IsFalse(text.Contains("错误 id:"), "业务失败不需要关联 id，给了反而暗示用户来找人查日志。");
+        Assert.IsFalse(text.Contains("请稍后重试"), "重试解决不了密码错误，这句话只会让用户反复重试。");
+    }
+
+    [TestMethod]
     public async Task RouteCannotLowerCorePrivilege()
     {
         await using var dbContext = CreateDbContext();
@@ -1076,6 +1104,68 @@ public class V2CoreTests
         Assert.AreNotEqual(0, response.Code);
         Assert.AreEqual("CallbackRejected", response.ErrorCode);
         Assert.IsNull(harness.Source.LastChatType, "被拒绝的回调不应进入业务 handler。");
+    }
+
+    [TestMethod]
+    public async Task CallbackUserExceptionReachesUserVerbatim()
+    {
+        // 点按钮走的是和命令完全独立的入口，同一个「Token 已失效」不该因为入口不同就变成另一种话术。
+        await using var dbContext = CreateDbContext();
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var harness = await CreateCallbackHarnessAsync(dbContext, callbackStore);
+        harness.Source.ThrowOnBuild = new CommandUserException("KuroTokenExpired", "Token 已失效，请重新绑定库街区账号");
+        var payload = await callbackStore.PutAsync(
+            "notify-type-select",
+            harness.CoreUserId,
+            "chat",
+            "admin",
+            new NotificationTypeCallbackData(ObservingNotificationSource.SourceType));
+
+        var response = await harness.Service.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            ChatId = "chat",
+            UserId = "admin",
+            MessageId = "123",
+            ChatType = BotChatType.Private,
+            Payload = payload
+        });
+
+        Assert.AreEqual("KuroTokenExpired", response.ErrorCode);
+        StringAssert.Contains(response.TgText(), "请重新绑定库街区账号");
+    }
+
+    [TestMethod]
+    public async Task CallbackHandlerExceptionHidesInternalDetailBehindErrorId()
+    {
+        // 这里不兜底的话异常会穿到 gRPC：用户拿到的是网关现编的 id，而 Core 日志里根本没有那个 id，
+        // 报上来的 id 就永远查不到。所以 errorId 必须由抓到异常的这一层生成并落日志。
+        await using var dbContext = CreateDbContext();
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var harness = await CreateCallbackHarnessAsync(dbContext, callbackStore);
+        harness.Source.ThrowOnBuild = new InvalidOperationException("redis offline at 10.0.0.7:6379");
+        var payload = await callbackStore.PutAsync(
+            "notify-type-select",
+            harness.CoreUserId,
+            "chat",
+            "admin",
+            new NotificationTypeCallbackData(ObservingNotificationSource.SourceType));
+
+        var response = await harness.Service.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            ChatId = "chat",
+            UserId = "admin",
+            MessageId = "123",
+            ChatType = BotChatType.Private,
+            Payload = payload
+        });
+
+        Assert.AreNotEqual(0, response.Code);
+        Assert.AreEqual("CallbackHandlerFailed", response.ErrorCode);
+        var text = response.TgText();
+        StringAssert.Contains(text, "错误 id:");
+        Assert.IsFalse(text.Contains("10.0.0.7"), "内网地址不应出现在用户可见文案中。");
     }
 
     [TestMethod]
@@ -2282,6 +2372,9 @@ public class V2CoreTests
 
         public BotChatType? LastChatType { get; private set; }
 
+        /// <summary>非 null 时 <see cref="BuildAccountPanelAsync"/> 直接抛出它，用于验证回调路径的兜底。</summary>
+        public Exception? ThrowOnBuild { get; set; }
+
         public Task<bool> HasEnabledTargetsAsync(
             CommandContext context,
             CancellationToken cancellationToken = default) => Task.FromResult(false);
@@ -2292,6 +2385,11 @@ public class V2CoreTests
             CancellationToken cancellationToken = default)
         {
             LastChatType = context.Request.ChatType;
+            if (ThrowOnBuild is not null)
+            {
+                throw ThrowOnBuild;
+            }
+
             return Task.FromResult(CommandResponses.Silent(context));
         }
 

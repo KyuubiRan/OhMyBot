@@ -5,12 +5,16 @@ namespace OhMyBot.Core.Commanding.Callbacks;
 
 public static class PluginCallbackResponses
 {
-    public static CommandResponse Error(ResolvedIdentity identity, string editMessageId, string message)
+    public static CommandResponse Error(
+        ResolvedIdentity identity,
+        string editMessageId,
+        string message,
+        string errorCode = "CallbackRejected")
     {
         return new CommandResponse
         {
             Code = 1,
-            ErrorCode = "CallbackRejected",
+            ErrorCode = errorCode,
             CallbackAnswerText = message,
             CallbackAnswerAlert = false,
             Context = ToContext(identity),
@@ -20,7 +24,7 @@ public static class PluginCallbackResponses
                 {
                     new TelegramMessage
                     {
-                        Text = $"错误：{message}（CallbackRejected）",
+                        Text = $"错误：{message}（{errorCode}）",
                         ParseMode = TelegramParseMode.None,
                         EditMessageId = editMessageId
                     }

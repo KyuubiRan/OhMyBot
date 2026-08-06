@@ -122,12 +122,20 @@ public sealed class QQUpdateHandler(
             // 纯数字 = 菜单选择：群聊必须回复某条菜单，私聊可回复也可直接发数字（走最近菜单）。
             if (IsSelection(text) && (!string.IsNullOrEmpty(replyToMessageId) || chatType == BotChatType.Private))
             {
-                var selectionResponse = await gateway.ExecuteMenuSelectionAsync(
-                    request,
-                    replyToMessageId,
-                    text,
-                    _options.BotInstanceId);
-                await SendResponseAsync(selectionResponse, chatType, chatId, request.UserId, request.MessageId);
+                try
+                {
+                    var selectionResponse = await gateway.ExecuteMenuSelectionAsync(
+                        request,
+                        replyToMessageId,
+                        text,
+                        _options.BotInstanceId);
+                    await SendResponseAsync(selectionResponse, chatType, chatId, request.UserId, request.MessageId);
+                }
+                catch (Exception exception)
+                {
+                    await SendFailureSafeAsync(chatType, chatId, request.MessageId, exception);
+                }
+
                 return;
             }
 
@@ -150,12 +158,48 @@ public sealed class QQUpdateHandler(
                 ? request
                 : request with { ReplyToUserId = replyToUserId };
 
-            var response = await gateway.ExecuteAsync(commandRequest, _options.BotInstanceId);
-            await SendResponseAsync(response, chatType, chatId, request.UserId, request.MessageId);
+            try
+            {
+                var response = await gateway.ExecuteAsync(commandRequest, _options.BotInstanceId);
+                await SendResponseAsync(response, chatType, chatId, request.UserId, request.MessageId);
+            }
+            catch (Exception exception)
+            {
+                await SendFailureSafeAsync(chatType, chatId, request.MessageId, exception);
+            }
         }
         catch (Exception exception)
         {
+            // 这一层只兜「还没判断出这是不是一条命令」的阶段（解析段链、取会话 id）。
+            // 这里不能回消息：群里每条闲聊都会流经此处，一旦回复就是拿群聊当日志窗口。
+            // 用户明确调用了机器人的两条分支各自带了回复兜底，见上。
             logger.LogError(exception, "处理 QQ 消息失败。message_id={MessageId}", message.MessageId);
+        }
+    }
+
+    // 命令/菜单选择执行失败时回一条带关联 id 的提示。
+    //
+    // QQ 侧过去只 LogError 不回消息，用户那边表现为「机器人装死」，完全无从判断是没收到、
+    // 没权限还是崩了。只在用户确实调用了机器人时才会走到这里，不存在刷屏风险。
+    //
+    // 自身再失败也只记日志：OneBot 连不上时报错消息同样发不出去，不能让兜底把异常再抛回调用方。
+    private async Task SendFailureSafeAsync(
+        BotChatType chatType,
+        string chatId,
+        string replyToMessageId,
+        Exception exception)
+    {
+        // gw- 前缀标明这个 id 只存在于网关日志：查 ohmybot-qq，不是 ohmybot-core。
+        var errorId = $"gw-{Guid.NewGuid().ToString("N")[..6]}";
+        logger.LogError(exception, "QQ 网关执行失败。errorId={ErrorId}, message_id={MessageId}", errorId, replyToMessageId);
+        try
+        {
+            // 异常原文可能带内网地址/上游 API 细节，只回关联 id。
+            await SendTextAsync(chatType, chatId, $"执行失败，请稍后重试。（错误 id: {errorId}）", replyToMessageId);
+        }
+        catch (Exception sendException)
+        {
+            logger.LogWarning(sendException, "回复 QQ 失败提示时再次失败。errorId={ErrorId}", errorId);
         }
     }
 

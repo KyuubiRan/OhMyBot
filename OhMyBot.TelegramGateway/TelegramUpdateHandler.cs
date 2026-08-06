@@ -248,7 +248,9 @@ public sealed class TelegramUpdateHandler(
         try
         {
             // 与 Core 一致：异常原文可能带内网地址/上游 API 细节，只回关联 id，细节进日志。
-            var errorId = Guid.NewGuid().ToString("N")[..6];
+            // 前缀 gw- 是给排查用的：这个 id 只存在于网关日志里，Core 的 journal 怎么搜都搜不到。
+            // 拿到带 gw- 的 id 直接查 ohmybot-telegram，不带的查 ohmybot-core。
+            var errorId = $"gw-{Guid.NewGuid().ToString("N")[..6]}";
             logger.LogError(exception, "Telegram gateway execution failed. errorId={ErrorId}.", errorId);
             var failureMessage = new TelegramMessage
             {

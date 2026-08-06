@@ -56,6 +56,24 @@ public sealed class CommandExecutionService(
         {
             return await dslExecutor.ExecuteAsync(new CommandContext(canonicalRequest, identity, started, cancellationToken));
         }
+        catch (CommandUserException exception)
+        {
+            // 业务失败：消息是处理器专门写给用户看的自助提示，原样回。
+            // 不生成 errorId——这类失败不需要谁去查日志，折叠成「请稍后重试」只会让用户反复重试同一个错密码。
+            logger.LogInformation(
+                "Command rejected. errorCode={ErrorCode}, command={Command}, user={UserId}, platform={Platform}, chat={ChatId}, reason={Reason}",
+                exception.ErrorCode,
+                canonicalRequest.Command,
+                canonicalRequest.UserId,
+                canonicalRequest.Platform,
+                canonicalRequest.ChatId,
+                exception.Message);
+            return CommandResponses.Error(
+                exception.ErrorCode,
+                exception.Message,
+                identity,
+                canonicalRequest.MessageId);
+        }
         catch (Exception exception)
         {
             // 异常原文可能带表名/约束名/内网地址/上游 API 地址，不能进聊天窗口。

@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging.Abstractions;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Commands;
 using OhMyBot.Core.Commanding.Notifications;
@@ -14,6 +15,7 @@ public sealed class CallbackExecutionService
     private readonly PluginCallbackRegistry _pluginCallbacks;
     private readonly PluginNotificationSourceRegistry _notificationSources;
     private readonly NotificationCommandDslProvider _notificationProvider;
+    private readonly ILogger<CallbackExecutionService> _logger;
 
     public CallbackExecutionService(
         CoreIdentityService identityService,
@@ -22,7 +24,8 @@ public sealed class CallbackExecutionService
         TimeProvider timeProvider,
         PluginCallbackRegistry? pluginCallbacks = null,
         PluginNotificationSourceRegistry? notificationSources = null,
-        NotificationCommandDslProvider? notificationProvider = null)
+        NotificationCommandDslProvider? notificationProvider = null,
+        ILogger<CallbackExecutionService>? logger = null)
     {
         _identityService = identityService;
         _actionStore = actionStore;
@@ -31,6 +34,7 @@ public sealed class CallbackExecutionService
         _pluginCallbacks = pluginCallbacks ?? new PluginCallbackRegistry();
         _notificationSources = notificationSources ?? new PluginNotificationSourceRegistry();
         _notificationProvider = notificationProvider ?? new NotificationCommandDslProvider(actionStore, _notificationSources);
+        _logger = logger ?? NullLogger<CallbackExecutionService>.Instance;
     }
 
     public async Task<CommandResponse> ExecuteAsync(
@@ -81,24 +85,60 @@ public sealed class CallbackExecutionService
             ChatType = request.ChatType
         }, identity, _timeProvider.GetTimestamp(), cancellationToken);
 
-        if (_pluginCallbacks.TryGet(action.ActionType, out var pluginHandler))
+        // 回调走的是和命令完全独立的入口（ExecuteCallback / ExecuteQqMenuSelection），
+        // 这里不兜底的话，插件抛出的异常会一路穿到 gRPC，Core 侧只留一条 Unhandled exception，
+        // 而用户看到的是网关自己现编的错误 id —— 那个 id 在 Core 日志里根本搜不到。
+        // 所以此处的两级 catch 必须和 CommandExecutionService 保持同一套语义。
+        try
         {
-            return await pluginHandler.ExecuteAsync(
-                action.ActionType,
-                context,
-                action,
-                request.MessageId,
-                cancellationToken);
-        }
+            if (_pluginCallbacks.TryGet(action.ActionType, out var pluginHandler))
+            {
+                return await pluginHandler.ExecuteAsync(
+                    action.ActionType,
+                    context,
+                    action,
+                    request.MessageId,
+                    cancellationToken);
+            }
 
-        return action.ActionType switch
+            return action.ActionType switch
+            {
+                "notify-type-select" => await ExecuteNotifyTypeSelectAsync(context, action, request.MessageId, cancellationToken),
+                "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
+                "notify-back" => await _notificationProvider.BuildRootAsync(context, request.MessageId, cancellationToken),
+                "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
+                _ => PluginCallbackResponses.Error(identity, request.MessageId, "未知按钮操作或对应插件未加载。")
+            };
+        }
+        catch (CommandUserException exception)
         {
-            "notify-type-select" => await ExecuteNotifyTypeSelectAsync(context, action, request.MessageId, cancellationToken),
-            "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
-            "notify-back" => await _notificationProvider.BuildRootAsync(context, request.MessageId, cancellationToken),
-            "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
-            _ => PluginCallbackResponses.Error(identity, request.MessageId, "未知按钮操作或对应插件未加载。")
-        };
+            _logger.LogInformation(
+                "Callback rejected. errorCode={ErrorCode}, action={ActionType}, user={UserId}, platform={Platform}, chat={ChatId}, reason={Reason}",
+                exception.ErrorCode,
+                action.ActionType,
+                request.UserId,
+                request.Platform,
+                request.ChatId,
+                exception.Message);
+            return PluginCallbackResponses.Error(identity, request.MessageId, exception.Message, exception.ErrorCode);
+        }
+        catch (Exception exception)
+        {
+            var errorId = Guid.NewGuid().ToString("N")[..6];
+            _logger.LogError(
+                exception,
+                "Callback handler failed. errorId={ErrorId}, action={ActionType}, user={UserId}, platform={Platform}, chat={ChatId}.",
+                errorId,
+                action.ActionType,
+                request.UserId,
+                request.Platform,
+                request.ChatId);
+            return PluginCallbackResponses.Error(
+                identity,
+                request.MessageId,
+                $"操作失败，请稍后重试。（错误 id: {errorId}）",
+                "CallbackHandlerFailed");
+        }
     }
 
     private async Task<CommandResponse> ExecuteNotifyTypeSelectAsync(
