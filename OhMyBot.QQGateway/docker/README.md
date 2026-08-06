@@ -1,13 +1,21 @@
 # NapCat（QQ 网关的 OneBot 协议端）
 
-仅含 NapCat 一个服务（不带数据库/中间件）。编译时本目录随 `docker-compose.yml` 与
+仅含 NapCat 一个服务（不带数据库/中间件）。编译时本目录随 `docker-compose.template.yml` 与
 `napcat-config/onebot11.json` 种子一起拷到网关输出目录，可直接在输出目录里跑。
 
 ## 启动
 
 ```bash
+cp docker-compose.template.yml docker-compose.yml   # 首次；已存在就别覆盖
 NAPCAT_UID=$(id -u) NAPCAT_GID=$(id -g) docker compose up -d
 ```
+
+`docker-compose.yml` 是本机实配，和 `appsettings.json` 同规矩：不进 git、不进 publish 产物，
+发布也不会覆盖它。按部署环境不同的调整（端口绑定、镜像版本等）改在实配里，模板保持通用；
+模板有更新时自己对一遍差异。
+
+> OneBot 正向 WebSocket 不带鉴权，能连上 3001 的人就能操控该 QQ 账号。模板为方便本地开发
+> 直接暴露端口，部署到可被他人访问的网络时请在实配里收窄绑定地址或加防火墙规则。
 
 - 首次登录：打开 http://localhost:6099 （WebUI）扫码。
 - 网关连接：`ws://localhost:3001`（正向 WebSocket，已由 `onebot11.json` 种子预置开启）。

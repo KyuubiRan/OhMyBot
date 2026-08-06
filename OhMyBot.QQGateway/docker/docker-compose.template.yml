@@ -5,10 +5,14 @@
 #   不管从源码目录还是输出目录启动，用的都是同一份卷（项目名固定为 ohmybot-napcat）。
 #
 # 用法（在本文件所在目录执行）：
+#   cp docker-compose.template.yml docker-compose.yml   # 首次；实配不进 git / 不被 publish 覆盖
 #   NAPCAT_UID=$(id -u) NAPCAT_GID=$(id -g) docker compose up -d
 #   首次登录：浏览器打开 http://localhost:6099 (WebUI) 扫码；OneBot 正向 WS 在 3001。
 #   停止：docker compose down          （保留卷/登录态）
 #   彻底清空：docker compose down -v    （删除卷，需重新扫码）
+#
+# 端口绑定按部署环境自行调整（OneBot 正向 WS 不带鉴权，能连上即可操控该 QQ 账号），
+# 改在实配 docker-compose.yml 里，本模板保持便于本地开发的裸绑。
 #
 # QQGateway 通过 ws://localhost:3001 连接（见 appsettings 的 OneBot:Endpoint）。
 #

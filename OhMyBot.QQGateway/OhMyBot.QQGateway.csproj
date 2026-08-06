@@ -26,8 +26,11 @@
     </ItemGroup>
 
     <ItemGroup>
-        <!-- NapCat 本地部署文件随构建拷到输出目录（可直接在输出目录里 docker compose up）。 -->
-        <None Include="docker\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <!-- NapCat 本地部署文件随构建拷到输出目录（可直接在输出目录里 docker compose up）。
+             compose 与 appsettings 同规矩：只发 .template，实配 docker-compose.yml 不进 publish，
+             并由 publish.sh 的 PROTECTED_PATTERNS 保护，避免盖掉各机器自己的端口绑定。 -->
+        <None Include="docker\docker-compose.template.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+        <None Include="docker\docker-compose.yml" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" Condition="Exists('docker\docker-compose.yml')" />
         <None Include="docker\README.md" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
         <None Include="docker\napcat-config\onebot11.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     </ItemGroup>
