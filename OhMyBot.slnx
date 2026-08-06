@@ -10,6 +10,7 @@
   <Project Path="OhMyBot.Contracts/OhMyBot.Contracts.csproj" />
   <Project Path="OhMyBot.Core.Host/OhMyBot.Core.Host.csproj" />
   <Project Path="OhMyBot.Core/OhMyBot.Core.csproj" />
+  <Project Path="OhMyBot.Logging/OhMyBot.Logging.csproj" />
   <Project Path="OhMyBot.OneBotV11/OhMyBot.OneBotV11.csproj" />
   <Project Path="OhMyBot.Plugin.Abstractions/OhMyBot.Plugin.Abstractions.csproj" />
   <Project Path="OhMyBot.Plugin.Commanding/OhMyBot.Plugin.Commanding.csproj" />

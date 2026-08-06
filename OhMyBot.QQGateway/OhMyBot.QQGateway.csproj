@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\OhMyBot.Contracts\OhMyBot.Contracts.csproj" />
+        <ProjectReference Include="..\OhMyBot.Logging\OhMyBot.Logging.csproj" />
         <ProjectReference Include="..\OhMyBot.OneBotV11\OhMyBot.OneBotV11.csproj" />
     </ItemGroup>
 

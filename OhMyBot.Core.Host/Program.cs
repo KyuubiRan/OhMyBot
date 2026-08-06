@@ -5,6 +5,7 @@ using OhMyBot.Core.Host;
 using OhMyBot.Core.Infrastructure.Grpc;
 using OhMyBot.Core.Infrastructure.Terminal;
 using OhMyBot.Core.Host.Plugins;
+using OhMyBot.Logging;
 
 var startupArguments = HostStartupArguments.Parse(args);
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions
@@ -45,6 +46,9 @@ if (consoleState.Enabled)
 }
 
 builder.Logging.AddProvider(new InteractiveConsoleLoggerProvider(consoleOutputQueue));
+
+// 必须在上面的 ClearProviders 之后：交互式控制台会清掉所有 provider。
+builder.Logging.AddOhMyBotFileLogging(builder.Configuration);
 
 // 以 systemd 服务运行时改用 Type=notify 协议：ApplicationStarted（即 Kestrel 绑定 gRPC 端口之后）
 // 才上报 READY=1，两个网关的 unit 靠 After= 就能真正等到 Core 可连，而不是刚 fork 出来就被放行。

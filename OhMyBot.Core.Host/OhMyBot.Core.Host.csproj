@@ -9,6 +9,7 @@
 
     <ItemGroup>
         <ProjectReference Include="..\OhMyBot.Core\OhMyBot.Core.csproj" />
+        <ProjectReference Include="..\OhMyBot.Logging\OhMyBot.Logging.csproj" />
         <ProjectReference Include="..\OhMyBot.Plugin.Abstractions\OhMyBot.Plugin.Abstractions.csproj" />
         <ProjectReference Include="..\OhMyBot.Plugin.Commanding\OhMyBot.Plugin.Commanding.csproj" />
     </ItemGroup>

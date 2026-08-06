@@ -4,10 +4,13 @@ using Microsoft.Extensions.Hosting;
 using System.Net;
 using OhMyBot.Contracts;
 using OhMyBot.Contracts.Messaging;
+using OhMyBot.Logging;
 using OhMyBot.TelegramGateway;
 using Telegram.Bot;
 
 var builder = Host.CreateApplicationBuilder(args);
+
+builder.Logging.AddOhMyBotFileLogging(builder.Configuration);
 
 // 同机部署时 Core 启动会把令牌写进运行时目录，这里没显式配就自动取，省掉手抄。
 var coreAccessToken = GrpcSharedToken.Resolve(builder.Configuration["Core:AccessToken"]);

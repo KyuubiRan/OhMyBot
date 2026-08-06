@@ -11,6 +11,7 @@
       <ProjectReference Include="..\OhMyBot.Contracts\OhMyBot.Contracts.csproj" />
       <ProjectReference Include="..\OhMyBot.Core\OhMyBot.Core.csproj" />
       <ProjectReference Include="..\OhMyBot.Core.Host\OhMyBot.Core.Host.csproj" />
+      <ProjectReference Include="..\OhMyBot.Logging\OhMyBot.Logging.csproj" />
       <ProjectReference Include="..\OhMyBot.Plugin.Abstractions\OhMyBot.Plugin.Abstractions.csproj" />
       <ProjectReference Include="..\OhMyBot.QQGateway\OhMyBot.QQGateway.csproj" />
       <ProjectReference Include="..\OhMyBot.TelegramGateway\OhMyBot.TelegramGateway.csproj" />
