@@ -553,7 +553,9 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         var shadowDirectory = CreateShadowCopy(descriptor, generation);
         var shadowEntryPath = Path.Combine(shadowDirectory, "Plugin.dll");
         var lifetimeCancellation = new CancellationTokenSource();
-        var loadContext = new PluginLoadContext(shadowEntryPath, ResolveDependencyAssembly);
+        var loadContext = new PluginLoadContext(
+            shadowEntryPath,
+            assemblyName => ResolveDependencyAssembly(descriptor, assemblyName));
         var entryAssembly = loadContext.LoadFromAssemblyPath(shadowEntryPath);
         var entryType = entryAssembly.GetType(descriptor.EntryTypeName, throwOnError: true)!;
         if (!typeof(BasicPlugin).IsAssignableFrom(entryType))
@@ -877,13 +879,45 @@ internal sealed class PluginManager : IPluginManager, IHostedService
         }
     }
 
-    private Assembly? ResolveDependencyAssembly(AssemblyName assemblyName)
+    private Assembly? ResolveDependencyAssembly(
+        PluginDescriptor requester,
+        AssemblyName assemblyName)
     {
         lock (_snapshotLock)
         {
-            return _staging.Values.Concat(_active.Values)
-                .Select(handle => handle.EntryAssembly)
-                .FirstOrDefault(assembly => AssemblyName.ReferenceMatchesDefinition(assembly.GetName(), assemblyName));
+            foreach (var dependency in requester.Metadata.Dependencies)
+            {
+                var handle = _staging.GetValueOrDefault(dependency.PluginId)
+                             ?? _active.GetValueOrDefault(dependency.PluginId);
+                if (handle is null)
+                {
+                    continue;
+                }
+
+                if (!VersionRange.Parse(dependency.VersionRange)
+                        .Satisfies(NuGetVersion.Parse(handle.Descriptor.Metadata.Version)))
+                {
+                    continue;
+                }
+
+                var loaded = handle.LoadContext.Assemblies.FirstOrDefault(assembly =>
+                    AssemblyName.ReferenceMatchesDefinition(assembly.GetName(), assemblyName));
+                if (loaded is not null)
+                {
+                    return loaded;
+                }
+
+                var localPath = Path.Combine(handle.ShadowDirectory, assemblyName.Name + ".dll");
+                if (!File.Exists(localPath)
+                    || !AssemblyName.ReferenceMatchesDefinition(AssemblyName.GetAssemblyName(localPath), assemblyName))
+                {
+                    continue;
+                }
+
+                return handle.LoadContext.LoadFromAssemblyPath(localPath);
+            }
+
+            return null;
         }
     }
 

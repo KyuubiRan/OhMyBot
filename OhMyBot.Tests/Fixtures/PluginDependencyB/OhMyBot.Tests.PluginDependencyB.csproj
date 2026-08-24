@@ -10,6 +10,8 @@
     <ItemGroup>
         <ProjectReference Include="../../../OhMyBot.Plugin.Abstractions/OhMyBot.Plugin.Abstractions.csproj"
                           Private="false" />
+        <ProjectReference Include="../PluginDependencyLibrary/OhMyBot.Tests.PluginDependencyLibrary.csproj"
+                          Private="false" />
     </ItemGroup>
 
 </Project>

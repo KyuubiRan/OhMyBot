@@ -434,6 +434,9 @@ public sealed class PluginRuntimeTests
         Directory.CreateDirectory(bDirectory);
         File.Copy(Path.Combine(fixtureRoot, "A", "Plugin.dll"), Path.Combine(aDirectory, "Plugin.dll"));
         File.Copy(Path.Combine(fixtureRoot, "B", "Plugin.dll"), Path.Combine(bDirectory, "Plugin.dll"));
+        File.Copy(
+            Path.Combine(fixtureRoot, "B", "OhMyBot.Tests.PluginDependencyLibrary.dll"),
+            Path.Combine(bDirectory, "OhMyBot.Tests.PluginDependencyLibrary.dll"));
 
         var aAssemblyName = AssemblyName.GetAssemblyName(Path.Combine(aDirectory, "Plugin.dll")).Name;
         var bAssemblyName = AssemblyName.GetAssemblyName(Path.Combine(bDirectory, "Plugin.dll")).Name;
@@ -441,6 +444,8 @@ public sealed class PluginRuntimeTests
         Assert.AreEqual("OhMyBot.Tests.PluginDependencyB", bAssemblyName);
         Assert.AreNotEqual(aAssemblyName, bAssemblyName);
         Assert.IsFalse(File.Exists(Path.Combine(aDirectory, "OhMyBot.Tests.PluginDependencyB.dll")));
+        Assert.IsFalse(File.Exists(Path.Combine(aDirectory, "OhMyBot.Tests.PluginDependencyLibrary.dll")));
+        Assert.IsTrue(File.Exists(Path.Combine(bDirectory, "OhMyBot.Tests.PluginDependencyLibrary.dll")));
 
         await using var provider = new ServiceCollection()
             .AddLogging()

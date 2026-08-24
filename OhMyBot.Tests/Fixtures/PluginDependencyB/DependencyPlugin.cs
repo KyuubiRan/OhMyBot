@@ -1,15 +1,20 @@
 using OhMyBot.Plugin.Abstractions;
+using OhMyBot.Tests.PluginDependencyLibrary;
 
 namespace OhMyBot.Tests.PluginDependencyB;
 
 public interface IDependencyService
 {
     string AssemblyName { get; }
+
+    DependencySidecarValue CreateSidecarValue();
 }
 
 public sealed class DependencyService : IDependencyService
 {
     public string AssemblyName => typeof(IDependencyService).Assembly.GetName().Name!;
+
+    public DependencySidecarValue CreateSidecarValue() => new();
 }
 
 [OhMyBotPlugin(

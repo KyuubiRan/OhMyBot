@@ -12,6 +12,8 @@
                           Private="false" />
         <ProjectReference Include="../PluginDependencyB/OhMyBot.Tests.PluginDependencyB.csproj"
                           Private="false" />
+        <ProjectReference Include="../PluginDependencyLibrary/OhMyBot.Tests.PluginDependencyLibrary.csproj"
+                          Private="false" />
     </ItemGroup>
 
 </Project>

@@ -7,6 +7,9 @@
   <Folder Name="/OhMyBot.Tests/Fixtures/PluginDependencyB/">
     <Project Path="OhMyBot.Tests/Fixtures/PluginDependencyB/OhMyBot.Tests.PluginDependencyB.csproj" />
   </Folder>
+  <Folder Name="/OhMyBot.Tests/Fixtures/PluginDependencyLibrary/">
+    <Project Path="OhMyBot.Tests/Fixtures/PluginDependencyLibrary/OhMyBot.Tests.PluginDependencyLibrary.csproj" />
+  </Folder>
   <Project Path="OhMyBot.Contracts/OhMyBot.Contracts.csproj" />
   <Project Path="OhMyBot.Core.Host/OhMyBot.Core.Host.csproj" />
   <Project Path="OhMyBot.Core/OhMyBot.Core.csproj" />

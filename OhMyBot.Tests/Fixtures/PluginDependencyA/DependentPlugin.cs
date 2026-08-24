@@ -1,5 +1,6 @@
 using OhMyBot.Plugin.Abstractions;
 using OhMyBot.Tests.PluginDependencyB;
+using OhMyBot.Tests.PluginDependencyLibrary;
 
 namespace OhMyBot.Tests.PluginDependencyA;
 
@@ -25,6 +26,13 @@ public sealed class DependentPlugin : BasicPlugin
                 StringComparison.Ordinal))
         {
             throw new InvalidOperationException("Dependency plugin type identity was split across load contexts.");
+        }
+
+        var sidecarValue = dependency.CreateSidecarValue();
+        if (sidecarValue.GetType() != typeof(DependencySidecarValue)
+            || sidecarValue.AssemblyName != typeof(DependencySidecarValue).Assembly.GetName().Name)
+        {
+            throw new InvalidOperationException("Dependency plugin sidecar type identity was split across load contexts.");
         }
 
         return Task.CompletedTask;
