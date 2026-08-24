@@ -69,7 +69,7 @@ public sealed class CoreCommandDslProvider(
             {
                 Name = "plugin",
                 Description = "管理 Core 插件",
-                Usage = "/plugin <list|status|reload>",
+                Usage = "/plugin <list|status|reload|enable|disable>",
                 RequiredPrivilege = UserPrivilege.Owner,
                 Children =
                 [
@@ -96,6 +96,22 @@ public sealed class CoreCommandDslProvider(
                         Usage = "/plugin reload <id|all>",
                         RequiredPrivilege = UserPrivilege.Owner,
                         Handler = PluginReloadAsync
+                    },
+                    new CommandDslNode
+                    {
+                        Name = "enable",
+                        Description = "启用插件",
+                        Usage = "/plugin enable <id>",
+                        RequiredPrivilege = UserPrivilege.Owner,
+                        Handler = PluginEnableAsync
+                    },
+                    new CommandDslNode
+                    {
+                        Name = "disable",
+                        Description = "禁用插件",
+                        Usage = "/plugin disable <id>",
+                        RequiredPrivilege = UserPrivilege.Owner,
+                        Handler = PluginDisableAsync
                     }
                 ]
             }
@@ -158,6 +174,34 @@ public sealed class CoreCommandDslProvider(
         return result.Success
             ? CommandResponses.Text(result.Message, context)
             : CommandResponses.Error("PluginReloadFailed", result.Message, context);
+    }
+
+    private async Task<CommandResponse> PluginEnableAsync(CommandContext context)
+    {
+        if (context.Request.Args.Count == 0)
+        {
+            return CommandResponses.Error("PluginIdMissing", "请提供插件 ID。", context);
+        }
+
+        var result = await _pluginManagerAccessor()
+            .EnableAsync(context.Request.Args[0].Trim(), context.CancellationToken);
+        return result.Success
+            ? CommandResponses.Text(result.Message, context)
+            : CommandResponses.Error("PluginEnableFailed", result.Message, context);
+    }
+
+    private async Task<CommandResponse> PluginDisableAsync(CommandContext context)
+    {
+        if (context.Request.Args.Count == 0)
+        {
+            return CommandResponses.Error("PluginIdMissing", "请提供插件 ID。", context);
+        }
+
+        var result = await _pluginManagerAccessor()
+            .DisableAsync(context.Request.Args[0].Trim(), context.CancellationToken);
+        return result.Success
+            ? CommandResponses.Text(result.Message, context)
+            : CommandResponses.Error("PluginDisableFailed", result.Message, context);
     }
 
     private Task<CommandResponse> PingAsync(CommandContext context)

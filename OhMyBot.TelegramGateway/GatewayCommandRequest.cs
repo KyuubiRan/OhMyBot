@@ -14,4 +14,5 @@ public sealed record GatewayCommandRequest(
     string? LastName = null,
     string? Nickname = null,
     string? ReplyToUserId = null,
-    string? TextMentionUserId = null);
+    string? TextMentionUserId = null,
+    CommandMedia? ReplyMedia = null);

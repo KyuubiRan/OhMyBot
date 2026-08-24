@@ -227,6 +227,7 @@ public sealed class RouteStore(
             RequiredPrivilege = (UserPrivilege)Math.Max((int)ParsePrivilege(definition.RequiredPrivilege), (int)defaultNode.RequiredPrivilege),
             SupportPlatforms = ParsePlatforms(definition.SupportPlatforms, defaultNode.Name) & defaultNode.SupportPlatforms,
             SupportChatTypes = ParseChatTypes(definition.SupportChatTypes, defaultNode.Name) & defaultNode.SupportChatTypes,
+            AcceptsReplyMedia = defaultNode.AcceptsReplyMedia,
             Enabled = definition.Enabled,
             Handler = defaultNode.Handler,
             Children = children
@@ -253,6 +254,7 @@ public sealed class RouteStore(
                     RequiredPrivilege = node.RequiredPrivilege,
                     SupportPlatforms = node.SupportPlatforms,
                     SupportChatTypes = capped,
+                    AcceptsReplyMedia = node.AcceptsReplyMedia,
                     Enabled = node.Enabled,
                     Handler = node.Handler,
                     Children = InheritChatTypeRestrictions(node.Children, capped)
@@ -281,6 +283,7 @@ public sealed class RouteStore(
                 node.RequiredPrivilege,
                 node.SupportPlatforms,
                 node.SupportChatTypes,
+                node.AcceptsReplyMedia,
                 node.Enabled,
                 node.Handler is not null || node.Children.Count > 0,
                 node.RequiredPrivilege,

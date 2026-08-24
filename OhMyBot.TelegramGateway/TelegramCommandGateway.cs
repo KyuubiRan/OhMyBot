@@ -52,6 +52,16 @@ public sealed class TelegramCommandGateway(
         return command == "reload" || TryGetRoute(command, out _);
     }
 
+    public bool AcceptsReplyMedia(string text)
+    {
+        var (command, _) = GatewayCommandParser.Parse(
+            text,
+            _commandPrefixes,
+            stripBotMention: true);
+
+        return TryGetRoute(command, out var route) && route.AcceptsReplyMedia;
+    }
+
     public async Task<IReadOnlyList<RouteDescriptor>> ReloadAsync(string botInstanceId, CancellationToken cancellationToken = default)
     {
         var currentVersion = Version;
@@ -129,7 +139,7 @@ public sealed class TelegramCommandGateway(
 
         try
         {
-            return await commandRouterClient.ExecuteCommandAsync(new CommandRequest
+            var request = new CommandRequest
             {
                 Platform = BotPlatform.Telegram,
                 BotInstanceId = botInstanceId,
@@ -145,7 +155,13 @@ public sealed class TelegramCommandGateway(
                 Nickname = gatewayRequest.Nickname ?? string.Empty,
                 ReplyToUserId = gatewayRequest.ReplyToUserId ?? string.Empty,
                 Args = { args }
-            }, cancellationToken);
+            };
+            if (gatewayRequest.ReplyMedia is not null)
+            {
+                request.ReplyMedia = gatewayRequest.ReplyMedia;
+            }
+
+            return await commandRouterClient.ExecuteCommandAsync(request, cancellationToken);
         }
         catch (RpcException exception)
         {

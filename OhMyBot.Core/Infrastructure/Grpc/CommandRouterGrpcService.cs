@@ -21,6 +21,9 @@ public sealed class CommandRouterGrpcService(
     InteractiveConsoleOutputQueue consoleOutputQueue,
     ILogger<CommandRouterGrpcService> logger) : CommandRouter.CommandRouterBase
 {
+    private const int DefaultRemoteHistoryCount = 100;
+    private const int MaxRemoteHistoryPageSize = 1000;
+
     public override async Task<CommandResponse> ExecuteCommand(CommandRequest request, ServerCallContext context)
     {
         var response = await commandExecutionService.ExecuteAsync(request, context.CancellationToken);
@@ -130,6 +133,7 @@ public sealed class CommandRouterGrpcService(
     {
         using var stopLogs = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
         var writeGate = new SemaphoreSlim(1, 1);
+        await using var logSubscription = consoleOutputQueue.Subscribe(DefaultRemoteHistoryCount);
 
         async Task WriteAsync(AdminConsoleOutput output, CancellationToken cancellationToken)
         {
@@ -144,11 +148,20 @@ public sealed class CommandRouterGrpcService(
             }
         }
 
+        foreach (var item in logSubscription.InitialHistory)
+        {
+            await WriteAsync(ToOutput(item.Segments), context.CancellationToken);
+        }
+
+        await WriteAsync(ToOutput([new ConsoleTextSegment(
+            $"Connected to OhMyBot Core. Replayed {logSubscription.InitialHistory.Count} latest log entries. " +
+            "Type 'history [count]' to load older entries or 'exit' to leave remote console.")]), context.CancellationToken);
+
         var logTask = Task.Run(async () =>
         {
             try
             {
-                await foreach (var item in consoleOutputQueue.ReadAllAsync(stopLogs.Token))
+                await foreach (var item in logSubscription.ReadLiveAsync(stopLogs.Token))
                 {
                     await WriteAsync(ToOutput(item.Segments), stopLogs.Token);
                 }
@@ -157,8 +170,6 @@ public sealed class CommandRouterGrpcService(
             {
             }
         }, CancellationToken.None);
-
-        await WriteAsync(ToOutput([new ConsoleTextSegment("Connected to OhMyBot Core. Type 'exit' to leave remote console.")]), context.CancellationToken);
 
         try
         {
@@ -174,6 +185,27 @@ public sealed class CommandRouterGrpcService(
                 {
                     await WriteAsync(ToOutput([new ConsoleTextSegment("Leaving remote console.")]), context.CancellationToken);
                     break;
+                }
+
+                if (TryParseHistoryCommand(commandLine, out var historyCount, out var historyError))
+                {
+                    if (historyError is not null)
+                    {
+                        await WriteAsync(ToOutput([new ConsoleTextSegment($"Error: {historyError}")]), context.CancellationToken);
+                        continue;
+                    }
+
+                    var olderItems = logSubscription.ReadOlder(historyCount);
+                    foreach (var item in olderItems)
+                    {
+                        await WriteAsync(ToOutput(item.Segments), context.CancellationToken);
+                    }
+
+                    var message = olderItems.Count == 0
+                        ? "No older retained log entries."
+                        : $"Loaded {olderItems.Count} older log entries.";
+                    await WriteAsync(ToOutput([new ConsoleTextSegment(message)]), context.CancellationToken);
+                    continue;
                 }
 
                 await ExecuteAdminCommandAsync(commandLine, WriteAsync, context.CancellationToken);
@@ -247,5 +279,29 @@ public sealed class CommandRouterGrpcService(
     {
         return string.Equals(commandLine, "exit", StringComparison.OrdinalIgnoreCase)
             || string.Equals(commandLine, "quit", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryParseHistoryCommand(
+        string commandLine,
+        out int count,
+        out string? error)
+    {
+        count = DefaultRemoteHistoryCount;
+        error = null;
+        var tokens = AdminCommandParser.Tokenize(commandLine);
+        if (tokens.Count == 0 || !string.Equals(tokens[0], "history", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (tokens.Count > 2
+            || (tokens.Count == 2
+                && (!int.TryParse(tokens[1], out count)
+                    || count is < 1 or > MaxRemoteHistoryPageSize)))
+        {
+            error = $"Usage: history [count], where count is between 1 and {MaxRemoteHistoryPageSize}.";
+        }
+
+        return true;
     }
 }

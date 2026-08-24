@@ -12,6 +12,7 @@ public sealed record RouteEntry(
     UserPrivilege RequiredPrivilege,
     SupportedPlatforms SupportPlatforms,
     SupportedChatTypes SupportChatTypes,
+    bool AcceptsReplyMedia,
     bool Enabled,
     bool TargetExists,
     UserPrivilege EffectiveRequiredPrivilege,
@@ -27,6 +28,7 @@ public sealed record RouteEntry(
         RequiredPrivilege = RequiredPrivilege,
         SupportPlatforms = (int)SupportPlatforms,
         SupportChatTypes = (int)SupportChatTypes,
+        AcceptsReplyMedia = AcceptsReplyMedia,
         Enabled = Enabled
     };
 }

@@ -55,7 +55,12 @@ builder.Logging.AddOhMyBotFileLogging(builder.Configuration);
 // 非 systemd 环境（本地直接跑）下这个调用不生效，不影响交互式控制台。
 builder.Host.UseSystemd();
 
-builder.Services.AddGrpc(options => options.Interceptors.Add<AccessTokenInterceptor>());
+builder.Services.AddGrpc(options =>
+{
+    options.Interceptors.Add<AccessTokenInterceptor>();
+    options.MaxReceiveMessageSize = CommandMediaLimits.MaxGrpcMessageBytes;
+    options.MaxSendMessageSize = CommandMediaLimits.MaxGrpcMessageBytes;
+});
 builder.Services.AddSingleton(consoleState);
 builder.Services.AddSingleton(consoleOutputQueue);
 builder.Services.AddOhMyBotCoreDatabase(builder.Configuration);

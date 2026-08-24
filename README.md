@@ -47,6 +47,8 @@ Host 以自己的构建输出目录作为 content root。配置、`routes/route.
 dotnet run --project OhMyBot.Core.Host/OhMyBot.Core.Host.csproj -- --remote-console
 ```
 
+远程控制台连接时默认回放最近 100 条日志。输入 `history` 可继续加载前 100 条，或用 `history <数量>` 指定本次加载条数（1-1000）。
+
 ## 插件开发
 
 建议使用相邻目录布局：
@@ -64,7 +66,7 @@ OhMyBot/
 OhMyBot/build/OhMyBot.Core.Host/bin/<Configuration>/net10.0/Plugins/<PluginName>/
 ```
 
-已有 `pluginsettings.json` 不会被覆盖。使用 `plugin list`、`plugin status <id>`、`plugin reload <id|all>`、`plugin disable <id>` 和 `plugin enable <id>` 管理插件。
+已有 `pluginsettings.json` 不会被覆盖。控制台使用 `plugin ...`，bot 使用仅 Owner 可见的 `/plugin ...`；两者都支持 `list`、`status <id>`、`reload <id|all>`、`disable <id>` 和 `enable <id>`。
 
 可以在 Host 的 `appsettings.json` 中持久化配置不应加载的插件：
 

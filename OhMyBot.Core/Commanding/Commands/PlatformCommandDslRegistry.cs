@@ -126,6 +126,7 @@ public sealed class PlatformCommandDslRegistry
             RequiredPrivilege = node.RequiredPrivilege,
             SupportPlatforms = node.SupportPlatforms,
             SupportChatTypes = node.SupportChatTypes,
+            AcceptsReplyMedia = node.AcceptsReplyMedia,
             Enabled = node.Enabled,
             Handler = node.Handler,
             Children = node.Children.Select(NormalizeTree).ToArray()
@@ -146,7 +147,8 @@ public sealed class PlatformCommandDslRegistry
                 || !string.Equals(node.Usage, first.Usage, StringComparison.Ordinal)
                 || node.RequiredPrivilege != first.RequiredPrivilege
                 || node.SupportPlatforms != first.SupportPlatforms
-                || node.SupportChatTypes != first.SupportChatTypes))
+                || node.SupportChatTypes != first.SupportChatTypes
+                || node.AcceptsReplyMedia != first.AcceptsReplyMedia))
         {
             throw new InvalidOperationException($"Conflicting command metadata is registered for path '{path}'.");
         }
@@ -167,6 +169,7 @@ public sealed class PlatformCommandDslRegistry
             RequiredPrivilege = first.RequiredPrivilege,
             SupportPlatforms = first.SupportPlatforms,
             SupportChatTypes = first.SupportChatTypes,
+            AcceptsReplyMedia = first.AcceptsReplyMedia,
             Enabled = first.Enabled,
             Handler = handlers.SingleOrDefault()?.Handler,
             Children = children

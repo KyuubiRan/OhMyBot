@@ -16,6 +16,7 @@ using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Infrastructure.Messaging;
+using OhMyBot.Core.Infrastructure.Plugins;
 using OhMyBot.Core.Commanding.Routing;
 using OhMyBot.Core.Infrastructure.Security;
 using OhMyBot.Core.Infrastructure.Terminal;
@@ -1712,6 +1713,48 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task OwnerPluginCommandSupportsReloadEnableAndDisable()
+    {
+        await using var dbContext = CreateDbContext();
+        var pluginManager = new RecordingPluginManager();
+        var service = CreateHelpCommandService(
+            dbContext,
+            "owner",
+            UserPrivilege.Owner,
+            pluginManager: pluginManager);
+
+        var help = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "owner", "help", "plugin"));
+        var reload = await service.ExecuteAsync(CreateRequest(
+            BotPlatform.Telegram,
+            "owner",
+            "plugin",
+            "reload",
+            "com.example.reload"));
+        var enable = await service.ExecuteAsync(CreateRequest(
+            BotPlatform.Telegram,
+            "owner",
+            "plugin",
+            "enable",
+            "com.example.enable"));
+        var disable = await service.ExecuteAsync(CreateRequest(
+            BotPlatform.Telegram,
+            "owner",
+            "plugin",
+            "disable",
+            "com.example.disable"));
+
+        Assert.Contains(MarkdownV2.Escape("reload - 重载插件"), help.TgText());
+        Assert.Contains(MarkdownV2.Escape("enable - 启用插件"), help.TgText());
+        Assert.Contains(MarkdownV2.Escape("disable - 禁用插件"), help.TgText());
+        Assert.AreEqual(0, reload.Code);
+        Assert.AreEqual(0, enable.Code);
+        Assert.AreEqual(0, disable.Code);
+        CollectionAssert.AreEqual(new[] { "com.example.reload" }, pluginManager.ReloadedPluginIds);
+        CollectionAssert.AreEqual(new[] { "com.example.enable" }, pluginManager.EnabledPluginIds);
+        CollectionAssert.AreEqual(new[] { "com.example.disable" }, pluginManager.DisabledPluginIds);
+    }
+
+    [TestMethod]
     public async Task HelpCommandShowsAiRouterGroupForVerifiedUser()
     {
         await using var dbContext = CreateDbContext();
@@ -2194,7 +2237,8 @@ public class V2CoreTests
         CoreDbContext dbContext,
         string userId,
         UserPrivilege privilege,
-        RouteDocument? routeDocument = null)
+        RouteDocument? routeDocument = null,
+        IPluginManager? pluginManager = null)
     {
         var identityCache = new FakeIdentityCache();
         identityCache.SetAsync(BotPlatform.Telegram, userId, new CachedIdentity(1, privilege))
@@ -2210,6 +2254,11 @@ public class V2CoreTests
         services.AddSingleton(TimeProvider.System);
         services.AddSingleton(Options.Create(new LinkTokenOptions()));
         services.AddSingleton<CoreIdentityService>();
+        if (pluginManager is not null)
+        {
+            services.AddSingleton<Func<IPluginManager>>(_ => () => pluginManager);
+        }
+
         services.AddSingleton<IPlatformCommandDslProvider, CoreCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider>(
             new StaticDslProvider([CreateAiRouterDslNode()]));
@@ -2300,6 +2349,41 @@ public class V2CoreTests
         {
             Tokens.Remove(token);
             return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingPluginManager : IPluginManager
+    {
+        public string[] ReloadedPluginIds { get; private set; } = [];
+
+        public string[] EnabledPluginIds { get; private set; } = [];
+
+        public string[] DisabledPluginIds { get; private set; } = [];
+
+        public IReadOnlyList<PluginRuntimeInfo> GetPlugins() => [];
+
+        public Task<PluginReloadResult> ReloadAsync(
+            string pluginId,
+            CancellationToken cancellationToken = default)
+        {
+            ReloadedPluginIds = [pluginId];
+            return Task.FromResult(new PluginReloadResult(true, $"reloaded {pluginId}", [pluginId]));
+        }
+
+        public Task<PluginActivationResult> DisableAsync(
+            string pluginId,
+            CancellationToken cancellationToken = default)
+        {
+            DisabledPluginIds = [pluginId];
+            return Task.FromResult(new PluginActivationResult(true, $"disabled {pluginId}"));
+        }
+
+        public Task<PluginActivationResult> EnableAsync(
+            string pluginId,
+            CancellationToken cancellationToken = default)
+        {
+            EnabledPluginIds = [pluginId];
+            return Task.FromResult(new PluginActivationResult(true, $"enabled {pluginId}"));
         }
     }
 

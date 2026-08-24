@@ -1,6 +1,8 @@
 using OhMyBot.Contracts.Grpc;
+using OhMyBot.Contracts;
 using OhMyBot.Core.Commanding.Presentation;
 using OhMyBot.Core.Infrastructure.Identity;
+using Google.Protobuf;
 
 namespace OhMyBot.Core.Commanding.Commands;
 
@@ -114,6 +116,65 @@ public static class CommandResponses
         string? replyToMessageId = null,
         string? editMessageId = null)
         => TelegramMessageResponse(identity, text, TelegramParseMode.None, replyToMessageId, editMessageId);
+
+    public static CommandResponse TelegramDocument(
+        ResolvedIdentity identity,
+        string fileName,
+        string contentType,
+        ReadOnlySpan<byte> content,
+        string? caption = null,
+        string? replyToMessageId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        if (content.Length == 0 || content.Length > CommandMediaLimits.MaxContentBytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(content));
+        }
+
+        var message = new TelegramMessage
+        {
+            Text = caption ?? string.Empty,
+            ParseMode = TelegramParseMode.None,
+            ReplyToMessageId = replyToMessageId ?? string.Empty,
+            Document = new OhMyBot.Contracts.Grpc.TelegramDocument
+            {
+                FileName = fileName,
+                ContentType = contentType,
+                Content = ByteString.CopyFrom(content)
+            }
+        };
+        var response = Envelope(identity);
+        response.Telegram = new TelegramResponse { Messages = { message } };
+        return response;
+    }
+
+    public static CommandResponse TelegramSticker(
+        ResolvedIdentity identity,
+        string fileName,
+        string contentType,
+        ReadOnlySpan<byte> content,
+        string? replyToMessageId = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
+        if (content.Length == 0 || content.Length > CommandMediaLimits.MaxContentBytes)
+        {
+            throw new ArgumentOutOfRangeException(nameof(content));
+        }
+
+        var message = new TelegramMessage
+        {
+            ReplyToMessageId = replyToMessageId ?? string.Empty,
+            Sticker = new TelegramSticker
+            {
+                FileName = fileName,
+                ContentType = contentType,
+                Content = ByteString.CopyFrom(content)
+            }
+        };
+        var response = Envelope(identity);
+        response.Telegram = new TelegramResponse { Messages = { message } };
+        return response;
+    }
 
     // ---- QQ 纯文本构造 ----
 

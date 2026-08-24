@@ -23,13 +23,40 @@ public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
 
         foreach (var message in response.Telegram.Messages)
         {
+            var parseMode = ToParseMode(message.ParseMode);
+            var replyMarkup = CreateReplyMarkup(message.ButtonRows);
+            var replyParameters = CreateReplyParameters(message.ReplyToMessageId, fallbackReplyToMessageId);
+
+            if (message.Sticker is { Content.Length: > 0 } sticker)
+            {
+                await using var stream = new MemoryStream(sticker.Content.ToByteArray(), writable: false);
+                await botClient.SendSticker(
+                    chatId,
+                    InputFile.FromStream(stream, sticker.FileName),
+                    replyParameters: replyParameters,
+                    replyMarkup: replyMarkup,
+                    cancellationToken: cancellationToken);
+                continue;
+            }
+
+            if (message.Document is { Content.Length: > 0 } document)
+            {
+                await using var stream = new MemoryStream(document.Content.ToByteArray(), writable: false);
+                await botClient.SendDocument(
+                    chatId,
+                    InputFile.FromStream(stream, document.FileName),
+                    caption: string.IsNullOrWhiteSpace(message.Text) ? null : message.Text,
+                    parseMode: parseMode,
+                    replyParameters: replyParameters,
+                    replyMarkup: replyMarkup,
+                    cancellationToken: cancellationToken);
+                continue;
+            }
+
             if (string.IsNullOrWhiteSpace(message.Text))
             {
                 continue;
             }
-
-            var parseMode = ToParseMode(message.ParseMode);
-            var replyMarkup = CreateReplyMarkup(message.ButtonRows);
 
             if (!string.IsNullOrWhiteSpace(message.EditMessageId) && int.TryParse(message.EditMessageId, out var editMessageId))
             {
@@ -47,7 +74,7 @@ public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
                     chatId,
                     message.Text,
                     parseMode: parseMode,
-                    replyParameters: CreateReplyParameters(message.ReplyToMessageId, fallbackReplyToMessageId),
+                    replyParameters: replyParameters,
                     replyMarkup: replyMarkup,
                     cancellationToken: cancellationToken);
             }

@@ -50,6 +50,8 @@ public static class CommandRouterClientFactory
         {
             HttpHandler = handler,
             Credentials = GrpcAccessCredentials.Create(accessToken),
+            MaxReceiveMessageSize = CommandMediaLimits.MaxGrpcMessageBytes,
+            MaxSendMessageSize = CommandMediaLimits.MaxGrpcMessageBytes,
             // Core 默认是明文 HTTP/2；不开这个开关 gRPC 会拒绝在非 TLS 通道上发送 CallCredentials。
             UnsafeUseInsecureChannelCallCredentials = true
         });

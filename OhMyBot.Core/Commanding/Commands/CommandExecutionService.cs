@@ -1,4 +1,5 @@
 using OhMyBot.Contracts.Grpc;
+using OhMyBot.Contracts;
 using OhMyBot.Core.Commanding.Routing;
 using OhMyBot.Core.Infrastructure.UserProfiles;
 
@@ -48,6 +49,24 @@ public sealed class CommandExecutionService(
         if ((int)identity.Privilege < (int)route.EffectiveRequiredPrivilege)
         {
             return CommandResponses.Error("PrivilegeDenied", "Insufficient privilege.", identity, request.MessageId);
+        }
+
+        if (request.ReplyMedia is { Content.Length: > CommandMediaLimits.MaxContentBytes })
+        {
+            return CommandResponses.Error(
+                "ReplyMediaTooLarge",
+                "回复图片超过 20 MiB 限制。",
+                identity,
+                request.MessageId);
+        }
+
+        if (request.ReplyMedia is { Content.Length: > 0 } && !route.AcceptsReplyMedia)
+        {
+            return CommandResponses.Error(
+                "ReplyMediaUnsupported",
+                "此命令不支持处理回复图片。",
+                identity,
+                request.MessageId);
         }
 
         var canonicalRequest = request.Clone();

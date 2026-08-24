@@ -1,5 +1,7 @@
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using Google.Protobuf;
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 using Telegram.Bot;
 using Telegram.Bot.Polling;
@@ -63,12 +65,12 @@ public sealed class TelegramUpdateHandler(
             {
                 // 签到类指令可能耗时，放到后台执行避免阻塞轮询；不再发送“请稍等...”占位消息，直接回复结果。
                 _ = Task.Run(
-                    () => ExecuteMessageCommandAsync(message, null, gatewayRequest, text, cancellationToken),
+                    () => ExecuteMessageCommandAsync(botClient, message, null, gatewayRequest, text, cancellationToken),
                     CancellationToken.None);
                 return;
             }
 
-            await ExecuteMessageCommandAsync(message, null, gatewayRequest, text, cancellationToken);
+            await ExecuteMessageCommandAsync(botClient, message, null, gatewayRequest, text, cancellationToken);
             return;
         }
 
@@ -157,6 +159,7 @@ public sealed class TelegramUpdateHandler(
     }
 
     private async Task ExecuteMessageCommandAsync(
+        ITelegramBotClient botClient,
         Message message,
         int? processingMessageId,
         GatewayCommandRequest gatewayRequest,
@@ -167,6 +170,14 @@ public sealed class TelegramUpdateHandler(
         {
             await RecordUserProfileSafeAsync(gatewayRequest, cancellationToken);
             await RecordCommandTargetProfileAsync(message, text, cancellationToken);
+            if (commandGateway.AcceptsReplyMedia(text))
+            {
+                gatewayRequest = gatewayRequest with
+                {
+                    ReplyMedia = await DownloadReplyMediaAsync(botClient, message.ReplyToMessage, cancellationToken)
+                };
+            }
+
             var response = await commandGateway.ExecuteAsync(gatewayRequest, _options.BotInstanceId, cancellationToken);
             await responseRenderer.RenderAsync(message.Chat.Id, response, message.MessageId, cancellationToken);
         }
@@ -178,6 +189,124 @@ public sealed class TelegramUpdateHandler(
             logger.LogError(exception, "Failed to execute Telegram command in background.");
             await RenderFailureSafeAsync(message.Chat.Id, processingMessageId, message.MessageId, exception, cancellationToken);
         }
+    }
+
+    private static async Task<CommandMedia?> DownloadReplyMediaAsync(
+        ITelegramBotClient botClient,
+        Message? repliedMessage,
+        CancellationToken cancellationToken)
+    {
+        var photo = repliedMessage?.Photo?
+            .OrderByDescending(item => item.FileSize ?? 0)
+            .ThenByDescending(item => (long)item.Width * item.Height)
+            .FirstOrDefault();
+        if (photo is not null)
+        {
+            return await DownloadFileAsync(
+                botClient,
+                photo,
+                $"photo_{photo.FileUniqueId}.jpg",
+                "image/jpeg",
+                CommandMediaKind.Photo,
+                photo.Width,
+                photo.Height,
+                cancellationToken);
+        }
+
+        if (repliedMessage?.Animation is { } animation)
+        {
+            return await DownloadFileAsync(
+                botClient,
+                animation,
+                string.IsNullOrWhiteSpace(animation.FileName)
+                    ? $"animation_{animation.FileUniqueId}.gif"
+                    : animation.FileName,
+                string.IsNullOrWhiteSpace(animation.MimeType) ? "image/gif" : animation.MimeType,
+                CommandMediaKind.Animation,
+                animation.Width,
+                animation.Height,
+                cancellationToken);
+        }
+
+        if (repliedMessage?.Video is { } video)
+        {
+            return await DownloadFileAsync(
+                botClient,
+                video,
+                string.IsNullOrWhiteSpace(video.FileName)
+                    ? $"video_{video.FileUniqueId}.mp4"
+                    : video.FileName,
+                string.IsNullOrWhiteSpace(video.MimeType) ? "video/mp4" : video.MimeType,
+                CommandMediaKind.Video,
+                video.Width,
+                video.Height,
+                cancellationToken);
+        }
+
+        if (repliedMessage?.Sticker is { } sticker)
+        {
+            var (fileName, contentType) = sticker.IsVideo
+                ? ($"sticker_{sticker.FileUniqueId}.webm", "video/webm")
+                : sticker.IsAnimated
+                    ? ($"sticker_{sticker.FileUniqueId}.tgs", "application/x-tgsticker")
+                    : ($"sticker_{sticker.FileUniqueId}.webp", "image/webp");
+            return await DownloadFileAsync(
+                botClient,
+                sticker,
+                fileName,
+                contentType,
+                CommandMediaKind.Sticker,
+                sticker.Width,
+                sticker.Height,
+                cancellationToken);
+        }
+
+        if (repliedMessage?.Document is { } document)
+        {
+            return await DownloadFileAsync(
+                botClient,
+                document,
+                string.IsNullOrWhiteSpace(document.FileName)
+                    ? $"document_{document.FileUniqueId}"
+                    : document.FileName,
+                string.IsNullOrWhiteSpace(document.MimeType)
+                    ? "application/octet-stream"
+                    : document.MimeType,
+                CommandMediaKind.Document,
+                0,
+                0,
+                cancellationToken);
+        }
+
+        return null;
+    }
+
+    private static async Task<CommandMedia> DownloadFileAsync(
+        ITelegramBotClient botClient,
+        FileBase file,
+        string fileName,
+        string contentType,
+        CommandMediaKind kind,
+        int width,
+        int height,
+        CancellationToken cancellationToken)
+    {
+        if (file.FileSize is > CommandMediaLimits.MaxContentBytes)
+        {
+            throw new InvalidDataException("The replied media exceeds the command media limit.");
+        }
+
+        await using var stream = new SizeLimitedMemoryStream(CommandMediaLimits.MaxContentBytes);
+        await botClient.GetInfoAndDownloadFile(file, stream, cancellationToken);
+        return new CommandMedia
+        {
+            FileName = fileName,
+            ContentType = contentType,
+            Content = ByteString.CopyFrom(stream.GetBuffer(), 0, checked((int)stream.Length)),
+            Width = width,
+            Height = height,
+            Kind = kind
+        };
     }
 
     private async Task ExecuteCallbackAsync(
