@@ -20,10 +20,17 @@ public sealed class QqMenuStore(
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
     /// <summary>暂存一组选项 payload，返回随机 token（写进 QqMessage.menu_token）。</summary>
-    public async Task<string> PutTokenAsync(IReadOnlyList<string> payloads, CancellationToken cancellationToken = default)
+    /// <param name="ttl">
+    /// 该菜单（含绑定后的消息键）的存活时长，默认 <see cref="QqMenuOptions.EntryTtl"/>。
+    /// 主动推送的审批类菜单需要远长于默认 5 分钟，由调用方显式指定。
+    /// </param>
+    public async Task<string> PutTokenAsync(
+        IReadOnlyList<string> payloads,
+        TimeSpan? ttl = null,
+        CancellationToken cancellationToken = default)
     {
         var token = GenerateToken();
-        await SetAsync(TokenKey(token), payloads, cancellationToken);
+        await SetAsync(TokenKey(token), new MenuEntry(payloads, ttl ?? _options.EntryTtl), cancellationToken);
         return token;
     }
 
@@ -36,16 +43,17 @@ public sealed class QqMenuStore(
         string token,
         CancellationToken cancellationToken = default)
     {
-        var payloads = await GetAsync(TokenKey(token), cancellationToken);
-        if (payloads is null)
+        var entry = await GetAsync(TokenKey(token), cancellationToken);
+        if (entry is null)
         {
             return false;
         }
 
-        await SetAsync(MessageKey(chatId, messageId), payloads, cancellationToken);
+        // 绑定后的键沿用建菜单时定的 TTL，否则长效审批菜单会在默认 5 分钟后失效。
+        await SetAsync(MessageKey(chatId, messageId), entry, cancellationToken);
         if (chatType == BotChatType.Private && !string.IsNullOrEmpty(senderId))
         {
-            await SetAsync(LatestKey(chatId, senderId), [messageId], cancellationToken);
+            await SetAsync(LatestKey(chatId, senderId), entry with { Payloads = [messageId] }, cancellationToken);
         }
 
         await cache.RemoveAsync(TokenKey(token), cancellationToken);
@@ -78,31 +86,46 @@ public sealed class QqMenuStore(
             }
 
             var pointer = await GetAsync(LatestKey(chatId, senderId), cancellationToken);
-            messageId = pointer?.FirstOrDefault();
+            messageId = pointer?.Payloads.FirstOrDefault();
             if (string.IsNullOrEmpty(messageId))
             {
                 return null;
             }
         }
 
-        var payloads = await GetAsync(MessageKey(chatId, messageId), cancellationToken);
-        return payloads is not null && index < payloads.Count ? payloads[index] : null;
+        var entry = await GetAsync(MessageKey(chatId, messageId), cancellationToken);
+        return entry is not null && index < entry.Payloads.Count ? entry.Payloads[index] : null;
     }
 
-    private async Task SetAsync(string key, IReadOnlyList<string> payloads, CancellationToken cancellationToken)
+    private async Task SetAsync(string key, MenuEntry entry, CancellationToken cancellationToken)
     {
         await cache.SetAsync(
             key,
-            JsonSerializer.SerializeToUtf8Bytes(payloads, JsonOptions),
-            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = _options.EntryTtl },
+            JsonSerializer.SerializeToUtf8Bytes(entry, JsonOptions),
+            new DistributedCacheEntryOptions { AbsoluteExpirationRelativeToNow = entry.Ttl },
             cancellationToken);
     }
 
-    private async Task<List<string>?> GetAsync(string key, CancellationToken cancellationToken)
+    private async Task<MenuEntry?> GetAsync(string key, CancellationToken cancellationToken)
     {
         var bytes = await cache.GetAsync(key, cancellationToken);
-        return bytes is null ? null : JsonSerializer.Deserialize<List<string>>(bytes, JsonOptions);
+        if (bytes is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<MenuEntry>(bytes, JsonOptions);
+        }
+        catch (JsonException)
+        {
+            // 升级前写入的旧格式（裸 payload 数组）；这些键最长只活 5 分钟，当作已过期即可。
+            return null;
+        }
     }
+
+    private sealed record MenuEntry(IReadOnlyList<string> Payloads, TimeSpan Ttl);
 
     private string TokenKey(string token) => $"{_options.CacheKeyPrefix}token:{token}";
 

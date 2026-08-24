@@ -49,7 +49,7 @@ public sealed class QqMenuConverter(QqMenuStore menuStore)
                 continue;
             }
 
-            var token = await menuStore.PutTokenAsync(payloads, cancellationToken);
+            var token = await menuStore.PutTokenAsync(payloads, cancellationToken: cancellationToken);
             qq.Messages.Add(new QqMessage
             {
                 Text = RenderMenu(text, labels, chatType),
@@ -75,7 +75,11 @@ public sealed class QqMenuConverter(QqMenuStore menuStore)
         return response;
     }
 
-    private static string RenderMenu(string text, IReadOnlyList<string> labels, BotChatType chatType)
+    /// <summary>
+    /// 渲染 QQ 编号菜单纯文本。主动推送的菜单（不经 gRPC 边界转换）也走这里，
+    /// 保证「回复序号」的提示语和编号形态只有一处定义。
+    /// </summary>
+    public static string RenderMenu(string text, IReadOnlyList<string> labels, BotChatType chatType)
     {
         var builder = new StringBuilder();
         if (!string.IsNullOrWhiteSpace(text))

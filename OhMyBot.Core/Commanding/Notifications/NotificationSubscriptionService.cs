@@ -55,6 +55,7 @@ public sealed class NotificationSubscriptionService(
     {
         var subscriptions = await dbContext.NotificationSubscriptions
             .AsNoTracking()
+            .Include(subscription => subscription.CoreUser)
             .Where(subscription => subscription.NotificationType == notificationType
                 && subscription.TargetId == targetId
                 && subscription.EnabledPlatforms != (int)NotificationPlatformFlags.None)
@@ -68,7 +69,12 @@ public sealed class NotificationSubscriptionService(
                 if (HasPlatform(subscription.EnabledPlatforms, ToFlag(platform))
                     && ToEndpoint(subscription, platform) is { } endpoint)
                 {
-                    deliveries.Add(new NotificationDelivery(platform, endpoint.BotInstanceId, endpoint.ChatId));
+                    deliveries.Add(new NotificationDelivery(
+                        subscription.CoreUserId,
+                        subscription.CoreUser.Privilege,
+                        platform,
+                        endpoint.BotInstanceId,
+                        endpoint.ChatId));
                 }
             }
         }
@@ -292,4 +298,9 @@ public sealed class NotificationSubscriptionService(
 
 public sealed record NotificationEndpoint(string BotInstanceId, string ChatId);
 
-public sealed record NotificationDelivery(BotPlatform Platform, string BotInstanceId, string ChatId);
+public sealed record NotificationDelivery(
+    long CoreUserId,
+    UserPrivilege Privilege,
+    BotPlatform Platform,
+    string BotInstanceId,
+    string ChatId);

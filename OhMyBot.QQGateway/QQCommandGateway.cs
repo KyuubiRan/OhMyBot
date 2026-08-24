@@ -195,6 +195,15 @@ public sealed class QQCommandGateway(
         }, cancellationToken);
     }
 
+    /// <summary>把平台待审批请求上报给 Core。返回是否有插件受理。</summary>
+    public async Task<bool> ReportPlatformRequestAsync(
+        PlatformRequestReport report,
+        CancellationToken cancellationToken = default)
+    {
+        var ack = await commandRouterClient.ReportPlatformRequestAsync(report, cancellationToken);
+        return ack.Accepted;
+    }
+
     private bool TryGetRoute(string command, out RouteDescriptor route)
     {
         lock (_cacheLock)

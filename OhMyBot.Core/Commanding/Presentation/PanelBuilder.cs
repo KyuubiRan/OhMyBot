@@ -58,11 +58,35 @@ public sealed class PanelBuilder(
         Func<TItem, object> dataSelector,
         CancellationToken cancellationToken = default)
     {
+        return await AddGridAsync(
+            response,
+            items,
+            columns,
+            _ => actionType,
+            textSelector,
+            dataSelector,
+            cancellationToken);
+    }
+
+    /// <summary>把使用不同回调动作的条目排进同一个按钮网格。</summary>
+    public async Task<CommandResponse> AddGridAsync<TItem>(
+        CommandResponse response,
+        IEnumerable<TItem> items,
+        int columns,
+        Func<TItem, string> actionTypeSelector,
+        Func<TItem, string> textSelector,
+        Func<TItem, object> dataSelector,
+        CancellationToken cancellationToken = default)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(columns, 1);
         var row = new ResponseButtonRow();
         foreach (var item in items)
         {
-            row.Buttons.Add(await ButtonAsync(actionType, textSelector(item), dataSelector(item), cancellationToken));
+            row.Buttons.Add(await ButtonAsync(
+                actionTypeSelector(item),
+                textSelector(item),
+                dataSelector(item),
+                cancellationToken));
             if (row.Buttons.Count == columns)
             {
                 response.AddButtonRow(row);

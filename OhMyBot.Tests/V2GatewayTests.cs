@@ -1,5 +1,8 @@
 using Microsoft.Extensions.Options;
+using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
+using OhMyBot.OneBotV11.Events.Messages.Group;
+using OhMyBot.OneBotV11.Events.Messages.Private;
 using OhMyBot.QQGateway;
 using OhMyBot.TelegramGateway;
 using GatewayCommandRequest = OhMyBot.TelegramGateway.GatewayCommandRequest;
@@ -421,6 +424,143 @@ public class V2GatewayTests
         public Task<CommandResponse> ExecuteQqMenuSelectionAsync(QqMenuSelectionRequest request, CancellationToken cancellationToken = default)
         {
             return Task.FromResult(new CommandResponse());
+        }
+
+        public Task<PlatformRequestAck> ReportPlatformRequestAsync(PlatformRequestReport request, CancellationToken cancellationToken = default)
+        {
+            LastPlatformRequest = request;
+            return Task.FromResult(new PlatformRequestAck { Accepted = true });
+        }
+
+        public PlatformRequestReport? LastPlatformRequest { get; private set; }
+    }
+
+    // QQ 待审批请求的翻译：flag 决定审批哪一条、kind 决定用哪个 OneBot 动作、group_id 决定是哪个群。
+    // 这三项任何一项错位，审批就会落到别的请求上，而且用户侧完全看不出来。
+    [TestMethod]
+    public async Task QQRequestEventHandlerTranslatesOneBotRequestEvents()
+    {
+        var friend = await ReportAsync(new FriendAddRequestEvent
+        {
+            Flag = "flag-friend",
+            RequesterId = 20001,
+            Comment = "求加"
+        });
+        Assert.AreEqual(
+            (PlatformRequestKind.FriendAdd, "flag-friend", "20001", string.Empty),
+            (friend.Kind, friend.Flag, friend.RequesterId, friend.GroupId));
+
+        var invite = await ReportAsync(new GroupJoinRequestEvent
+        {
+            SubType = "invite",
+            Flag = "flag-invite",
+            RequesterId = 20002,
+            GroupId = 30001
+        });
+        Assert.AreEqual(
+            (PlatformRequestKind.GroupInvite, "flag-invite", "20002", "30001"),
+            (invite.Kind, invite.Flag, invite.RequesterId, invite.GroupId));
+
+        var add = await ReportAsync(new GroupJoinRequestEvent
+        {
+            SubType = "add",
+            Flag = "flag-add",
+            RequesterId = 20003,
+            GroupId = 30002
+        });
+        Assert.AreEqual(
+            (PlatformRequestKind.GroupAdd, "flag-add", "20003", "30002"),
+            (add.Kind, add.Flag, add.RequesterId, add.GroupId));
+    }
+
+    // QQ 的 request 事件只带 user_id。不补档案的话，owner 收到的通知里只有一串数字，
+    // 根本没法判断该不该同意——所以档案补齐是这条通知有没有用的关键。
+    [TestMethod]
+    public async Task QQRequestEventHandlerFillsRequesterProfile()
+    {
+        var report = await ReportAsync(new FriendAddRequestEvent { Flag = "flag-friend", RequesterId = 20001 });
+
+        Assert.AreEqual("申请人", report.RequesterName);
+        Assert.AreEqual("申请人", report.RequesterProfile[PlatformRequestProfileKeys.Nickname]);
+        Assert.AreEqual("male", report.RequesterProfile[PlatformRequestProfileKeys.Gender]);
+        Assert.AreEqual("18", report.RequesterProfile[PlatformRequestProfileKeys.Age]);
+        Assert.AreEqual("32", report.RequesterProfile[PlatformRequestProfileKeys.Level]);
+        StringAssert.Contains(report.RequesterProfile[PlatformRequestProfileKeys.AvatarUrl], "20001");
+    }
+
+    // 消息等非 request 事件不该走上报通道：群聊每条消息都会流经同一个 OnEvent。
+    [TestMethod]
+    public async Task QQRequestEventHandlerIgnoresNonRequestEvents()
+    {
+        var (client, handler) = CreateRequestHandler();
+        handler.Handle(new GroupMessageEvent { GroupId = 30001 });
+
+        await Task.Delay(100);
+        Assert.IsNull(client.LastPlatformRequest);
+    }
+
+    private static async Task<PlatformRequestReport> ReportAsync(OhMyBot.OneBotV11.Events.EventBase evt)
+    {
+        var (client, handler) = CreateRequestHandler();
+        handler.Handle(evt);
+
+        // Handle 把上报卸载到后台任务，避免阻塞 OneBot 收包循环。
+        var deadline = DateTime.UtcNow.AddSeconds(5);
+        while (client.LastPlatformRequest is null && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(10);
+        }
+
+        var report = client.LastPlatformRequest;
+        Assert.IsNotNull(report, "请求事件应当被上报给 Core。");
+        Assert.AreEqual(BotPlatform.Qq, report.Platform);
+        Assert.AreEqual("qq-test", report.BotInstanceId);
+        return report;
+    }
+
+    private static (FakeQQClient Client, QQRequestEventHandler Handler) CreateRequestHandler()
+    {
+        var client = new FakeQQClient();
+        var handler = new QQRequestEventHandler(
+            new QQCommandGateway(client),
+            new FakeOneBotClient(),
+            Options.Create(new QQGatewayOptions { BotInstanceId = "qq-test" }),
+            Microsoft.Extensions.Logging.Abstractions.NullLogger<QQRequestEventHandler>.Instance);
+        return (client, handler);
+    }
+
+    // 只实现 get_stranger_info：请求事件上报路径只会用到它。
+    private sealed class FakeOneBotClient : OhMyBot.OneBotV11.IOneBotClient
+    {
+        public OhMyBot.OneBotV11.Transport.OneBotTransportType TransportType
+            => OhMyBot.OneBotV11.Transport.OneBotTransportType.WebSocket;
+
+        public OhMyBot.OneBotV11.Transport.OneBotConnectionState ConnectionState
+            => OhMyBot.OneBotV11.Transport.OneBotConnectionState.Connected;
+
+        public event Func<OhMyBot.OneBotV11.Transport.OneBotConnectionState, ValueTask>? ConnectionStateChanged;
+        public event Action<OhMyBot.OneBotV11.Events.EventBase>? OnEvent;
+        public event Action<Exception>? OnException;
+
+        public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task StopAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
+
+        public Task<OhMyBot.OneBotV11.Transport.OneBotActionResponse<System.Text.Json.JsonElement>> SendActionAsync(
+            OhMyBot.OneBotV11.Transport.OneBotActionRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            _ = ConnectionStateChanged;
+            _ = OnEvent;
+            _ = OnException;
+            using var document = System.Text.Json.JsonDocument.Parse(
+                """{"nickname":"申请人","sex":"male","age":18,"qqLevel":32}""");
+            return Task.FromResult(new OhMyBot.OneBotV11.Transport.OneBotActionResponse<System.Text.Json.JsonElement>
+            {
+                Status = "ok",
+                RetCode = 0,
+                Data = document.RootElement.Clone()
+            });
         }
     }
 

@@ -104,6 +104,7 @@ public sealed class CallbackExecutionService
             return action.ActionType switch
             {
                 "notify-type-select" => await ExecuteNotifyTypeSelectAsync(context, action, request.MessageId, cancellationToken),
+                "notify-category-select" => await ExecuteNotifyCategorySelectAsync(context, action, request.MessageId, cancellationToken),
                 "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
                 "notify-back" => await _notificationProvider.BuildRootAsync(context, request.MessageId, cancellationToken),
                 "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
@@ -153,7 +154,31 @@ public sealed class CallbackExecutionService
             return PluginCallbackResponses.Error(context.Identity, editMessageId, "未知订阅类型或对应插件未加载。");
         }
 
+        if (!PluginNotificationSourceAccess.CanManage(source, context))
+        {
+            return PluginCallbackResponses.Error(context.Identity, editMessageId, "当前账号无权管理这类通知。");
+        }
+
         return await source.BuildAccountPanelAsync(context, editMessageId, cancellationToken);
+    }
+
+    private async Task<CommandResponse> ExecuteNotifyCategorySelectAsync(
+        CommandContext context,
+        CallbackAction action,
+        string editMessageId,
+        CancellationToken cancellationToken)
+    {
+        var data = CallbackActionStore.ReadData<NotificationCategoryCallbackData>(action);
+        if (data is null)
+        {
+            return PluginCallbackResponses.Error(context.Identity, editMessageId, "通知分类数据无效。");
+        }
+
+        return await _notificationProvider.BuildCategoryAsync(
+            context,
+            data.CategoryId,
+            editMessageId,
+            cancellationToken);
     }
 
     private async Task<CommandResponse> ExecuteNotifyAccountToggleAsync(
@@ -166,6 +191,11 @@ public sealed class CallbackExecutionService
         if (data is null || !_notificationSources.TryGet(data.Type, out var source))
         {
             return PluginCallbackResponses.Error(context.Identity, editMessageId, "未知订阅类型或对应插件未加载。");
+        }
+
+        if (!PluginNotificationSourceAccess.CanManage(source, context))
+        {
+            return PluginCallbackResponses.Error(context.Identity, editMessageId, "当前账号无权管理这类通知。");
         }
 
         return await source.ToggleAsync(

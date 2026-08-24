@@ -3,6 +3,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Admin;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Platform;
 using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Infrastructure.Terminal;
 using OhMyBot.Core.Infrastructure.UserProfiles;
@@ -15,6 +16,7 @@ public sealed class CommandRouterGrpcService(
     PlatformUserProfileService userProfileService,
     QqMenuStore qqMenuStore,
     QqMenuConverter qqMenuConverter,
+    PlatformRequestDispatcher platformRequestDispatcher,
     IServiceScopeFactory scopeFactory,
     InteractiveConsoleOutputQueue consoleOutputQueue,
     ILogger<CommandRouterGrpcService> logger) : CommandRouter.CommandRouterBase
@@ -86,6 +88,34 @@ public sealed class CommandRouterGrpcService(
     }
 
     private static CommandResponse SilentQq() => new() { Qq = new QqResponse() };
+
+    public override async Task<PlatformRequestAck> ReportPlatformRequest(
+        PlatformRequestReport request,
+        ServerCallContext context)
+    {
+        var notice = new PlatformRequestNotice(
+            request.Platform,
+            request.BotInstanceId,
+            request.Kind,
+            request.Flag,
+            request.RequesterId,
+            request.RequesterName,
+            request.GroupId,
+            request.Comment,
+            DateTimeOffset.FromUnixTimeSeconds(request.OccurredAt),
+            request.RequesterProfile.Count == 0 ? null : new Dictionary<string, string>(request.RequesterProfile));
+        var accepted = await platformRequestDispatcher.DispatchAsync(notice, context.CancellationToken);
+        if (!accepted)
+        {
+            logger.LogDebug(
+                "无插件监听平台待审批请求，已忽略。platform={Platform} kind={Kind} requester={Requester}",
+                request.Platform,
+                request.Kind,
+                request.RequesterId);
+        }
+
+        return new PlatformRequestAck { Accepted = accepted };
+    }
 
     public override async Task<UserProfileResponse> RecordUserProfile(UserProfileRequest request, ServerCallContext context)
     {

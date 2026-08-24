@@ -196,6 +196,14 @@ internal sealed class LeasedNotificationSource(
 
     public int Order => inner.Order;
 
+    public NotificationCategory? Category => inner.Category;
+
+    public UserPrivilege RequiredPrivilege => inner.RequiredPrivilege;
+
+    public SupportedPlatforms SupportPlatforms => inner.SupportPlatforms;
+
+    public bool Enabled => inner.Enabled;
+
     public async Task<bool> HasEnabledTargetsAsync(
         CommandContext context,
         CancellationToken cancellationToken = default)

@@ -58,7 +58,12 @@ public sealed class PushMessageAdminCommand(INotificationPublisher publisher) : 
             return UsageError("Message cannot be empty.");
         }
 
-        await publisher.PublishAsync(platform, FormatBotInstanceId(platform), uid.Trim(), [message], cancellationToken);
+        await publisher.PublishAsync(
+            platform,
+            FormatBotInstanceId(platform),
+            uid.Trim(),
+            [message],
+            cancellationToken: cancellationToken);
         return AdminCommandResult.Ok($"Message queued: platform={FormatPlatform(platform)}, uid={uid.Trim()}.");
     }
 

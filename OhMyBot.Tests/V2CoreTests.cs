@@ -1107,6 +1107,105 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task NotifyCallbackRechecksSourcePrivilege()
+    {
+        await using var dbContext = CreateDbContext();
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var harness = await CreateCallbackHarnessAsync(dbContext, callbackStore);
+        harness.Source.RequiredPrivilege = UserPrivilege.Owner;
+        var payload = await callbackStore.PutAsync(
+            "notify-type-select",
+            harness.CoreUserId,
+            "chat",
+            "admin",
+            new NotificationTypeCallbackData(ObservingNotificationSource.SourceType));
+
+        var response = await harness.Service.ExecuteAsync(new CallbackRequest
+        {
+            Platform = BotPlatform.Telegram,
+            ChatId = "chat",
+            UserId = "admin",
+            MessageId = "123",
+            ChatType = BotChatType.Private,
+            Payload = payload
+        });
+
+        Assert.AreNotEqual(0, response.Code);
+        StringAssert.Contains(response.TgText(), "无权管理");
+        Assert.IsNull(harness.Source.LastChatType, "权限不足时不能进入通知来源 handler。");
+    }
+
+    [TestMethod]
+    public async Task NotifyRootOnlyShowsEnabledSourcesAllowedForPrivilegeAndPlatform()
+    {
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var registry = new PluginNotificationSourceRegistry();
+        registry.RegisterPlugin("tests",
+        [
+            new FakeNotificationSource("allowed", "可管理"),
+            new FakeNotificationSource("owner", "仅 owner", UserPrivilege.Owner),
+            new FakeNotificationSource("qq", "仅 QQ", supportPlatforms: SupportedPlatforms.QQ),
+            new FakeNotificationSource("disabled", "已停用", enabled: false)
+        ]);
+        var provider = new NotificationCommandDslProvider(callbackStore, registry);
+        var context = new CommandContext(
+            new CommandRequest
+            {
+                Platform = BotPlatform.Telegram,
+                BotInstanceId = "tg",
+                ChatId = "chat",
+                UserId = "user",
+                ChatType = BotChatType.Private
+            },
+            new ResolvedIdentity(1, UserPrivilege.VerifiedUser, BotPlatform.Telegram, "user"),
+            TimeProvider.System.GetTimestamp(),
+            CancellationToken.None);
+
+        var response = await provider.BuildRootAsync(context, null);
+
+        CollectionAssert.AreEqual(new[] { "可管理" }, response.TgButtonTexts().ToArray());
+    }
+
+    [TestMethod]
+    public async Task NotifyRootGroupsSourcesAndPlacesLowPriorityCategoryLast()
+    {
+        var callbackStore = new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions()));
+        var registry = new PluginNotificationSourceRegistry();
+        var category = new NotificationCategory("bot-messages", "Bot消息通知", int.MaxValue);
+        registry.RegisterPlugin("tests",
+        [
+            new FakeNotificationSource("direct", "直接通知", order: 500),
+            new FakeNotificationSource("group-later", "入群申请通知", order: 300, category: category),
+            new FakeNotificationSource("group-first", "加好友请求通知", order: 100, category: category),
+            new FakeNotificationSource("group-middle", "邀请机器人进群通知", order: 200, category: category)
+        ]);
+        var provider = new NotificationCommandDslProvider(callbackStore, registry);
+        var context = new CommandContext(
+            new CommandRequest
+            {
+                Platform = BotPlatform.Telegram,
+                BotInstanceId = "tg",
+                ChatId = "chat",
+                UserId = "user",
+                ChatType = BotChatType.Private
+            },
+            new ResolvedIdentity(1, UserPrivilege.VerifiedUser, BotPlatform.Telegram, "user"),
+            TimeProvider.System.GetTimestamp(),
+            CancellationToken.None);
+
+        var root = await provider.BuildRootAsync(context, null);
+        var categoryPanel = await provider.BuildCategoryAsync(context, category.Id, "123");
+
+        CollectionAssert.AreEqual(
+            new[] { "直接通知", "Bot消息通知" },
+            root.TgButtonTexts().ToArray());
+        CollectionAssert.AreEqual(
+            new[] { "加好友请求通知", "邀请机器人进群通知", "入群申请通知", "返回" },
+            categoryPanel.TgButtonTexts().ToArray());
+        Assert.AreEqual("123", categoryPanel.TgSingle().EditMessageId);
+    }
+
+    [TestMethod]
     public async Task CallbackUserExceptionReachesUserVerbatim()
     {
         // 点按钮走的是和命令完全独立的入口，同一个「Token 已失效」不该因为入口不同就变成另一种话术。
@@ -1459,6 +1558,8 @@ public class V2CoreTests
             new[] { BotPlatform.Telegram, BotPlatform.Qq },
             deliveries.Select(delivery => delivery.Platform).ToArray());
         var qq = deliveries.Single(delivery => delivery.Platform == BotPlatform.Qq);
+        Assert.AreEqual(1, qq.CoreUserId);
+        Assert.AreEqual(UserPrivilege.User, qq.Privilege);
         Assert.AreEqual("qq", qq.BotInstanceId);
         Assert.AreEqual("qq-chat", qq.ChatId);
     }
@@ -2279,18 +2380,21 @@ public class V2CoreTests
         public string BotInstanceId { get; private set; } = string.Empty;
         public string ChatId { get; private set; } = string.Empty;
         public IReadOnlyList<string> Messages { get; private set; } = [];
+        public IReadOnlyList<string>? MenuTokens { get; private set; }
 
         public Task PublishAsync(
             BotPlatform platform,
             string botInstanceId,
             string chatId,
             IReadOnlyList<string> messages,
+            IReadOnlyList<string>? menuTokens = null,
             CancellationToken cancellationToken = default)
         {
             Platform = platform;
             BotInstanceId = botInstanceId;
             ChatId = chatId;
             Messages = messages;
+            MenuTokens = menuTokens;
             return Task.CompletedTask;
         }
 
@@ -2300,7 +2404,7 @@ public class V2CoreTests
             IReadOnlyList<string> messages,
             CancellationToken cancellationToken = default)
         {
-            return PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, cancellationToken);
+            return PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, null, cancellationToken);
         }
     }
 
@@ -2370,6 +2474,8 @@ public class V2CoreTests
 
         public int Order => 1;
 
+        public UserPrivilege RequiredPrivilege { get; set; } = UserPrivilege.VerifiedUser;
+
         public BotChatType? LastChatType { get; private set; }
 
         /// <summary>非 null 时 <see cref="BuildAccountPanelAsync"/> 直接抛出它，用于验证回调路径的兜底。</summary>
@@ -2405,13 +2511,28 @@ public class V2CoreTests
         }
     }
 
-    private sealed class FakeNotificationSource(string type, string displayName) : IPluginNotificationSource
+    private sealed class FakeNotificationSource(
+        string type,
+        string displayName,
+        UserPrivilege requiredPrivilege = UserPrivilege.VerifiedUser,
+        SupportedPlatforms supportPlatforms = SupportedPlatforms.All,
+        bool enabled = true,
+        int? order = null,
+        NotificationCategory? category = null) : IPluginNotificationSource
     {
         public string Type { get; } = type;
 
         public string DisplayName { get; } = displayName;
 
-        public int Order { get; } = type switch
+        public UserPrivilege RequiredPrivilege { get; } = requiredPrivilege;
+
+        public SupportedPlatforms SupportPlatforms { get; } = supportPlatforms;
+
+        public bool Enabled { get; } = enabled;
+
+        public NotificationCategory? Category { get; } = category;
+
+        public int Order { get; } = order ?? type switch
         {
             NotificationTypes.AiRouterAutoSign => 100,
             NotificationTypes.KuroAutoSign => 200,

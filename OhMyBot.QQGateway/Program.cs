@@ -48,8 +48,10 @@ builder.Services.AddSingleton<IOneBotClient>(_ =>
 builder.Services.AddSingleton<QQCommandGateway>();
 builder.Services.AddSingleton<QQResponseRenderer>();
 builder.Services.AddSingleton<QQUpdateHandler>();
+builder.Services.AddSingleton<QQRequestEventHandler>();
 builder.Services.AddHostedService<GatewayWorker>();
 builder.Services.AddHostedService<RouteRefreshConsumerService>();
 builder.Services.AddHostedService<QQNotificationConsumerService>();
+builder.Services.AddHostedService<QQRequestDecisionConsumerService>();
 
 await builder.Build().RunAsync();

@@ -8,14 +8,14 @@ using RabbitMQ.Client;
 namespace OhMyBot.Core.Infrastructure.Messaging;
 
 /// <summary>
-/// 通知发布器（Singleton）。自动签到一轮会按 delivery 逐条调用本类，
-/// 因此连接和 channel 惰性建立后复用，只在首次建立时 declare exchange；
-/// 发送失败即丢弃当前连接，下次调用重建。
+/// Core 到网关的出站发布器（Singleton），走通知 exchange：既发用户通知，也发平台审批决定。
+/// 自动签到一轮会按 delivery 逐条调用本类，因此连接和 channel 惰性建立后复用，
+/// 只在首次建立时 declare exchange；发送失败即丢弃当前连接，下次调用重建。
 /// </summary>
 public sealed class RabbitMqNotificationPublisher(
     IOptions<RabbitMqOptions> options,
     TimeProvider timeProvider,
-    ILogger<RabbitMqNotificationPublisher> logger) : INotificationPublisher, IAsyncDisposable
+    ILogger<RabbitMqNotificationPublisher> logger) : INotificationPublisher, IPlatformRequestDecisionPublisher, IAsyncDisposable
 {
     private readonly RabbitMqOptions _options = options.Value;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -29,11 +29,17 @@ public sealed class RabbitMqNotificationPublisher(
         string botInstanceId,
         string chatId,
         IReadOnlyList<string> messages,
+        IReadOnlyList<string>? menuTokens = null,
         CancellationToken cancellationToken = default)
     {
-        await PublishCoreAsync(
-            BotNotificationEvent.Create(platform, botInstanceId, chatId, messages, timeProvider.GetUtcNow()),
-            cancellationToken);
+        var notification = BotNotificationEvent.Create(
+            platform,
+            botInstanceId,
+            chatId,
+            messages,
+            timeProvider.GetUtcNow(),
+            menuTokens);
+        await PublishCoreAsync(notification.Type, notification, platform, cancellationToken);
     }
 
     public async Task PublishTelegramAsync(
@@ -42,33 +48,57 @@ public sealed class RabbitMqNotificationPublisher(
         IReadOnlyList<string> messages,
         CancellationToken cancellationToken = default)
     {
-        await PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, cancellationToken);
+        await PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, null, cancellationToken);
     }
 
-    private async Task PublishCoreAsync(BotNotificationEvent notification, CancellationToken cancellationToken)
+    public async Task PublishAsync(
+        BotPlatform platform,
+        string botInstanceId,
+        PlatformRequestKind kind,
+        string flag,
+        bool approve,
+        string reason,
+        CancellationToken cancellationToken = default)
+    {
+        var decision = PlatformRequestDecisionEvent.Create(
+            platform,
+            botInstanceId,
+            kind,
+            flag,
+            approve,
+            reason,
+            timeProvider.GetUtcNow());
+        await PublishCoreAsync(decision.Type, decision, platform, cancellationToken);
+    }
+
+    private async Task PublishCoreAsync<TPayload>(
+        string routingKey,
+        TPayload payload,
+        BotPlatform platform,
+        CancellationToken cancellationToken)
     {
         try
         {
             var channel = await EnsureChannelAsync(cancellationToken);
-            var payload = JsonSerializer.SerializeToUtf8Bytes(notification, JsonOptions);
+            var body = JsonSerializer.SerializeToUtf8Bytes(payload, JsonOptions);
 
             await channel.BasicPublishAsync(
                 _options.NotificationExchange,
-                notification.Type,
+                routingKey,
                 mandatory: false,
                 basicProperties: new BasicProperties
                 {
                     ContentType = "application/json",
                     Persistent = true
                 },
-                body: payload,
+                body: body,
                 cancellationToken: cancellationToken);
         }
         catch (Exception exception)
         {
             // 连接可能已断开，丢弃当前连接让下次调用重建，避免卡在坏连接上。
             await ResetConnectionAsync();
-            logger.LogError(exception, "Failed to publish {Platform} notification.", notification.Platform);
+            logger.LogError(exception, "Failed to publish {Platform} message {RoutingKey}.", platform, routingKey);
         }
     }
 

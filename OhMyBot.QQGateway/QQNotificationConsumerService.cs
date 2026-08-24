@@ -14,6 +14,7 @@ namespace OhMyBot.QQGateway;
 
 public sealed class QQNotificationConsumerService(
     IOneBotClient oneBotClient,
+    QQCommandGateway gateway,
     IOptions<RabbitMqOptions> rabbitMqOptions,
     ILogger<QQNotificationConsumerService> logger) : BackgroundService
 {
@@ -104,8 +105,14 @@ public sealed class QQNotificationConsumerService(
             return;
         }
 
-        foreach (var message in notification.Messages.Where(message => !string.IsNullOrWhiteSpace(message)))
+        for (var index = 0; index < notification.Messages.Count; index++)
         {
+            var message = notification.Messages[index];
+            if (string.IsNullOrWhiteSpace(message))
+            {
+                continue;
+            }
+
             var response = await oneBotClient.SendActionAsync(
                 new OneBotActionRequest("send_private_msg", new { user_id = userId, message }),
                 cancellationToken);
@@ -115,7 +122,54 @@ public sealed class QQNotificationConsumerService(
                 logger.LogWarning("OneBot send_private_msg failed retcode={RetCode} message={Message}.",
                     response.RetCode,
                     response.Message ?? response.Wording);
+                continue;
+            }
+
+            // 带菜单的通知（如待审批请求）发出后要把「消息 id -> 选项」绑回 Core，
+            // 否则收件人回复序号时 Core 查不到菜单，只能静默丢弃。
+            var menuToken = notification.MenuTokens is { } tokens && index < tokens.Count ? tokens[index] : null;
+            if (string.IsNullOrEmpty(menuToken))
+            {
+                continue;
+            }
+
+            var messageId = ExtractMessageId(response.Data);
+            if (string.IsNullOrEmpty(messageId))
+            {
+                logger.LogWarning("QQ 通知菜单无法绑定：send_private_msg 未返回 message_id。chatId={ChatId}", notification.ChatId);
+                continue;
+            }
+
+            try
+            {
+                await gateway.BindMenuAsync(
+                    notification.ChatId,
+                    messageId,
+                    notification.ChatId,
+                    BotChatType.Private,
+                    menuToken,
+                    notification.BotInstanceId,
+                    cancellationToken);
+            }
+            catch (Exception exception)
+            {
+                logger.LogWarning(exception, "绑定 QQ 通知菜单失败。message_id={MessageId}", messageId);
             }
         }
+    }
+
+    private static string? ExtractMessageId(JsonElement data)
+    {
+        if (data.ValueKind == JsonValueKind.Object && data.TryGetProperty("message_id", out var element))
+        {
+            return element.ValueKind switch
+            {
+                JsonValueKind.Number => element.GetRawText(),
+                JsonValueKind.String => element.GetString(),
+                _ => null
+            };
+        }
+
+        return null;
     }
 }

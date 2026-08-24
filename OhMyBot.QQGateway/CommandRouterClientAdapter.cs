@@ -17,6 +17,8 @@ public interface ICommandRouterClient
     Task<BindQqMenuResponse> BindQqMenuAsync(BindQqMenuRequest request, CancellationToken cancellationToken = default);
 
     Task<CommandResponse> ExecuteQqMenuSelectionAsync(QqMenuSelectionRequest request, CancellationToken cancellationToken = default);
+
+    Task<PlatformRequestAck> ReportPlatformRequestAsync(PlatformRequestReport request, CancellationToken cancellationToken = default);
 }
 
 public sealed class CommandRouterClientAdapter(CommandRouter.CommandRouterClient client) : ICommandRouterClient
@@ -49,6 +51,11 @@ public sealed class CommandRouterClientAdapter(CommandRouter.CommandRouterClient
     public async Task<CommandResponse> ExecuteQqMenuSelectionAsync(QqMenuSelectionRequest request, CancellationToken cancellationToken = default)
     {
         return await client.ExecuteQqMenuSelectionAsync(request, cancellationToken: cancellationToken);
+    }
+
+    public async Task<PlatformRequestAck> ReportPlatformRequestAsync(PlatformRequestReport request, CancellationToken cancellationToken = default)
+    {
+        return await client.ReportPlatformRequestAsync(request, cancellationToken: cancellationToken);
     }
 }
 

@@ -10,6 +10,7 @@ using OhMyBot.Core.Infrastructure.Identity;
 using OhMyBot.Core.Infrastructure.Linking;
 using OhMyBot.Core.Infrastructure.Messaging;
 using OhMyBot.Core.Commanding.Notifications;
+using OhMyBot.Core.Commanding.Platform;
 using OhMyBot.Core.Commanding.Qq;
 using OhMyBot.Core.Commanding.Routing;
 using OhMyBot.Core.Infrastructure.ScheduledTasks;
@@ -69,11 +70,15 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<PluginCallbackRegistry>();
         services.AddSingleton<QqMenuStore>();
         services.AddSingleton<QqMenuConverter>();
+        services.AddSingleton<PlatformRequestDispatcher>();
         services.AddSingleton<PlatformCommandDslRegistry>();
         services.AddScoped<PlatformCommandDslExecutor>();
         services.AddSingleton<RouteStore>();
         services.AddSingleton<IRouteChangePublisher, RabbitMqRouteChangePublisher>();
         services.AddSingleton<INotificationPublisher, RabbitMqNotificationPublisher>();
+        // 通知与审批决定共用同一个发布器实例（同一 exchange、同一连接）。
+        services.AddSingleton<IPlatformRequestDecisionPublisher>(provider =>
+            (RabbitMqNotificationPublisher)provider.GetRequiredService<INotificationPublisher>());
         services.AddSingleton<ManagedTaskRegistry>();
         // 先启动队列渲染器，确保数据库 migration 或后续 hosted service 启动失败时也能立即看到日志。
         services.AddHostedService<InteractiveConsoleRendererHostedService>();

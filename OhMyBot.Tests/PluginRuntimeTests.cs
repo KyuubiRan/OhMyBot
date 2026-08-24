@@ -8,6 +8,7 @@ using Microsoft.Extensions.Options;
 using OhMyBot.Core.Commanding.Admin;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Commanding.Routing;
 using OhMyBot.Core.Host.Plugins;
 using OhMyBot.Core.Infrastructure.Data;
@@ -197,6 +198,23 @@ public sealed class PluginRuntimeTests
             "message");
 
         Assert.AreEqual("UnsupportedPlatform", response.ErrorCode);
+    }
+
+    [TestMethod]
+    public void NotificationSourceLeaseForwardsAllPresentationAndAccessMetadata()
+    {
+        var category = new NotificationCategory("bot-messages", "Bot消息通知", int.MaxValue);
+        var source = new MetadataNotificationSource(category);
+        IPluginNotificationSource leased = new LeasedNotificationSource(
+            "com.ohmybot.tests.notifications",
+            source,
+            new PluginInvocationGate());
+
+        Assert.AreSame(category, leased.Category);
+        Assert.AreEqual(123, leased.Order);
+        Assert.AreEqual(OhMyBot.Contracts.Grpc.UserPrivilege.Owner, leased.RequiredPrivilege);
+        Assert.AreEqual(SupportedPlatforms.QQ, leased.SupportPlatforms);
+        Assert.IsFalse(leased.Enabled);
     }
 
     [TestMethod]
@@ -564,6 +582,40 @@ public sealed class PluginRuntimeTests
             string editMessageId,
             CancellationToken cancellationToken = default)
             => throw new InvalidOperationException("Unsupported platform must be rejected before plugin execution.");
+    }
+
+    private sealed class MetadataNotificationSource(NotificationCategory category) : IPluginNotificationSource
+    {
+        public string Type => "metadata";
+
+        public string DisplayName => "Metadata";
+
+        public int Order => 123;
+
+        public NotificationCategory Category => category;
+
+        public OhMyBot.Contracts.Grpc.UserPrivilege RequiredPrivilege => OhMyBot.Contracts.Grpc.UserPrivilege.Owner;
+
+        public SupportedPlatforms SupportPlatforms => SupportedPlatforms.QQ;
+
+        public bool Enabled => false;
+
+        public Task<bool> HasEnabledTargetsAsync(CommandContext context, CancellationToken cancellationToken = default) =>
+            Task.FromResult(false);
+
+        public Task<OhMyBot.Contracts.Grpc.CommandResponse> BuildAccountPanelAsync(
+            CommandContext context,
+            string? editMessageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CommandResponses.Silent(context));
+
+        public Task<OhMyBot.Contracts.Grpc.CommandResponse> ToggleAsync(
+            CommandContext context,
+            long accountId,
+            bool toggleAll,
+            string editMessageId,
+            CancellationToken cancellationToken = default) =>
+            Task.FromResult(CommandResponses.Silent(context));
     }
 }
 

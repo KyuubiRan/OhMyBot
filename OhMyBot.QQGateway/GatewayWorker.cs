@@ -12,6 +12,7 @@ namespace OhMyBot.QQGateway;
 public sealed class GatewayWorker(
     QQCommandGateway gateway,
     QQUpdateHandler updateHandler,
+    QQRequestEventHandler requestHandler,
     IOneBotClient oneBotClient,
     IConfiguration configuration,
     ILogger<GatewayWorker> logger) : BackgroundService
@@ -21,6 +22,7 @@ public sealed class GatewayWorker(
         var botInstanceId = configuration["BotInstanceId"] ?? "qq-default";
 
         oneBotClient.OnEvent += updateHandler.Handle;
+        oneBotClient.OnEvent += requestHandler.Handle;
         oneBotClient.OnException += HandleOneBotException;
 
         try
@@ -38,6 +40,7 @@ public sealed class GatewayWorker(
         finally
         {
             oneBotClient.OnEvent -= updateHandler.Handle;
+            oneBotClient.OnEvent -= requestHandler.Handle;
             oneBotClient.OnException -= HandleOneBotException;
             await oneBotClient.StopAsync(CancellationToken.None);
         }
