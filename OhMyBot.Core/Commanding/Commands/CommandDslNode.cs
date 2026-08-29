@@ -22,6 +22,8 @@ public sealed class CommandDslNode
 
     public bool AcceptsReplyMedia { get; init; }
 
+    public CommandProgressStyle ProgressStyle { get; init; }
+
     public bool Enabled { get; init; } = true;
 
     public IReadOnlyList<CommandDslNode> Children { get; init; } = [];

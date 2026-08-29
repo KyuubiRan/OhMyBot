@@ -1,6 +1,7 @@
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.Contracts;
 using OhMyBot.Core.Commanding.Routing;
+using OhMyBot.Core.Infrastructure.Messaging;
 using OhMyBot.Core.Infrastructure.UserProfiles;
 
 namespace OhMyBot.Core.Commanding.Commands;
@@ -10,6 +11,7 @@ public sealed class CommandExecutionService(
     PlatformUserProfileService userProfileService,
     RouteStore routeStore,
     PlatformCommandDslExecutor dslExecutor,
+    ICommandProgressPublisher progressPublisher,
     ILogger<CommandExecutionService> logger,
     TimeProvider timeProvider)
 {
@@ -71,9 +73,14 @@ public sealed class CommandExecutionService(
 
         var canonicalRequest = request.Clone();
         canonicalRequest.Command = route.Command;
+        var progress = new CommandProgressReporter(canonicalRequest, progressPublisher);
         try
         {
-            return await dslExecutor.ExecuteAsync(new CommandContext(canonicalRequest, identity, started, cancellationToken));
+            var response = await dslExecutor.ExecuteAsync(new CommandContext(canonicalRequest, identity, started, cancellationToken)
+            {
+                Progress = progress
+            });
+            return progress.ApplyTo(response);
         }
         catch (CommandUserException exception)
         {
@@ -87,11 +94,11 @@ public sealed class CommandExecutionService(
                 canonicalRequest.Platform,
                 canonicalRequest.ChatId,
                 exception.Message);
-            return CommandResponses.Error(
+            return progress.ApplyTo(CommandResponses.Error(
                 exception.ErrorCode,
                 exception.Message,
                 identity,
-                canonicalRequest.MessageId);
+                canonicalRequest.MessageId));
         }
         catch (Exception exception)
         {
@@ -106,11 +113,11 @@ public sealed class CommandExecutionService(
                 canonicalRequest.UserId,
                 canonicalRequest.Platform,
                 canonicalRequest.ChatId);
-            return CommandResponses.Error(
+            return progress.ApplyTo(CommandResponses.Error(
                 "CommandHandlerFailed",
                 $"命令执行失败，请稍后重试。（错误 id: {errorId}）",
                 identity,
-                canonicalRequest.MessageId);
+                canonicalRequest.MessageId));
         }
     }
 

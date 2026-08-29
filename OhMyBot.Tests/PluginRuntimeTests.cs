@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
+using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Admin;
 using OhMyBot.Core.Commanding.Callbacks;
 using OhMyBot.Core.Commanding.Commands;
@@ -155,7 +156,9 @@ public sealed class PluginRuntimeTests
                     Name = "platform-test",
                     Description = "Platform test.",
                     Usage = "/platform-test",
-                    SupportPlatforms = SupportedPlatforms.All
+                    SupportPlatforms = SupportedPlatforms.All,
+                    AcceptsReplyMedia = true,
+                    ProgressStyle = CommandProgressStyle.MediaConversion
                 }
             ]),
             new PluginInvocationGate(),
@@ -164,6 +167,8 @@ public sealed class PluginRuntimeTests
         var node = provider.GetNodes().Single();
 
         Assert.AreEqual(SupportedPlatforms.Telegram, node.SupportPlatforms);
+        Assert.IsTrue(node.AcceptsReplyMedia);
+        Assert.AreEqual(CommandProgressStyle.MediaConversion, node.ProgressStyle);
     }
 
     [TestMethod]

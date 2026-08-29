@@ -80,6 +80,13 @@ public sealed class GatewayWorker(
             {
                 var commands = await gateway.ReloadAsync(_options.BotInstanceId, stoppingToken);
                 logger.LogInformation("Telegram gateway loaded {Count} commands from Core.", commands.Count);
+                logger.LogInformation(
+                    "Telegram reply-media routes: {Routes}.",
+                    string.Join(
+                        ", ",
+                        commands
+                            .Where(route => route.AcceptsReplyMedia)
+                            .Select(route => $"{route.Command}:{route.ProgressStyle}")));
                 return;
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

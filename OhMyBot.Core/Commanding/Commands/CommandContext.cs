@@ -7,4 +7,7 @@ public sealed record CommandContext(
     CommandRequest Request,
     ResolvedIdentity Identity,
     long StartedAt,
-    CancellationToken CancellationToken);
+    CancellationToken CancellationToken)
+{
+    public ICommandProgressReporter? Progress { get; init; }
+}

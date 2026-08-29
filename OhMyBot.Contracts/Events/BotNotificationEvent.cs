@@ -21,6 +21,17 @@ public sealed record BotNotificationEvent(
     /// </summary>
     public IReadOnlyList<string>? MenuTokens { get; init; }
 
+    /// <summary>
+    /// 进度消息的逻辑键。Telegram 首次收到时发送并记录消息 ID，后续同键事件编辑原消息；
+    /// QQ 忽略此字段并照常追加消息。
+    /// </summary>
+    public string? MessageKey { get; init; }
+
+    /// <summary>
+    /// 已知的 Telegram 消息 ID，供按钮回调直接编辑原面板。其它平台忽略此字段。
+    /// </summary>
+    public string? EditMessageId { get; init; }
+
     public static string GetEventType(BotPlatform platform)
     {
         return platform switch
@@ -52,5 +63,21 @@ public sealed record BotNotificationEvent(
         DateTimeOffset createdAt)
     {
         return Create(BotPlatform.Telegram, botInstanceId, chatId, messages, createdAt);
+    }
+
+    public static BotNotificationEvent Progress(
+        BotPlatform platform,
+        string botInstanceId,
+        string chatId,
+        string message,
+        string messageKey,
+        string? editMessageId,
+        DateTimeOffset createdAt)
+    {
+        return Create(platform, botInstanceId, chatId, [message], createdAt) with
+        {
+            MessageKey = messageKey,
+            EditMessageId = editMessageId
+        };
     }
 }

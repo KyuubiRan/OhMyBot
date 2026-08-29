@@ -136,6 +136,12 @@ message RouteDescriptor {
   repeated string aliases = 8;
   int32 support_chat_types = 9;
   bool accepts_reply_media = 10;
+  CommandProgressStyle progress_style = 11;
+}
+
+enum CommandProgressStyle {
+  COMMAND_PROGRESS_STYLE_NONE = 0;
+  COMMAND_PROGRESS_STYLE_MEDIA_CONVERSION = 1;
 }
 
 message GetRoutesResponse {

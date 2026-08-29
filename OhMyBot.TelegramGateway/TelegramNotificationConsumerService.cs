@@ -13,6 +13,7 @@ namespace OhMyBot.TelegramGateway;
 
 public sealed class TelegramNotificationConsumerService(
     ITelegramBotClient botClient,
+    TelegramProgressMessageStore progressMessages,
     IOptions<RabbitMqOptions> rabbitMqOptions,
     ILogger<TelegramNotificationConsumerService> logger) : BackgroundService
 {
@@ -79,7 +80,7 @@ public sealed class TelegramNotificationConsumerService(
                 {
                     foreach (var message in notification.Messages.Where(message => !string.IsNullOrWhiteSpace(message)))
                     {
-                        await botClient.SendMessage(notification.ChatId, message, cancellationToken: stoppingToken);
+                        await SendMessageAsync(notification, message, stoppingToken);
                     }
                 }
             }
@@ -95,5 +96,48 @@ public sealed class TelegramNotificationConsumerService(
 
         await channel.BasicConsumeAsync(queueName, autoAck: false, consumer, stoppingToken);
         await Task.Delay(Timeout.InfiniteTimeSpan, stoppingToken);
+    }
+
+    private async Task SendMessageAsync(
+        BotNotificationEvent notification,
+        string text,
+        CancellationToken cancellationToken)
+    {
+        if (int.TryParse(notification.EditMessageId, out var editMessageId))
+        {
+            await botClient.EditMessageText(
+                notification.ChatId,
+                editMessageId,
+                text,
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(notification.MessageKey))
+        {
+            await botClient.SendMessage(notification.ChatId, text, cancellationToken: cancellationToken);
+            return;
+        }
+
+        if (progressMessages.IsCompleted(notification.MessageKey))
+        {
+            return;
+        }
+
+        if (progressMessages.TryGet(notification.MessageKey, out var existingMessageId))
+        {
+            await botClient.EditMessageText(
+                notification.ChatId,
+                existingMessageId,
+                text,
+                cancellationToken: cancellationToken);
+            return;
+        }
+
+        var sent = await botClient.SendMessage(notification.ChatId, text, cancellationToken: cancellationToken);
+        if (!progressMessages.Register(notification.MessageKey, sent.MessageId))
+        {
+            await botClient.DeleteMessage(notification.ChatId, sent.MessageId, cancellationToken);
+        }
     }
 }

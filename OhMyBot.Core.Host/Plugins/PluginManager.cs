@@ -21,7 +21,7 @@ namespace OhMyBot.Core.Host.Plugins;
 
 internal sealed class PluginManager : IPluginManager, IHostedService
 {
-    private const string CoreApiVersion = "1.0.0";
+    private const string CoreApiVersion = "1.1.0";
     private readonly IServiceProvider _rootServices;
     private readonly PlatformCommandDslRegistry _commandRegistry;
     private readonly PluginCallbackRegistry _callbackRegistry;

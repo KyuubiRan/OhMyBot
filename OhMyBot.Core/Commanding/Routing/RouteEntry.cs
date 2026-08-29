@@ -13,6 +13,7 @@ public sealed record RouteEntry(
     SupportedPlatforms SupportPlatforms,
     SupportedChatTypes SupportChatTypes,
     bool AcceptsReplyMedia,
+    CommandProgressStyle ProgressStyle,
     bool Enabled,
     bool TargetExists,
     UserPrivilege EffectiveRequiredPrivilege,
@@ -29,6 +30,7 @@ public sealed record RouteEntry(
         SupportPlatforms = (int)SupportPlatforms,
         SupportChatTypes = (int)SupportChatTypes,
         AcceptsReplyMedia = AcceptsReplyMedia,
+        ProgressStyle = ProgressStyle,
         Enabled = Enabled
     };
 }

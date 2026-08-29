@@ -3,6 +3,7 @@ using OhMyBot.Contracts.Grpc;
 using OhMyBot.Core.Commanding.Commands;
 using OhMyBot.Core.Commanding.Notifications;
 using OhMyBot.Core.Infrastructure.Identity;
+using OhMyBot.Core.Infrastructure.Messaging;
 
 namespace OhMyBot.Core.Commanding.Callbacks;
 
@@ -16,6 +17,7 @@ public sealed class CallbackExecutionService
     private readonly PluginNotificationSourceRegistry _notificationSources;
     private readonly NotificationCommandDslProvider _notificationProvider;
     private readonly ILogger<CallbackExecutionService> _logger;
+    private readonly ICommandProgressPublisher? _progressPublisher;
 
     public CallbackExecutionService(
         CoreIdentityService identityService,
@@ -25,7 +27,8 @@ public sealed class CallbackExecutionService
         PluginCallbackRegistry? pluginCallbacks = null,
         PluginNotificationSourceRegistry? notificationSources = null,
         NotificationCommandDslProvider? notificationProvider = null,
-        ILogger<CallbackExecutionService>? logger = null)
+        ILogger<CallbackExecutionService>? logger = null,
+        ICommandProgressPublisher? progressPublisher = null)
     {
         _identityService = identityService;
         _actionStore = actionStore;
@@ -35,6 +38,7 @@ public sealed class CallbackExecutionService
         _notificationSources = notificationSources ?? new PluginNotificationSourceRegistry();
         _notificationProvider = notificationProvider ?? new NotificationCommandDslProvider(actionStore, _notificationSources);
         _logger = logger ?? NullLogger<CallbackExecutionService>.Instance;
+        _progressPublisher = progressPublisher;
     }
 
     public async Task<CommandResponse> ExecuteAsync(
@@ -75,7 +79,7 @@ public sealed class CallbackExecutionService
         }
 
         await _actionStore.RemoveAsync(request.Payload, cancellationToken);
-        var context = new CommandContext(new CommandRequest
+        var commandRequest = new CommandRequest
         {
             Platform = request.Platform,
             BotInstanceId = request.BotInstanceId,
@@ -83,7 +87,17 @@ public sealed class CallbackExecutionService
             UserId = request.UserId,
             MessageId = request.MessageId,
             ChatType = request.ChatType
-        }, identity, _timeProvider.GetTimestamp(), cancellationToken);
+        };
+        var progress = _progressPublisher is null
+            ? null
+            : new CommandProgressReporter(
+                commandRequest,
+                _progressPublisher,
+                request.Platform == BotPlatform.Telegram ? request.MessageId : null);
+        var context = new CommandContext(commandRequest, identity, _timeProvider.GetTimestamp(), cancellationToken)
+        {
+            Progress = progress
+        };
 
         // 回调走的是和命令完全独立的入口（ExecuteCallback / ExecuteQqMenuSelection），
         // 这里不兜底的话，插件抛出的异常会一路穿到 gRPC，Core 侧只留一条 Unhandled exception，
@@ -93,15 +107,16 @@ public sealed class CallbackExecutionService
         {
             if (_pluginCallbacks.TryGet(action.ActionType, out var pluginHandler))
             {
-                return await pluginHandler.ExecuteAsync(
+                var response = await pluginHandler.ExecuteAsync(
                     action.ActionType,
                     context,
                     action,
                     request.MessageId,
                     cancellationToken);
+                return progress?.ApplyTo(response) ?? response;
             }
 
-            return action.ActionType switch
+            var builtInResponse = action.ActionType switch
             {
                 "notify-type-select" => await ExecuteNotifyTypeSelectAsync(context, action, request.MessageId, cancellationToken),
                 "notify-category-select" => await ExecuteNotifyCategorySelectAsync(context, action, request.MessageId, cancellationToken),
@@ -110,6 +125,7 @@ public sealed class CallbackExecutionService
                 "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
                 _ => PluginCallbackResponses.Error(identity, request.MessageId, "未知按钮操作或对应插件未加载。")
             };
+            return progress?.ApplyTo(builtInResponse) ?? builtInResponse;
         }
         catch (CommandUserException exception)
         {
@@ -121,7 +137,8 @@ public sealed class CallbackExecutionService
                 request.Platform,
                 request.ChatId,
                 exception.Message);
-            return PluginCallbackResponses.Error(identity, request.MessageId, exception.Message, exception.ErrorCode);
+            var response = PluginCallbackResponses.Error(identity, request.MessageId, exception.Message, exception.ErrorCode);
+            return progress?.ApplyTo(response) ?? response;
         }
         catch (Exception exception)
         {
@@ -134,11 +151,12 @@ public sealed class CallbackExecutionService
                 request.UserId,
                 request.Platform,
                 request.ChatId);
-            return PluginCallbackResponses.Error(
+            var response = PluginCallbackResponses.Error(
                 identity,
                 request.MessageId,
                 $"操作失败，请稍后重试。（错误 id: {errorId}）",
                 "CallbackHandlerFailed");
+            return progress?.ApplyTo(response) ?? response;
         }
     }
 

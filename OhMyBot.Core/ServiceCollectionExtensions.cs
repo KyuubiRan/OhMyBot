@@ -76,7 +76,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<RouteStore>();
         services.AddSingleton<IRouteChangePublisher, RabbitMqRouteChangePublisher>();
         services.AddSingleton<INotificationPublisher, RabbitMqNotificationPublisher>();
-        // 通知与审批决定共用同一个发布器实例（同一 exchange、同一连接）。
+        // 通知、命令进度与审批决定共用同一个发布器实例（同一 exchange、同一连接）。
+        services.AddSingleton<ICommandProgressPublisher>(provider =>
+            (RabbitMqNotificationPublisher)provider.GetRequiredService<INotificationPublisher>());
         services.AddSingleton<IPlatformRequestDecisionPublisher>(provider =>
             (RabbitMqNotificationPublisher)provider.GetRequiredService<INotificationPublisher>());
         services.AddSingleton<ManagedTaskRegistry>();

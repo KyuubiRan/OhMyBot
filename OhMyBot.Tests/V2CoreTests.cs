@@ -690,6 +690,50 @@ public class V2CoreTests
     }
 
     [TestMethod]
+    public async Task CommandProgressEditsTelegramButAppendsOnQq()
+    {
+        await using var telegramDbContext = CreateDbContext();
+        var node = new CommandDslNode
+        {
+            Name = "slow",
+            Description = "Slow command.",
+            Usage = "/slow",
+            Handler = async context =>
+            {
+                await context.Progress!.ReportAsync("请稍后...", context.CancellationToken);
+                return CommandResponses.Text("完成", context);
+            }
+        };
+        var telegramPublisher = new FakeNotificationPublisher();
+        var telegramService = CreateCommandService(
+            telegramDbContext,
+            new FakeLinkTokenStore(),
+            CreateBuiltInCommandRegistry(extraNodes: [node]),
+            progressPublisher: telegramPublisher);
+
+        var telegramResponse = await telegramService.ExecuteAsync(
+            CreateRequest(BotPlatform.Telegram, "tg-user", "slow"));
+
+        Assert.AreEqual("请稍后...", telegramPublisher.Messages.Single());
+        Assert.IsFalse(string.IsNullOrWhiteSpace(telegramPublisher.MessageKey));
+        Assert.AreEqual(telegramPublisher.MessageKey, telegramResponse.TgSingle().EditMessageId);
+
+        await using var qqDbContext = CreateDbContext();
+        var qqPublisher = new FakeNotificationPublisher();
+        var qqService = CreateCommandService(
+            qqDbContext,
+            new FakeLinkTokenStore(),
+            CreateBuiltInCommandRegistry(extraNodes: [node]),
+            progressPublisher: qqPublisher);
+
+        var qqResponse = await qqService.ExecuteAsync(CreateRequest(BotPlatform.Qq, "qq-user", "slow"));
+
+        Assert.AreEqual(BotPlatform.Qq, qqPublisher.Platform);
+        Assert.AreEqual("请稍后...", qqPublisher.Messages.Single());
+        Assert.AreEqual("完成", qqResponse.Qq.Messages.Single().Text);
+    }
+
+    [TestMethod]
     public async Task CommandUserExceptionReachesUserVerbatim()
     {
         await using var dbContext = CreateDbContext();
@@ -2168,7 +2212,8 @@ public class V2CoreTests
         FakeLinkTokenStore tokenStore,
         PlatformCommandDslRegistry? registry = null,
         RouteDocument? routeDocument = null,
-        FakeIdentityCache? identityCache = null)
+        FakeIdentityCache? identityCache = null,
+        ICommandProgressPublisher? progressPublisher = null)
     {
         identityCache ??= new FakeIdentityCache();
         registry ??= CreateBuiltInCommandRegistry(dbContext, tokenStore, identityCache);
@@ -2180,6 +2225,7 @@ public class V2CoreTests
             new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
             routeStore,
             new PlatformCommandDslExecutor(routeStore),
+            progressPublisher ?? new FakeNotificationPublisher(),
             NullLogger<CommandExecutionService>.Instance,
             TimeProvider.System);
     }
@@ -2277,6 +2323,7 @@ public class V2CoreTests
             new PlatformUserProfileService(dbContext, new FakeUserProfileCache(), TimeProvider.System),
             provider.GetRequiredService<RouteStore>(),
             provider.GetRequiredService<PlatformCommandDslExecutor>(),
+            new FakeNotificationPublisher(),
             NullLogger<CommandExecutionService>.Instance,
             TimeProvider.System);
     }
@@ -2458,13 +2505,15 @@ public class V2CoreTests
         }
     }
 
-    private sealed class FakeNotificationPublisher : INotificationPublisher
+    private sealed class FakeNotificationPublisher : INotificationPublisher, ICommandProgressPublisher
     {
         public BotPlatform Platform { get; private set; }
         public string BotInstanceId { get; private set; } = string.Empty;
         public string ChatId { get; private set; } = string.Empty;
         public IReadOnlyList<string> Messages { get; private set; } = [];
         public IReadOnlyList<string>? MenuTokens { get; private set; }
+        public string? MessageKey { get; private set; }
+        public string? EditMessageId { get; private set; }
 
         public Task PublishAsync(
             BotPlatform platform,
@@ -2489,6 +2538,20 @@ public class V2CoreTests
             CancellationToken cancellationToken = default)
         {
             return PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, null, cancellationToken);
+        }
+
+        public Task PublishProgressAsync(
+            BotPlatform platform,
+            string botInstanceId,
+            string chatId,
+            string message,
+            string messageKey,
+            string? editMessageId = null,
+            CancellationToken cancellationToken = default)
+        {
+            MessageKey = messageKey;
+            EditMessageId = editMessageId;
+            return PublishAsync(platform, botInstanceId, chatId, [message], null, cancellationToken);
         }
     }
 

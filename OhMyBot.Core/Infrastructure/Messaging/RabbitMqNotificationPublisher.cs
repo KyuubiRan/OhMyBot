@@ -15,7 +15,11 @@ namespace OhMyBot.Core.Infrastructure.Messaging;
 public sealed class RabbitMqNotificationPublisher(
     IOptions<RabbitMqOptions> options,
     TimeProvider timeProvider,
-    ILogger<RabbitMqNotificationPublisher> logger) : INotificationPublisher, IPlatformRequestDecisionPublisher, IAsyncDisposable
+    ILogger<RabbitMqNotificationPublisher> logger) :
+    INotificationPublisher,
+    ICommandProgressPublisher,
+    IPlatformRequestDecisionPublisher,
+    IAsyncDisposable
 {
     private readonly RabbitMqOptions _options = options.Value;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -49,6 +53,26 @@ public sealed class RabbitMqNotificationPublisher(
         CancellationToken cancellationToken = default)
     {
         await PublishAsync(BotPlatform.Telegram, botInstanceId, chatId, messages, null, cancellationToken);
+    }
+
+    public async Task PublishProgressAsync(
+        BotPlatform platform,
+        string botInstanceId,
+        string chatId,
+        string message,
+        string messageKey,
+        string? editMessageId = null,
+        CancellationToken cancellationToken = default)
+    {
+        var notification = BotNotificationEvent.Progress(
+            platform,
+            botInstanceId,
+            chatId,
+            message,
+            messageKey,
+            editMessageId,
+            timeProvider.GetUtcNow());
+        await PublishCoreAsync(notification.Type, notification, platform, cancellationToken);
     }
 
     public async Task PublishAsync(

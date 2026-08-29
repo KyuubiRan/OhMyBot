@@ -62,6 +62,27 @@ public sealed class TelegramCommandGateway(
         return TryGetRoute(command, out var route) && route.AcceptsReplyMedia;
     }
 
+    public CommandProgressStyle GetProgressStyle(string text)
+    {
+        var (command, _) = GatewayCommandParser.Parse(
+            text,
+            _commandPrefixes,
+            stripBotMention: true);
+
+        if (!TryGetRoute(command, out var route))
+        {
+            return CommandProgressStyle.None;
+        }
+
+        // Reply-media commands necessarily download content in the gateway before Core can run.
+        // Keep the download/conversion/upload UX even when an older route payload omitted progress_style.
+        return route.ProgressStyle != CommandProgressStyle.None
+            ? route.ProgressStyle
+            : route.AcceptsReplyMedia
+                ? CommandProgressStyle.MediaConversion
+                : CommandProgressStyle.None;
+    }
+
     public async Task<IReadOnlyList<RouteDescriptor>> ReloadAsync(string botInstanceId, CancellationToken cancellationToken = default)
     {
         var currentVersion = Version;

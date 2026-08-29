@@ -1,10 +1,13 @@
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging.Abstractions;
 using OhMyBot.Contracts;
 using OhMyBot.Contracts.Grpc;
 using OhMyBot.OneBotV11.Events.Messages.Group;
 using OhMyBot.OneBotV11.Events.Messages.Private;
 using OhMyBot.QQGateway;
 using OhMyBot.TelegramGateway;
+using Telegram.Bot.Types;
+using Telegram.Bot.Types.Enums;
 using GatewayCommandRequest = OhMyBot.TelegramGateway.GatewayCommandRequest;
 using ICommandRouterClient = OhMyBot.TelegramGateway.ICommandRouterClient;
 
@@ -133,6 +136,125 @@ public class V2GatewayTests
         Assert.IsTrue(gateway.CanHandle("/reload"));
         Assert.IsFalse(gateway.CanHandle("/unknown"));
         Assert.IsFalse(gateway.CanHandle("hello"));
+    }
+
+    [TestMethod]
+    public async Task TelegramGatewayExposesRouteProgressStyle()
+    {
+        var routes = CreateMixedRoutes();
+        routes.Routes.Add(new RouteDescriptor
+        {
+            Command = "imgcvt",
+            CoreCommand = "imgcvt",
+            Description = "Convert image.",
+            Usage = "/imgcvt <format>",
+            RequiredPrivilege = UserPrivilege.User,
+            SupportPlatforms = 1,
+            Enabled = true,
+            AcceptsReplyMedia = true,
+            ProgressStyle = CommandProgressStyle.MediaConversion
+        });
+        routes.Routes.Add(new RouteDescriptor
+        {
+            Command = "legacy-media",
+            CoreCommand = "legacy-media",
+            Description = "Legacy media command.",
+            Usage = "/legacy-media <format>",
+            RequiredPrivilege = UserPrivilege.User,
+            SupportPlatforms = 1,
+            Enabled = true,
+            AcceptsReplyMedia = true
+        });
+        var gateway = new TelegramCommandGateway(new FakeTelegramClient(routes));
+        await gateway.ReloadAsync("tg");
+
+        Assert.AreEqual(CommandProgressStyle.MediaConversion, gateway.GetProgressStyle("/imgcvt webp"));
+        Assert.AreEqual(CommandProgressStyle.MediaConversion, gateway.GetProgressStyle("/legacy-media png"));
+        Assert.AreEqual(CommandProgressStyle.None, gateway.GetProgressStyle("/ping"));
+    }
+
+    [TestMethod]
+    public void TelegramMediaProgressStagesHaveVisibleDefaultDuration()
+    {
+        Assert.AreEqual(500, new TelegramGatewayOptions().MediaProgressMinimumStageMilliseconds);
+    }
+
+    [TestMethod]
+    public async Task TelegramUpdateHandlerAppliesBackpressureAtConcurrencyLimit()
+    {
+        var client = new BlockingProfileTelegramClient();
+        var gateway = new TelegramCommandGateway(client);
+        var handler = new TelegramUpdateHandler(
+            gateway,
+            new TelegramResponseRenderer(null!, new TelegramProgressMessageStore()),
+            Options.Create(new TelegramGatewayOptions { MaxConcurrentUpdates = 1 }),
+            NullLogger<TelegramUpdateHandler>.Instance);
+
+        await handler.HandleUpdateAsync(null!, CreateProfileUpdate(1), CancellationToken.None);
+        await client.RecordStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+        var secondDispatch = handler.HandleUpdateAsync(null!, CreateProfileUpdate(2), CancellationToken.None);
+        await Task.Delay(50);
+        Assert.IsFalse(secondDispatch.IsCompleted, "达到并发上限后应向 Telegram 接收循环施加背压。");
+
+        client.ReleaseRecord();
+        await secondDispatch.WaitAsync(TimeSpan.FromSeconds(2));
+        await client.WaitForRecordCountAsync(2).WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [TestMethod]
+    public async Task TelegramUpdateHandlerReturnsBeforeBackgroundProcessingCompletes()
+    {
+        var client = new BlockingProfileTelegramClient();
+        var gateway = new TelegramCommandGateway(client);
+        var handler = new TelegramUpdateHandler(
+            gateway,
+            new TelegramResponseRenderer(null!, new TelegramProgressMessageStore()),
+            Options.Create(new TelegramGatewayOptions()),
+            NullLogger<TelegramUpdateHandler>.Instance);
+
+        var dispatch = handler.HandleUpdateAsync(
+            null!,
+            CreateProfileUpdate(1),
+            CancellationToken.None);
+
+        Assert.IsTrue(dispatch.IsCompletedSuccessfully, "Update 入口不应等待后台处理。");
+        await client.RecordStarted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        Assert.IsFalse(client.RecordCompleted.Task.IsCompleted, "测试前提要求档案写入仍被阻塞。");
+
+        client.ReleaseRecord();
+        await client.RecordCompleted.Task.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    private static Update CreateProfileUpdate(int messageId)
+        => new()
+        {
+            Message = new Message
+            {
+                Id = messageId,
+                Text = "hello",
+                Chat = new Chat { Id = 100, Type = ChatType.Private },
+                From = new User { Id = 200 + messageId, FirstName = "Tester" }
+            }
+        };
+
+    [TestMethod]
+    public async Task TelegramProgressStoreResolvesLateMessageIdAndRejectsCompletedKey()
+    {
+        var store = new TelegramProgressMessageStore();
+        var pending = store.WaitForAsync("progress-key", TimeSpan.FromSeconds(1));
+
+        Assert.IsTrue(store.Register("progress-key", 123));
+
+        Assert.AreEqual(123, await pending);
+        Assert.IsTrue(store.TryGet("progress-key", out var messageId));
+        Assert.AreEqual(123, messageId);
+
+        store.Complete("progress-key");
+        Assert.IsFalse(store.Register("progress-key", 456));
+
+        Assert.IsTrue(store.IsCompleted("progress-key"));
+        Assert.IsFalse(store.TryGet("progress-key", out _));
     }
 
     [TestMethod]
@@ -388,6 +510,68 @@ public class V2GatewayTests
         {
             LastProfileRequest = request;
             return Task.FromResult(new UserProfileResponse { Recorded = true });
+        }
+    }
+
+    private sealed class BlockingProfileTelegramClient : ICommandRouterClient
+    {
+        private readonly TaskCompletionSource _releaseRecord = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private readonly TaskCompletionSource _secondRecord = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _recordCount;
+
+        public TaskCompletionSource RecordStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public TaskCompletionSource RecordCompleted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public Task<CommandResponse> ExecuteCommandAsync(
+            CommandRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new CommandResponse());
+        }
+
+        public Task<CommandResponse> ExecuteCallbackAsync(
+            CallbackRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new CommandResponse());
+        }
+
+        public Task<GetRoutesResponse> GetRoutesAsync(
+            GetRoutesRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            return Task.FromResult(new GetRoutesResponse());
+        }
+
+        public async Task<UserProfileResponse> RecordUserProfileAsync(
+            UserProfileRequest request,
+            CancellationToken cancellationToken = default)
+        {
+            var recordCount = Interlocked.Increment(ref _recordCount);
+            RecordStarted.TrySetResult();
+            await _releaseRecord.Task.WaitAsync(cancellationToken);
+            RecordCompleted.TrySetResult();
+            if (recordCount >= 2)
+            {
+                _secondRecord.TrySetResult();
+            }
+
+            return new UserProfileResponse { Recorded = true };
+        }
+
+        public void ReleaseRecord()
+        {
+            _releaseRecord.TrySetResult();
+        }
+
+        public Task WaitForRecordCountAsync(int count)
+        {
+            return count <= Volatile.Read(ref _recordCount)
+                ? Task.CompletedTask
+                : count == 2
+                    ? _secondRecord.Task
+                    : throw new ArgumentOutOfRangeException(nameof(count));
         }
     }
 

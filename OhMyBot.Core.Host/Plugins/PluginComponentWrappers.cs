@@ -30,6 +30,7 @@ internal sealed class LeasedCommandProvider(
             SupportPlatforms = node.SupportPlatforms & supportedPlatforms.ToCommandPlatforms(),
             SupportChatTypes = node.SupportChatTypes,
             AcceptsReplyMedia = node.AcceptsReplyMedia,
+            ProgressStyle = node.ProgressStyle,
             Enabled = node.Enabled,
             Handler = node.Handler is null ? null : Wrap(node.Handler),
             Children = node.Children.Select(Wrap).ToArray()

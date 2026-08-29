@@ -8,8 +8,12 @@ namespace OhMyBot.TelegramGateway;
 
 // 通用发送器：Core 已产出最终 Telegram 内容（MarkdownV2/纯文本 + 按钮 + 回复/编辑），
 // 网关只负责把每条 TelegramMessage 发出去，不再做任何按命令/按类型的渲染。
-public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
+public sealed class TelegramResponseRenderer(
+    ITelegramBotClient botClient,
+    TelegramProgressMessageStore progressMessages)
 {
+    private static readonly TimeSpan ProgressMessageWait = TimeSpan.FromSeconds(2);
+
     public async Task RenderAsync(
         ChatId chatId,
         CommandResponse response,
@@ -58,18 +62,51 @@ public sealed class TelegramResponseRenderer(ITelegramBotClient botClient)
                 continue;
             }
 
-            if (!string.IsNullOrWhiteSpace(message.EditMessageId) && int.TryParse(message.EditMessageId, out var editMessageId))
+            var logicalEditMessageKey = string.Empty;
+            int? editMessageId = null;
+            if (!string.IsNullOrWhiteSpace(message.EditMessageId))
             {
-                await botClient.EditMessageText(
-                    chatId,
-                    editMessageId,
-                    message.Text,
-                    parseMode: parseMode,
-                    replyMarkup: replyMarkup,
-                    cancellationToken: cancellationToken);
+                if (int.TryParse(message.EditMessageId, out var parsedEditMessageId))
+                {
+                    editMessageId = parsedEditMessageId;
+                }
+                else
+                {
+                    logicalEditMessageKey = message.EditMessageId;
+                    editMessageId = await progressMessages.WaitForAsync(
+                        logicalEditMessageKey,
+                        ProgressMessageWait,
+                        cancellationToken);
+                }
+            }
+
+            if (editMessageId is not null)
+            {
+                try
+                {
+                    await botClient.EditMessageText(
+                        chatId,
+                        editMessageId.Value,
+                        message.Text,
+                        parseMode: parseMode,
+                        replyMarkup: replyMarkup,
+                        cancellationToken: cancellationToken);
+                }
+                finally
+                {
+                    if (logicalEditMessageKey.Length > 0)
+                    {
+                        progressMessages.Complete(logicalEditMessageKey);
+                    }
+                }
             }
             else
             {
+                if (logicalEditMessageKey.Length > 0)
+                {
+                    progressMessages.Complete(logicalEditMessageKey);
+                }
+
                 await botClient.SendMessage(
                     chatId,
                     message.Text,

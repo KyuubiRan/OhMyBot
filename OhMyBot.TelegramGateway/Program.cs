@@ -29,6 +29,12 @@ builder.Services.Configure<TelegramGatewayOptions>(options =>
     options.CoreGrpcAddress = builder.Configuration["Core:GrpcAddress"] ?? options.CoreGrpcAddress;
     options.CoreAccessToken = coreAccessToken;
     options.DropPendingUpdates = builder.Configuration.GetValue("Telegram:DropPendingUpdates", options.DropPendingUpdates);
+    options.MaxConcurrentUpdates = builder.Configuration.GetValue(
+        "Telegram:MaxConcurrentUpdates",
+        options.MaxConcurrentUpdates);
+    options.MediaProgressMinimumStageMilliseconds = builder.Configuration.GetValue(
+        "Telegram:MediaProgressMinimumStageMilliseconds",
+        options.MediaProgressMinimumStageMilliseconds);
     options.CommandPrefixes = builder.Configuration.GetSection("Telegram:CommandPrefixes").Get<string[]>()
         ?? builder.Configuration.GetSection("CommandPrefixes").Get<string[]>()
         ?? options.CommandPrefixes;
@@ -62,6 +68,7 @@ builder.Services.AddSingleton<ITelegramBotClient>(_ =>
     return new TelegramBotClient(token, httpClient);
 });
 builder.Services.AddSingleton<TelegramCommandGateway>();
+builder.Services.AddSingleton<TelegramProgressMessageStore>();
 builder.Services.AddSingleton<TelegramResponseRenderer>();
 builder.Services.AddSingleton<TelegramUpdateHandler>();
 builder.Services.AddHostedService<GatewayWorker>();
