@@ -224,10 +224,20 @@ public sealed class PluginRuntimeTests
         var pluginRoot = Path.Combine(root, "Plugins");
         var pluginDirectory = Path.Combine(pluginRoot, "Fixture");
         var brokenDirectory = Path.Combine(pluginRoot, "Broken");
+        var shadowPath = Path.Combine(root, ".plugin-cache");
         Directory.CreateDirectory(pluginDirectory);
         Directory.CreateDirectory(brokenDirectory);
         CopyFixturePlugin(pluginDirectory);
         File.WriteAllText(Path.Combine(brokenDirectory, "Plugin.dll"), "not a managed assembly");
+        for (var generation = 1; generation <= 10; generation++)
+        {
+            var staleGeneration = Path.Combine(
+                shadowPath,
+                "com.ohmybot.tests.fixture",
+                generation.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            Directory.CreateDirectory(staleGeneration);
+            File.WriteAllText(Path.Combine(staleGeneration, "stale-dependency.dll"), "stale");
+        }
 
         var services = new ServiceCollection();
         services.AddLogging();
@@ -254,7 +264,7 @@ public sealed class PluginRuntimeTests
             Options.Create(new PluginRuntimeOptions
             {
                 PluginPath = pluginRoot,
-                ShadowPath = Path.Combine(root, ".plugin-cache")
+                ShadowPath = shadowPath
             }),
             new FakePluginRuntimeStateStore(),
             NullLogger<PluginManager>.Instance);
@@ -267,6 +277,11 @@ public sealed class PluginRuntimeTests
             var first = firstSnapshot.Single(item => item.Id == "com.ohmybot.tests.fixture");
             Assert.AreEqual(PluginState.Active, first.State);
             Assert.IsGreaterThan(0L, first.Generation);
+            Assert.IsFalse(File.Exists(Path.Combine(
+                shadowPath,
+                first.Id,
+                first.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "stale-dependency.dll")));
             var broken = firstSnapshot.Single(item => item.Id == "invalid:Broken");
             Assert.AreEqual(PluginState.Faulted, broken.State);
             Assert.IsFalse(string.IsNullOrWhiteSpace(broken.LastError));
@@ -277,6 +292,11 @@ public sealed class PluginRuntimeTests
             Assert.HasCount(2, secondSnapshot);
             var second = secondSnapshot.Single(item => item.Id == first.Id);
             Assert.IsGreaterThan(first.Generation, second.Generation);
+            Assert.IsFalse(File.Exists(Path.Combine(
+                shadowPath,
+                second.Id,
+                second.Generation.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                "stale-dependency.dll")));
         }
         finally
         {

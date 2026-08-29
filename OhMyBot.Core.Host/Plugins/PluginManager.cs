@@ -1103,6 +1103,11 @@ internal sealed class PluginManager : IPluginManager, IHostedService
             ResolveRuntimePath(_options.ShadowPath),
             descriptor.Metadata.Id,
             generation.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        if (Directory.Exists(shadowDirectory))
+        {
+            Directory.Delete(shadowDirectory, recursive: true);
+        }
+
         Directory.CreateDirectory(shadowDirectory);
         foreach (var sourcePath in Directory.EnumerateFiles(descriptor.SourceDirectory, "*", SearchOption.AllDirectories))
         {
