@@ -4,8 +4,7 @@
 
 本仓库只包含平台无关的 Core、可执行 Host、跨进程 Contracts、Telegram/QQ Gateway、OneBot V11 协议库和插件公共 API。具体集成插件已经拆分到独立仓库：
 
-- 公开插件：<https://github.com/KyuubiRan/OhMyBot.Plugins>
-- 私有插件：`KyuubiRan/OhMyBot.PrivatePlugins`（需要仓库权限）
+- 公开插件仓库：<https://github.com/KyuubiRan/OhMyBot.Plugins>
 
 ## 项目结构
 
