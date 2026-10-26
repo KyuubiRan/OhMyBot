@@ -21,6 +21,7 @@ using OhMyBot.Core.Commanding.Routing;
 using OhMyBot.Core.Infrastructure.Security;
 using OhMyBot.Core.Infrastructure.Terminal;
 using OhMyBot.Core.Infrastructure.UserProfiles;
+using OhMyBot.Core.Infrastructure.ScheduledTasks;
 
 namespace OhMyBot.Tests;
 
@@ -469,6 +470,40 @@ public class V2CoreTests
 
         Assert.IsFalse(telegramRoutes.Any(route => route.Command == "qqonly"));
         Assert.IsTrue(qqRoutes.Any(route => route.Command == "qqonly"));
+    }
+
+    [TestMethod]
+    public async Task OwnerTaskCommandAndAliasesOpenPanelThroughRouting()
+    {
+        await using var dbContext = CreateDbContext();
+        var tasks = new ManagedTaskRegistry([]);
+        var provider = new TaskCommandDslProvider(tasks,
+            new ManagedTaskControlService(tasks, NullLogger<ManagedTaskControlService>.Instance),
+            new CallbackActionStore(new FakeDistributedCache(), Options.Create(new CallbackActionOptions())),
+            TimeProvider.System);
+        var identities = new FakeIdentityCache();
+        await identities.SetAsync(BotPlatform.Telegram, "owner", new CachedIdentity(1, UserPrivilege.Owner));
+        var service = CreateCommandService(dbContext, new FakeLinkTokenStore(),
+            CreateBuiltInCommandRegistry(extraNodes: provider.GetNodes().ToArray()), identityCache: identities);
+
+        foreach (var command in new[] { "task", "tasks", "taskctl" })
+        {
+            var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "owner", command));
+            Assert.AreEqual(0, response.Code);
+            Assert.Contains("[定时任务]", response.TgText());
+            Assert.Contains("刷新列表", response.TgButtonTexts().ToArray());
+        }
+
+        var list = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "owner", "task", "list"));
+        Assert.Contains("[定时任务]", list.TgText());
+        var help = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "owner", "help", "task"));
+        Assert.Contains("status", help.TgText());
+        Assert.AreEqual(0, help.TgButtonTexts().Count());
+        var group = CreateRequest(BotPlatform.Telegram, "owner", "task");
+        group.ChatType = BotChatType.Group;
+        Assert.AreEqual("UnsupportedChatType", (await service.ExecuteAsync(group)).ErrorCode);
+        Assert.AreEqual("PrivilegeDenied",
+            (await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "user", "task"))).ErrorCode);
     }
 
     [TestMethod]

@@ -28,7 +28,8 @@ public sealed class PlatformCommandDslExecutor(RouteStore routeStore)
             return CommandResponses.Error("PrivilegeDenied", "Insufficient privilege.", context);
         }
 
-        if (node.Children.Count > 0 && remainingArgs.Length == 0)
+        // 带默认处理器的分组可直接打开交互面板；普通分组仍显示子命令帮助。
+        if (node.Children.Count > 0 && remainingArgs.Length == 0 && node.Handler is null)
         {
             return RenderHelp(context, path.Take(consumed).ToArray());
         }
