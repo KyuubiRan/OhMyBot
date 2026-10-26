@@ -7,10 +7,14 @@ public sealed class ManagedTaskRegistry
     private readonly Dictionary<string, IReadOnlyList<IManagedTask>> _tasksByOwner = new(StringComparer.OrdinalIgnoreCase);
     private IReadOnlyList<IManagedTask> _tasks = [];
     private IReadOnlyDictionary<string, IManagedTask> _map = new Dictionary<string, IManagedTask>(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyDictionary<string, ManagedTaskRegistration> _registrations =
+        new Dictionary<string, ManagedTaskRegistration>(StringComparer.OrdinalIgnoreCase);
     private long _version;
+    private readonly ManagedTaskStateStore? _stateStore;
 
-    public ManagedTaskRegistry(IEnumerable<IManagedTask> tasks)
+    public ManagedTaskRegistry(IEnumerable<IManagedTask> tasks, ManagedTaskStateStore? stateStore = null)
     {
+        _stateStore = stateStore;
         _tasksByOwner[CoreOwner] = tasks.ToArray();
         RebuildSnapshot();
     }
@@ -42,6 +46,26 @@ public sealed class ManagedTaskRegistry
         lock (_lock)
         {
             return _map.TryGetValue(name, out task!);
+        }
+    }
+
+    public IReadOnlyList<ManagedTaskRegistration> Registrations
+    {
+        get { lock (_lock) return _registrations.Values.OrderBy(item => item.Task.Name, StringComparer.OrdinalIgnoreCase).ToArray(); }
+    }
+
+    public bool TryGetRegistration(string name, out ManagedTaskRegistration registration)
+    {
+        lock (_lock) return _registrations.TryGetValue(name, out registration!);
+    }
+
+    public bool TryControl(ManagedTaskRegistration registration, Func<IManagedTask, bool> action)
+    {
+        lock (_lock)
+        {
+            return _registrations.TryGetValue(registration.Task.Name, out var current)
+                && current.RegistrationId == registration.RegistrationId
+                && action(current.Task);
         }
     }
 
@@ -91,8 +115,20 @@ public sealed class ManagedTaskRegistry
             .SelectMany(ownerTasks => ownerTasks)
             .OrderBy(task => task.Name, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        _map = tasks.ToDictionary(task => task.Name, StringComparer.OrdinalIgnoreCase);
-        _tasks = tasks;
+        _ = tasks.ToDictionary(task => task.Name, StringComparer.OrdinalIgnoreCase);
+        _registrations = _tasksByOwner.SelectMany(owner => owner.Value.Select(task =>
+            _registrations.TryGetValue(task.Name, out var existing) && ReferenceEquals(existing.SourceTask, task)
+                ? existing
+                : new ManagedTaskRegistration(owner.Key, Guid.NewGuid().ToString("N"),
+                    _stateStore is null ? task : new PersistedManagedTask(task, _stateStore)) { SourceTask = task }))
+            .ToDictionary(item => item.Task.Name, StringComparer.OrdinalIgnoreCase);
+        _tasks = _registrations.Values.Select(item => item.Task).OrderBy(task => task.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        _map = _tasks.ToDictionary(task => task.Name, StringComparer.OrdinalIgnoreCase);
         _version++;
     }
+}
+
+public sealed record ManagedTaskRegistration(string OwnerId, string RegistrationId, IManagedTask Task)
+{
+    internal IManagedTask SourceTask { get; init; } = Task;
 }

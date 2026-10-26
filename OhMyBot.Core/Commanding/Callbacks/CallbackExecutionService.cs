@@ -18,6 +18,7 @@ public sealed class CallbackExecutionService
     private readonly NotificationCommandDslProvider _notificationProvider;
     private readonly ILogger<CallbackExecutionService> _logger;
     private readonly ICommandProgressPublisher? _progressPublisher;
+    private readonly TaskCommandDslProvider? _taskProvider;
 
     public CallbackExecutionService(
         CoreIdentityService identityService,
@@ -28,7 +29,8 @@ public sealed class CallbackExecutionService
         PluginNotificationSourceRegistry? notificationSources = null,
         NotificationCommandDslProvider? notificationProvider = null,
         ILogger<CallbackExecutionService>? logger = null,
-        ICommandProgressPublisher? progressPublisher = null)
+        ICommandProgressPublisher? progressPublisher = null,
+        TaskCommandDslProvider? taskProvider = null)
     {
         _identityService = identityService;
         _actionStore = actionStore;
@@ -39,6 +41,7 @@ public sealed class CallbackExecutionService
         _notificationProvider = notificationProvider ?? new NotificationCommandDslProvider(actionStore, _notificationSources);
         _logger = logger ?? NullLogger<CallbackExecutionService>.Instance;
         _progressPublisher = progressPublisher;
+        _taskProvider = taskProvider;
     }
 
     public async Task<CommandResponse> ExecuteAsync(
@@ -123,6 +126,7 @@ public sealed class CallbackExecutionService
                 "notify-account-toggle" => await ExecuteNotifyAccountToggleAsync(context, action, request.MessageId, cancellationToken),
                 "notify-back" => await _notificationProvider.BuildRootAsync(context, request.MessageId, cancellationToken),
                 "setpriv-apply" => await ExecuteSetPrivilegeApplyAsync(context, action, request.MessageId, cancellationToken),
+                TaskCommandDslProvider.CallbackActionType => await ExecuteTaskManagementAsync(context, action, request.MessageId),
                 _ => PluginCallbackResponses.Error(identity, request.MessageId, "未知按钮操作或对应插件未加载。")
             };
             return progress?.ApplyTo(builtInResponse) ?? builtInResponse;
@@ -158,6 +162,15 @@ public sealed class CallbackExecutionService
                 "CallbackHandlerFailed");
             return progress?.ApplyTo(response) ?? response;
         }
+    }
+
+    private async Task<CommandResponse> ExecuteTaskManagementAsync(CommandContext context, CallbackAction action, string editMessageId)
+    {
+        if (_taskProvider is not null)
+            return await _taskProvider.ExecuteCallbackAsync(context, action, editMessageId);
+        await using var scope = _scopeFactory.CreateAsyncScope();
+        return await scope.ServiceProvider.GetRequiredService<TaskCommandDslProvider>()
+            .ExecuteCallbackAsync(context, action, editMessageId);
     }
 
     private async Task<CommandResponse> ExecuteNotifyTypeSelectAsync(

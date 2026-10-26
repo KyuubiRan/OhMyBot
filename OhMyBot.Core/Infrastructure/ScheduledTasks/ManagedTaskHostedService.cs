@@ -101,15 +101,30 @@ public sealed class ManagedTaskHostedService(
 
             try
             {
-                await task.ExecuteAsync(stoppingToken);
+                if (!task.TryStart(out var execution, stoppingToken))
+                {
+                    logger.LogInformation("Scheduled task {TaskName} is already running; skipping.", task.Name);
+                    continue;
+                }
+
+                await execution;
+                if (task.Status.Outcome == ManagedTaskOutcome.Failed)
+                {
+                    logger.LogWarning("Scheduled task {TaskName} finished with {Count} failures. errorId={ErrorId}",
+                        task.Name, task.Status.FailureCount, task.Status.LastErrorId);
+                }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {
                 return;
             }
+            catch (OperationCanceledException) when (task.Status.Outcome == ManagedTaskOutcome.Canceled)
+            {
+                logger.LogInformation("Scheduled task {TaskName} was canceled.", task.Name);
+            }
             catch (Exception exception)
             {
-                logger.LogError(exception, "Scheduled task {TaskName} failed.", task.Name);
+                logger.LogError(exception, "Scheduled task {TaskName} failed. errorId={ErrorId}", task.Name, task.Status.LastErrorId);
             }
         }
     }

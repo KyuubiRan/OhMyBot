@@ -159,6 +159,40 @@ internal sealed class LeasedManagedTask(
 
     public string? LastError => inner.LastError;
 
+    public ManagedTaskStatus Status => inner.Status;
+
+    public bool TryStart(out Task execution, CancellationToken cancellationToken = default)
+    {
+        var lease = gate.TryAcquire();
+        if (lease is null)
+        {
+            execution = Task.CompletedTask;
+            return false;
+        }
+        try
+        {
+            if (!inner.TryStart(out var innerExecution, cancellationToken))
+            {
+                lease.Dispose();
+                execution = Task.CompletedTask;
+                return false;
+            }
+
+            execution = CompleteWithLeaseAsync(innerExecution, lease);
+            return true;
+        }
+        catch
+        {
+            lease.Dispose();
+            throw;
+        }
+    }
+
+    private static async Task CompleteWithLeaseAsync(Task execution, IDisposable lease)
+    {
+        using (lease) await execution;
+    }
+
     public async Task ExecuteAsync(CancellationToken cancellationToken = default)
     {
         using var lease = gate.TryAcquire()

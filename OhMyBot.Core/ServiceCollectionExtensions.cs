@@ -58,6 +58,9 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<NotificationCommandDslProvider>();
         services.AddSingleton<IPlatformCommandDslProvider>(provider =>
             provider.GetRequiredService<NotificationCommandDslProvider>());
+        services.AddSingleton<TaskCommandDslProvider>();
+        services.AddSingleton<IPlatformCommandDslProvider>(provider =>
+            provider.GetRequiredService<TaskCommandDslProvider>());
         services.AddScoped<ILinkTokenStore, DistributedCacheLinkTokenStore>();
         services.AddScoped<IIdentityCache, DistributedIdentityCache>();
         services.AddScoped<IUserProfileCache, DistributedUserProfileCache>();
@@ -81,7 +84,9 @@ public static class ServiceCollectionExtensions
             (RabbitMqNotificationPublisher)provider.GetRequiredService<INotificationPublisher>());
         services.AddSingleton<IPlatformRequestDecisionPublisher>(provider =>
             (RabbitMqNotificationPublisher)provider.GetRequiredService<INotificationPublisher>());
+        services.AddSingleton<ManagedTaskStateStore>();
         services.AddSingleton<ManagedTaskRegistry>();
+        services.AddSingleton<ManagedTaskControlService>();
         // 先启动队列渲染器，确保数据库 migration 或后续 hosted service 启动失败时也能立即看到日志。
         services.AddHostedService<InteractiveConsoleRendererHostedService>();
         services.AddHostedService<DatabaseMigrationHostedService>();

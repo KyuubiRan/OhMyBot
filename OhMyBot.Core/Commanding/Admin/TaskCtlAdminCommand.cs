@@ -2,7 +2,7 @@ using OhMyBot.Core.Infrastructure.ScheduledTasks;
 
 namespace OhMyBot.Core.Commanding.Admin;
 
-public sealed class TaskCtlAdminCommand(ManagedTaskRegistry registry) : IAdminCommand
+public sealed class TaskCtlAdminCommand(ManagedTaskRegistry registry, ManagedTaskControlService control) : IAdminCommand
 {
     private static readonly AdminCommandDefinition CommandDefinition = new(
         "taskctl",
@@ -55,8 +55,9 @@ public sealed class TaskCtlAdminCommand(ManagedTaskRegistry registry) : IAdminCo
                 return AdminCommandResult.Ok(task.Cancel() ? $"Cancel requested: {task.Name}." : $"Task is not running: {task.Name}.");
             case "exec":
             case "execute":
-                _ = Task.Run(() => task.ExecuteAsync(cancellationToken), CancellationToken.None);
-                return AdminCommandResult.Ok($"Execution started: {task.Name}.");
+                return registry.TryGetRegistration(task.Name, out var registration) && control.TryStart(registration)
+                    ? AdminCommandResult.Ok($"Execution started: {task.Name}.")
+                    : AdminCommandResult.Error($"Task is already running or stopping: {task.Name}.");
             default:
                 return AdminCommandResult.Error("Usage: " + Definition.Usage);
         }
@@ -72,6 +73,9 @@ public sealed class TaskCtlAdminCommand(ManagedTaskRegistry registry) : IAdminCo
             $"Running: {task.IsRunning}",
             $"LastStartedAt: {task.LastStartedAt?.ToString("O") ?? "-"}",
             $"LastCompletedAt: {task.LastCompletedAt?.ToString("O") ?? "-"}",
-            $"LastError: {task.LastError ?? "-"}");
+            $"LastFinishedAt: {task.Status.LastFinishedAt?.ToString("O") ?? "-"}",
+            $"Outcome: {task.Status.Outcome}",
+            $"LastErrorId: {task.Status.LastErrorId ?? "-"}",
+            $"LastError: {ManagedTaskErrorRedactor.Redact(task.LastError ?? "-")}");
     }
 }

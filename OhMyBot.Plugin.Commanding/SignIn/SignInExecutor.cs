@@ -1,6 +1,7 @@
 using System.Net;
 using Microsoft.Extensions.Logging;
 using OhMyBot.Core.Commanding.Commands;
+using OhMyBot.Core.Infrastructure.ScheduledTasks;
 
 namespace OhMyBot.Plugin.Commanding.SignIn;
 
@@ -88,6 +89,7 @@ public sealed class SignInExecutor
         {
             cancellationToken.ThrowIfCancellationRequested();
             var errorId = Guid.NewGuid().ToString("N")[..6];
+            ManagedTaskExecutionContext.ReportFailure(exception, $"模块：{name}，错误 id: {errorId}");
             _logger.LogWarning(exception,
                 "Sign-in module failed. module={Module}, errorId={ErrorId}.", name, errorId);
             return [$"{name}执行失败：{DescribeFailure(exception)}（错误 id: {errorId}）"];

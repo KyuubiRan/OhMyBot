@@ -15,6 +15,8 @@
 /OhMyBot.QQGateway/appsettings.json
 /OhMyBot.Tests/appsettings.Test.json
 /OhMyBot.Core.Host/routes/route.json
+/managed-task-state.json*
+/OhMyBot.Core.Host/managed-task-state.json*
 OhMyBot.sln.DotSettings.user
 OhMyBot.slnx.DotSettings.user
 

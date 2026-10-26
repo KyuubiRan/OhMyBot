@@ -67,6 +67,10 @@ OhMyBot/build/OhMyBot.Core.Host/bin/<Configuration>/net10.0/Plugins/<PluginName>
 
 已有 `pluginsettings.json` 不会被覆盖。控制台使用 `plugin ...`，bot 使用仅 Owner 可见的 `/plugin ...`；两者都支持 `list`、`status <id>`、`reload <id|all>`、`disable <id>` 和 `enable <id>`。
 
+Owner 可在私聊中使用 `/task`（别名 `/tasks`、`/taskctl`）打开定时任务按钮面板，查看插件归属、Cron、下次调度、最近执行结果与脱敏后的错误详情。面板支持执行一次、取消本次执行、启用或禁用后续调度；禁用不会取消当前执行，手动执行也不受启用开关限制。QQ 使用同一面板转换出的编号菜单。
+
+任务启用状态、最后执行记录和最近错误保存在 Host 工作目录的 `managed-task-state.json`，更新时须保留此文件。Host 意外退出时尚未结束的执行会在下次启动后显示为“执行中断”，不会被算作成功。历史记录从此功能启用后开始收集，插件在单账号失败后继续处理其他账号时仍会记录部分失败。控制台的 `taskctl` 命令继续可用。
+
 可以在 Host 的 `appsettings.json` 中持久化配置不应加载的插件：
 
 ```json
