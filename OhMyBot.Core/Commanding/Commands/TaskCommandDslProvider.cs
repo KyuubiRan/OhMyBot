@@ -13,7 +13,7 @@ public sealed class TaskCommandDslProvider(
     TimeProvider timeProvider) : IPlatformCommandDslProvider
 {
     public const string CallbackActionType = "task-manage";
-    private const int PageSize = 8;
+    private const int PageSize = 10;
     private const int ErrorPageSize = 1800;
 
     public IEnumerable<CommandDslNode> GetNodes()
@@ -113,29 +113,38 @@ public sealed class TaskCommandDslProvider(
     public async Task<CommandResponse> BuildListAsync(CommandContext context, int page = 0, string? editMessageId = null, string? notice = null)
     {
         if (!CanManage(context)) return Denied(context);
-        var all = registry.Registrations;
-        var pages = Math.Max(1, (all.Count + PageSize - 1) / PageSize);
+        var all = registry.Registrations
+            .OrderBy(item => item.OwnerId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Task.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var pages = Math.Max(1, (all.Length + PageSize - 1) / PageSize);
         page = Math.Clamp(page, 0, pages - 1);
-        var items = all.Skip(page * PageSize).Take(PageSize).ToArray();
-        var lines = new List<string> { $"[定时任务] 共 {all.Count} 项 · 第 {page + 1}/{pages} 页" };
+        var items = all.Skip(page * PageSize).Take(PageSize)
+            .Select((registration, index) => (Registration: registration, Number: page * PageSize + index + 1))
+            .ToArray();
+        var lines = new List<string> { $"[定时任务] 共 {all.Length} 项 · 第 {page + 1}/{pages} 页" };
         if (notice is not null) lines.Add(notice);
         if (items.Length == 0) lines.Add("当前没有已注册的任务。");
-        foreach (var registration in items)
+        foreach (var group in items.GroupBy(item => item.Registration.OwnerId, StringComparer.OrdinalIgnoreCase))
         {
-            var task = registration.Task;
-            var status = task.Status;
-            lines.Add($"\n{task.Name} · {Owner(registration)}\n{(task.Enabled ? "已启用" : "已禁用")} / {Outcome(status)}\n最后执行：{Time(status.LastStartedAt)}" +
-                (status.LastFailedAt is not null || status.LastError is not null ? "\n最近有报错，可进入详情查看。" : ""));
+            lines.Add($"\n[{Owner(group.First().Registration)}]");
+            foreach (var item in group)
+            {
+                var task = item.Registration.Task;
+                var status = task.Status;
+                lines.Add($"{item.Number}. {ListTaskName(item.Registration)}\n{(task.Enabled ? "已启用" : "已禁用")} / {Outcome(status)}\n最后执行：{Time(status.LastStartedAt)}" +
+                    (status.LastFailedAt is not null || status.LastError is not null ? "\n最近有报错，可进入详情查看。" : ""));
+            }
         }
 
         var response = Plain(context, string.Join('\n', lines), editMessageId);
         var panel = Panel(context);
-        await panel.AddGridAsync(response, items, 1, CallbackActionType,
-            item => Trim(item.Task.Name, 55),
-            item => new TaskManagementCallbackData("detail", item.Task.Name, item.RegistrationId, page), context.CancellationToken);
+        await panel.AddGridAsync(response, items, 5, CallbackActionType,
+            item => item.Number.ToString(),
+            item => new TaskManagementCallbackData("detail", item.Registration.Task.Name, item.Registration.RegistrationId, page), context.CancellationToken);
+        var refresh = await panel.ButtonAsync(CallbackActionType, "刷新", new TaskManagementCallbackData("list", Page: page), context.CancellationToken);
         await panel.AddPagerAsync(response, CallbackActionType, page, pages,
-            p => new TaskManagementCallbackData("list", Page: p), "上一页", "下一页", context.CancellationToken);
-        await panel.AddRowAsync(response, CallbackActionType, "刷新列表", new TaskManagementCallbackData("list", Page: page), context.CancellationToken);
+            p => new TaskManagementCallbackData("list", Page: p), "上一页", "下一页", context.CancellationToken, middleButton: refresh);
         return response;
     }
 
@@ -194,6 +203,12 @@ public sealed class TaskCommandDslProvider(
     private static CommandResponse Plain(CommandContext context, string text, string? editMessageId)
         => CommandResponses.TelegramPlain(context.Identity, text, context.Request.MessageId, editMessageId);
     private static string Owner(ManagedTaskRegistration item) => item.OwnerId == "core" ? "Core" : item.OwnerId;
+    private static string ListTaskName(ManagedTaskRegistration item)
+    {
+        var prefix = item.OwnerId + ":";
+        return item.Task.Name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+            ? item.Task.Name[prefix.Length..] : item.Task.Name;
+    }
     private static string Time(DateTimeOffset? value) => value?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss zzz") ?? "无记录";
     private static string Trim(string value, int limit) => value.Length > limit ? value[..limit] + "…" : value;
     private static string Outcome(ManagedTaskStatus status) => status.Outcome switch

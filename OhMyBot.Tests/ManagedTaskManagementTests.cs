@@ -262,6 +262,63 @@ public sealed class ManagedTaskManagementTests
     }
 
     [TestMethod]
+    public async Task ListGroupsPluginsAndNumberButtonsNavigateWithoutRepeatingTaskNames()
+    {
+        await using var harness = new Harness();
+        harness.Registry.RegisterPlugin("beta", Enumerable.Range(1, 9)
+            .Select(i => new TestTask($"beta:task-{i:00}", _ => Task.CompletedTask)));
+        harness.Registry.RegisterPlugin("alpha", Enumerable.Range(1, 12)
+            .Select(i => new TestTask($"alpha:task-{i:00}", _ => Task.CompletedTask)));
+
+        var first = await harness.Provider.BuildListAsync(Context());
+        Assert.Contains("第 1/3 页", first.TgText());
+        Assert.Contains("[alpha]\n1. task-01", first.TgText());
+        Assert.AreEqual(1, first.TgText().Split("[alpha]").Length - 1);
+        Assert.DoesNotContain("alpha:", first.TgText());
+        Assert.DoesNotContain("[beta]", first.TgText());
+        CollectionAssert.AreEqual(new[] { "1", "2", "3", "4", "5" },
+            first.TgButtonRows().First().Buttons.Select(b => b.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { "6", "7", "8", "9", "10" },
+            first.TgButtonRows().ElementAt(1).Buttons.Select(b => b.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { "刷新", "下一页" },
+            first.TgButtonRows().Last().Buttons.Select(b => b.Text).ToArray());
+
+        var second = await harness.ClickAsync(Button(first, "下一页"));
+        Assert.Contains("第 2/3 页", second.TgText());
+        Assert.Contains("[alpha]\n11. task-11", second.TgText());
+        Assert.Contains("[beta]\n13. task-01", second.TgText());
+        CollectionAssert.AreEqual(new[] { "上一页", "刷新", "下一页" },
+            second.TgButtonRows().Last().Buttons.Select(b => b.Text).ToArray());
+        var detail = await harness.ClickAsync(Button(second, "13"));
+        Assert.Contains("名称：beta:task-01", detail.TgText());
+        var returned = await harness.ClickAsync(Button(detail, "返回列表"));
+        Assert.Contains("第 2/3 页", returned.TgText());
+
+        var last = await harness.ClickAsync(Button(returned, "下一页"));
+        Assert.Contains("第 3/3 页", last.TgText());
+        Assert.Contains("[beta]\n21. task-09", last.TgText());
+        CollectionAssert.AreEqual(new[] { "21" }, last.TgButtonRows().First().Buttons.Select(b => b.Text).ToArray());
+        CollectionAssert.AreEqual(new[] { "上一页", "刷新" },
+            last.TgButtonRows().Last().Buttons.Select(b => b.Text).ToArray());
+        var refreshed = await harness.ClickAsync(Button(last, "刷新"));
+        Assert.Contains("第 3/3 页", refreshed.TgText());
+    }
+
+    [TestMethod]
+    public async Task SingleAndEmptyTaskPagesOnlyShowRefreshNavigation()
+    {
+        await using var harness = new Harness();
+        var empty = await harness.Provider.BuildListAsync(Context());
+        CollectionAssert.AreEqual(new[] { "刷新" }, empty.TgButtonTexts().ToArray());
+        harness.Registry.RegisterPlugin("plugin", [new TestTask("plugin:only", _ => Task.CompletedTask)]);
+        var single = await harness.Provider.BuildListAsync(Context());
+        Assert.Contains("[plugin]\n1. only", single.TgText());
+        CollectionAssert.AreEqual(new[] { "1", "刷新" }, single.TgButtonTexts().ToArray());
+        var detail = await harness.ClickAsync(Button(single, "1"));
+        Assert.Contains("名称：plugin:only", detail.TgText());
+    }
+
+    [TestMethod]
     public async Task ListAndErrorPagesStayBoundedAndNavigate()
     {
         await using var harness = new Harness();
@@ -273,7 +330,7 @@ public sealed class ManagedTaskManagementTests
         Assert.Contains("第 1/2 页", root.TgText());
         var page2 = await harness.ClickAsync(root.TgButtonRows().SelectMany(row => row.Buttons).Single(button => button.Text == "下一页").Payload);
         Assert.Contains("第 2/2 页", page2.TgText());
-        Assert.DoesNotContain("task-00 ·", page2.TgText());
+        Assert.DoesNotContain("task-00", page2.TgText());
         var detail = await harness.ClickAsync(root.TgButtonRows().First().Buttons.First().Payload);
         var errors = await harness.ClickAsync(Button(detail, "查看报错详情"));
         Assert.IsLessThan(4096, errors.TgText().Length);

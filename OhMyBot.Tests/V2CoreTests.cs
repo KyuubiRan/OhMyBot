@@ -491,7 +491,7 @@ public class V2CoreTests
             var response = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "owner", command));
             Assert.AreEqual(0, response.Code);
             Assert.Contains("[定时任务]", response.TgText());
-            Assert.Contains("刷新列表", response.TgButtonTexts().ToArray());
+            Assert.Contains("刷新", response.TgButtonTexts().ToArray());
         }
 
         var list = await service.ExecuteAsync(CreateRequest(BotPlatform.Telegram, "owner", "task", "list"));
