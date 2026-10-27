@@ -97,7 +97,7 @@ public sealed class TaskCommandDslProvider(
             case "disable":
                 if (!registry.TryControl(registration, current => { current.Enabled = false; return true; }))
                     return await BuildListAsync(context, data.Page, editMessageId, "任务已卸载或重新加载，请重新选择。");
-                notice = "已禁用后续定时调度；当前执行会继续，可单独取消。";
+                notice = "已禁用后续定时调度。";
                 break;
             case "errors":
                 return await BuildErrorAsync(context, registration, data, editMessageId);
@@ -160,8 +160,7 @@ public sealed class TaskCommandDslProvider(
             $"调度时区：{TimeZoneInfo.Local.Id}", $"下次定时执行：{Next(task)}",
             $"最后开始：{Time(status.LastStartedAt)}", $"最后结束：{Time(status.LastFinishedAt)}",
             $"最后成功：{Time(status.LastSucceededAt)}", $"最后报错：{Time(status.LastFailedAt)}",
-            $"本次/最近执行报错数：{status.FailureCount}", $"最近错误 ID：{status.LastErrorId ?? "无"}",
-            "手动执行不受启用开关限制。禁用仅暂停后续调度。"
+            $"本次/最近执行报错数：{status.FailureCount}", $"最近错误 ID：{status.LastErrorId ?? "无"}"
         };
         if (notice is not null) lines.Add("\n" + notice);
         if (task.StatePersistenceError is { } persistenceError) lines.Add("\n" + persistenceError);
